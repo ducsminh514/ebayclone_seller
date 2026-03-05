@@ -3,7 +3,9 @@ using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Application.UseCases.Shops;
 using EbayClone.Application.UseCases.Policies;
+using EbayClone.Application.UseCases.Auth;
 using EbayClone.Infrastructure.Repositories;
+using EbayClone.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,11 +19,39 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IShopRepository, ShopRepository>();
 builder.Services.AddScoped<ISellerWalletRepository, SellerWalletRepository>();
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<ICreateShopUseCase, CreateShopUseCase>();
 builder.Services.AddScoped<IApproveShopUseCase, ApproveShopUseCase>();
 builder.Services.AddScoped<ICreateShippingPolicyUseCase, CreateShippingPolicyUseCase>();
 builder.Services.AddScoped<ICreateReturnPolicyUseCase, CreateReturnPolicyUseCase>();
+builder.Services.AddScoped<IGetShippingPoliciesUseCase, GetShippingPoliciesUseCase>();
+builder.Services.AddScoped<IGetReturnPoliciesUseCase, GetReturnPoliciesUseCase>();
+builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
+builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
+builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
+builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
+
+// Cấu hình JWT Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:7094",
+        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "http://localhost:7011",
+        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "superSecretKey@345EbayClone@Authentication123!"))
+    };
+});
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -54,6 +84,7 @@ app.UseHttpsRedirection();
 // Kích hoạt CORS Pipeline cho Frontend Blazor (port 5002) gọi sang Backend (7132)
 app.UseCors("AllowAll");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

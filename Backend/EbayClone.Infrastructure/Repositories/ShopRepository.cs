@@ -41,5 +41,19 @@ namespace EbayClone.Infrastructure.Repositories
         {
             _context.Shops.Update(shop);
         }
+
+        public async Task IncrementTotalShippingPoliciesAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            await _context.Shops
+                .Where(s => s.Id == id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalShippingPolicies, x => x.TotalShippingPolicies + 1), cancellationToken);
+        }
+
+        public async Task IncrementTotalReturnPoliciesAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            await _context.Shops
+                .Where(s => s.Id == id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalReturnPolicies, x => x.TotalReturnPolicies + 1), cancellationToken);
+        }
     }
 }

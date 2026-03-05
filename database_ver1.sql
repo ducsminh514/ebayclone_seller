@@ -33,6 +33,8 @@ CREATE TABLE [Users] (
     [PasswordHash] NVARCHAR(MAX) NOT NULL,
     [FullName] NVARCHAR(200),
     [IsEmailVerified] BIT DEFAULT 0,
+    [EmailVerificationToken] NVARCHAR(MAX),
+    [EmailVerificationTokenExpiresAt] DATETIMEOFFSET,
     [IsIdentityVerified] BIT DEFAULT 0, -- Đã xác minh KYC (Căn cước/Hộ chiếu) chưa?
     [Role] NVARCHAR(50) DEFAULT 'SELLER', -- 'ADMIN', 'BUYER', 'SELLER'
     [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET(),

@@ -31,20 +31,17 @@ namespace EbayClone.Application.UseCases.Policies
 
         public async Task<Guid> ExecuteAsync(Guid shopId, CreateReturnPolicyRequest request, CancellationToken cancellationToken = default)
         {
-            var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
-            if (shop == null)
-                throw new ArgumentException("Shop not found");
-
-            // Đọc thẳng từ Cache O(1)
-            if (shop.TotalReturnPolicies >= 100)
-            {
-                throw new InvalidOperationException("You have reached the maximum limit of 100 return policies.");
-            }
-
-            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            // Bịt lỗ hổng TOCTOU: Giam lỏng toàn bộ request tạo Cùng một lúc vào hàng đợi Serializable
+            await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
 
             try
             {
+                // Dùng thủ thuật đ Count() trực tiếp tối ưu IOPS thay vì kéo Full Shop
+                var currentPolicyCount = await _policyRepository.CountReturnPoliciesAsync(shopId, cancellationToken);
+                if (currentPolicyCount >= 100)
+                {
+                    throw new InvalidOperationException("You have reached the maximum limit of 100 return policies.");
+                }
                 var policy = new ReturnPolicy
                 {
                     ShopId = shopId,
@@ -54,12 +51,11 @@ namespace EbayClone.Application.UseCases.Policies
                 };
 
                 await _policyRepository.AddReturnPolicyAsync(policy, cancellationToken);
-                
-                // Tăng Cache
-                shop.TotalReturnPolicies += 1;
-                _shopRepository.Update(shop);
-
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
+                
+                // Tăng Cache bằng SQL Atomic Update
+                await _shopRepository.IncrementTotalReturnPoliciesAsync(shopId, cancellationToken);
+
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
                 return policy.Id;

@@ -1,0 +1,145 @@
+@page "/verify-email"
+@inject EbayClone.Frontend.Services.AuthService AuthService
+@inject NavigationManager NavigationManager
+@using EbayClone.Application.DTOs.Auth
+
+<PageTitle>Verify Email - eBay</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-header">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/1/1b/EBay_logo.svg" alt="eBay Logo" width="120" />
+        <h1>Verify your email</h1>
+        <p>Enter the 6-character code we sent to <strong>@Email</strong></p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            <i class="oi oi-circle-x"></i> @errorMessage
+        </div>
+    }
+
+    <EditForm Model="model" OnValidSubmit="HandleVerify">
+        <DataAnnotationsValidator />
+        
+        <div class="form-group">
+            <div class="otp-input-container">
+                <InputText @bind-Value="model.Token" class="ebay-input-token" placeholder="Enter code" maxlength="6" />
+            </div>
+            <ValidationMessage For="@(() => model.Token)" />
+        </div>
+
+        <button type="submit" disabled="@isSubmitting" class="ebay-auth-btn">
+            @if (isSubmitting)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span>Verifying...</span>
+            }
+            else
+            {
+                <span>Verify address</span>
+            }
+        </button>
+
+        <div style="text-align: center; margin-top: 24px;">
+            <p style="font-size: 14px; color: var(--text-secondary);">Didn't get the email? <a href="#" @onclick:preventDefault>Resend</a></p>
+        </div>
+    </EditForm>
+</div>
+
+<style>
+    .auth-container {
+        max-width: 400px;
+        margin: 60px auto;
+        padding: 0 16px;
+    }
+    
+    .auth-header {
+        text-align: center;
+        margin-bottom: 32px;
+    }
+    
+    .auth-header h1 {
+        font-size: 32px;
+        font-weight: 700;
+        margin: 24px 0 8px;
+    }
+    
+    .ebay-input-token {
+        width: 100%;
+        padding: 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 24px;
+        text-align: center;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        font-weight: bold;
+    }
+    
+    .ebay-input-token:focus {
+        border-color: var(--primary-color);
+        outline: none;
+    }
+
+    .ebay-auth-btn {
+        width: 100%;
+        padding: 14px;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 24px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 10px;
+    }
+
+    .alert-danger {
+        padding: 12px;
+        background: #fee;
+        color: var(--danger-color);
+        border: 1px solid var(--danger-color);
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string Email { get; set; } = string.Empty;
+
+    private VerifyEmailRequest model = new();
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override void OnInitialized()
+    {
+        model.Email = Email;
+        if (string.IsNullOrEmpty(Email))
+        {
+            NavigationManager.NavigateTo("/register");
+        }
+    }
+
+    private async Task HandleVerify()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            await AuthService.VerifyEmailAsync(model);
+            NavigationManager.NavigateTo("/login?message=Email verified! Please sign in.");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

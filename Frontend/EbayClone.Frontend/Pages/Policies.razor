@@ -1,4 +1,4 @@
-@page "/settings"
+@page "/policies"
 @inject EbayClone.Frontend.Services.PolicyService PolicyService
 @using EbayClone.Application.DTOs.Policies
 
@@ -95,15 +95,111 @@
     </div>
 </div>
 
+<div style="margin-top: 40px;">
+    <h3 style="margin-bottom: 16px;">Your Shipping Policies</h3>
+    @if (shippingPolicies == null)
+    {
+        <p>Loading...</p>
+    }
+    else if (!shippingPolicies.Any())
+    {
+        <p style="color: var(--text-secondary);">No shipping policies found.</p>
+    }
+    else
+    {
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 32px; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
+            <thead>
+                <tr style="background-color: #f7f7f7; border-bottom: 2px solid var(--border-color);">
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Name</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Handling Time (Days)</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Cost ($)</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Default</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var policy in shippingPolicies)
+                {
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px;">@policy.Name</td>
+                        <td style="padding: 12px;">@policy.HandlingTimeDays</td>
+                        <td style="padding: 12px;">@policy.Cost</td>
+                        <td style="padding: 12px;">
+                            @if (policy.IsDefault)
+                            {
+                                <span style="background-color: #e6ffed; color: var(--success-color); padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;">Default</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <h3 style="margin-bottom: 16px;">Your Return Policies</h3>
+    @if (returnPolicies == null)
+    {
+        <p>Loading...</p>
+    }
+    else if (!returnPolicies.Any())
+    {
+        <p style="color: var(--text-secondary);">No return policies found.</p>
+    }
+    else
+    {
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 32px; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
+            <thead>
+                <tr style="background-color: #f7f7f7; border-bottom: 2px solid var(--border-color);">
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Name</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Return Window (Days)</th>
+                    <th style="padding: 12px; text-align: left; font-weight: 600;">Shipping Paid By</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var policy in returnPolicies)
+                {
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px;">@policy.Name</td>
+                        <td style="padding: 12px;">@(policy.ReturnDays == 0 ? "No Returns" : $"{policy.ReturnDays} Days")</td>
+                        <td style="padding: 12px;">@policy.ShippingPaidBy</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
 @code {
     private CreateShippingPolicyRequest shippingModel = new() { HandlingTimeDays = 2, Cost = 0, IsDefault = true };
     private CreateReturnPolicyRequest returnModel = new() { ReturnDays = 30 };
     
+    private IEnumerable<ShippingPolicyDto>? shippingPolicies;
+    private IEnumerable<ReturnPolicyDto>? returnPolicies;
+
     private bool isSubmittingShipping = false;
     private bool isSubmittingReturn = false;
     
     private string errorMessage = string.Empty;
     private string successMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPoliciesAsync();
+    }
+
+    private async Task LoadPoliciesAsync()
+    {
+        try
+        {
+            shippingPolicies = await PolicyService.GetShippingPoliciesAsync();
+            returnPolicies = await PolicyService.GetReturnPoliciesAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            shippingPolicies ??= Array.Empty<ShippingPolicyDto>();
+            returnPolicies ??= Array.Empty<ReturnPolicyDto>();
+        }
+    }
 
     private async Task HandleCreateShippingPolicy()
     {
@@ -115,6 +211,7 @@
             var msg = await PolicyService.CreateShippingPolicyAsync(shippingModel);
             successMessage = msg;
             shippingModel = new() { HandlingTimeDays = 2, Cost = 0, IsDefault = false }; // Reset
+            await LoadPoliciesAsync(); // Mới thêm: Refresh List Data sau khi tạo Create Update Delete
         }
         catch (Exception ex)
         {
@@ -136,6 +233,7 @@
             var msg = await PolicyService.CreateReturnPolicyAsync(returnModel);
             successMessage = msg;
             returnModel = new() { ReturnDays = 30 }; // Reset
+            await LoadPoliciesAsync(); // Refresh Return List
         }
         catch (Exception ex)
         {

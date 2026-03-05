@@ -12,11 +12,22 @@ namespace EbayClone.API.Controllers
     {
         private readonly ICreateShippingPolicyUseCase _createShippingPolicyUseCase;
         private readonly ICreateReturnPolicyUseCase _createReturnPolicyUseCase;
+        private readonly IGetShippingPoliciesUseCase _getShippingPoliciesUseCase;
+        private readonly IGetReturnPoliciesUseCase _getReturnPoliciesUseCase;
+        private readonly EbayClone.Application.Interfaces.Repositories.IShopRepository _shopRepository;
 
-        public PoliciesController(ICreateShippingPolicyUseCase createShippingPolicyUseCase, ICreateReturnPolicyUseCase createReturnPolicyUseCase)
+        public PoliciesController(
+            ICreateShippingPolicyUseCase createShippingPolicyUseCase, 
+            ICreateReturnPolicyUseCase createReturnPolicyUseCase, 
+            IGetShippingPoliciesUseCase getShippingPoliciesUseCase,
+            IGetReturnPoliciesUseCase getReturnPoliciesUseCase,
+            EbayClone.Application.Interfaces.Repositories.IShopRepository shopRepository)
         {
             _createShippingPolicyUseCase = createShippingPolicyUseCase;
             _createReturnPolicyUseCase = createReturnPolicyUseCase;
+            _getShippingPoliciesUseCase = getShippingPoliciesUseCase;
+            _getReturnPoliciesUseCase = getReturnPoliciesUseCase;
+            _shopRepository = shopRepository;
         }
 
         /// <summary>
@@ -26,12 +37,21 @@ namespace EbayClone.API.Controllers
         [HttpPost("shipping")]
         public async Task<IActionResult> CreateShippingPolicy([FromBody] CreateShippingPolicyRequest request)
         {
-            // Tạm thời mock ShopId bảo mật từ Token
-            var mockShopId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized(new { Error = "Unauthorized access. Invalid or missing user token." });
+            }
+
+            var shop = await _shopRepository.GetByUserIdAsync(userId);
+            if (shop == null)
+            {
+                return BadRequest(new { Error = "User does not have an active shop." });
+            }
 
             try
             {
-                var policyId = await _createShippingPolicyUseCase.ExecuteAsync(mockShopId, request);
+                var policyId = await _createShippingPolicyUseCase.ExecuteAsync(shop.Id, request);
                 return CreatedAtAction(nameof(GetShippingPolicies), new { id = policyId }, new { Id = policyId, Message = "Shipping Policy created successfully." });
             }
             catch (ArgumentException ex)
@@ -51,11 +71,21 @@ namespace EbayClone.API.Controllers
         [HttpPost("return")]
         public async Task<IActionResult> CreateReturnPolicy([FromBody] CreateReturnPolicyRequest request)
         {
-            var mockShopId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized(new { Error = "Unauthorized access. Invalid or missing user token." });
+            }
+
+            var shop = await _shopRepository.GetByUserIdAsync(userId);
+            if (shop == null)
+            {
+                return BadRequest(new { Error = "User does not have an active shop." });
+            }
 
             try
             {
-                var policyId = await _createReturnPolicyUseCase.ExecuteAsync(mockShopId, request);
+                var policyId = await _createReturnPolicyUseCase.ExecuteAsync(shop.Id, request);
                 return CreatedAtAction(nameof(GetReturnPolicies), new { id = policyId }, new { Id = policyId, Message = "Return Policy created successfully." });
             }
             catch (ArgumentException ex)
@@ -68,16 +98,44 @@ namespace EbayClone.API.Controllers
             }
         }
 
+        [Microsoft.AspNetCore.Authorization.Authorize]
         [HttpGet("shipping")]
-        public IActionResult GetShippingPolicies()
+        public async Task<IActionResult> GetShippingPolicies()
         {
-            return Ok(new { Message = "List of shipping policies" });
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized(new { Error = "Unauthorized access. Invalid or missing user token." });
+            }
+
+            var shop = await _shopRepository.GetByUserIdAsync(userId);
+            if (shop == null)
+            {
+                return BadRequest(new { Error = "User does not have an active shop." });
+            }
+
+            var policies = await _getShippingPoliciesUseCase.ExecuteAsync(shop.Id);
+            return Ok(policies);
         }
 
+        [Microsoft.AspNetCore.Authorization.Authorize]
         [HttpGet("return")]
-        public IActionResult GetReturnPolicies()
+        public async Task<IActionResult> GetReturnPolicies()
         {
-            return Ok(new { Message = "List of return policies" });
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized(new { Error = "Unauthorized access. Invalid or missing user token." });
+            }
+
+            var shop = await _shopRepository.GetByUserIdAsync(userId);
+            if (shop == null)
+            {
+                return BadRequest(new { Error = "User does not have an active shop." });
+            }
+
+            var policies = await _getReturnPoliciesUseCase.ExecuteAsync(shop.Id);
+            return Ok(policies);
         }
     }
 }

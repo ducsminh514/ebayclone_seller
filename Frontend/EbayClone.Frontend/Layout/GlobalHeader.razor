@@ -1,18 +1,46 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Blazored.LocalStorage
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject ILocalStorageService LocalStorage
+
 <header>
     <!-- Top Navigation Bar (Utility Links) -->
     <div class="ebay-top-nav">
         <div class="ebay-top-nav-links">
-            <span>Hi! <a href="/login" style="font-weight: 600;">Sign in</a> or <a href="/register">register</a></span>
+            <AuthorizeView>
+                <Authorized>
+                    <span>Hi <b>@context.User.Identity?.Name</b>!</span>
+                    <a href="javascript:void(0)" @onclick="Logout">Sign out</a>
+                </Authorized>
+                <NotAuthorized>
+                    <span>Hi! <a href="/login" style="font-weight: 600;">Sign in</a> or <a href="/register">register</a></span>
+                </NotAuthorized>
+            </AuthorizeView>
             <a href="#">Daily Deals</a>
             <a href="#">Brand Outlet</a>
             <a href="#">Help & Contact</a>
         </div>
         <div class="ebay-top-nav-actions">
-            <a href="#">Sell</a>
-            <a href="#">Watchlist</a>
-            <a href="#">My eBay</a>
-            <a href="#"><i class="oi oi-bell"></i></a>
-            <a href="#"><i class="oi oi-cart"></i></a>
+            <AuthorizeView>
+                <Authorized>
+                    @if (context.User.FindFirst("HasShop")?.Value == "True")
+                    {
+                        <a href="/dashboard">Sell</a>
+                        <a href="#">Watchlist</a>
+                        <a href="#">My eBay</a>
+                        <a href="#"><i class="oi oi-bell"></i></a>
+                        <a href="#"><i class="oi oi-cart"></i></a>
+                    }
+                    else
+                    {
+                        <a href="/onboarding" style="font-weight: 600; color: var(--primary-color);">Start Selling</a>
+                    }
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login">Sell</a>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
     </div>
 
@@ -26,7 +54,24 @@
         </div>
         
         <div class="ebay-header-actions">
-            <span style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">Selling</span>
+            <AuthorizeView>
+                <Authorized>
+                    @if (context.User.FindFirst("HasShop")?.Value == "True")
+                    {
+                        <span style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">Selling</span>
+                    }
+                </Authorized>
+            </AuthorizeView>
         </div>
     </div>
 </header>
+
+@code {
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");
+        var customProvider = (EbayClone.Frontend.Services.CustomAuthenticationStateProvider)AuthStateProvider;
+        customProvider.NotifyUserLogout();
+        NavigationManager.NavigateTo("/", true);
+    }
+}

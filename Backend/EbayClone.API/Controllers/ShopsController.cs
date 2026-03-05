@@ -23,12 +23,15 @@ namespace EbayClone.API.Controllers
         [HttpPost("api/shops/kyc")]
         public async Task<IActionResult> CreateShop([FromBody] CreateShopRequest request)
         {
-            // Tạm thời mock UserId đã được Insert cứng vào DB cản FK Error
-            var mockUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized(new { Error = "Unauthorized access. Invalid or missing user token." });
+            }
 
             try
             {
-                var shopId = await _createShopUseCase.ExecuteAsync(mockUserId, request);
+                var shopId = await _createShopUseCase.ExecuteAsync(userId, request);
                 return CreatedAtAction(nameof(GetShopById), new { id = shopId }, new { Id = shopId, Message = "Shop created, auto-approved and Wallet initialized successfully." });
             }
             catch (DbUpdateException ex)

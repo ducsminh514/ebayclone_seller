@@ -11,6 +11,8 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task<int> CountShippingPoliciesAsync(Guid shopId, CancellationToken cancellationToken = default);
         Task<int> CountReturnPoliciesAsync(Guid shopId, CancellationToken cancellationToken = default);
         
+        Task ClearDefaultShippingPolicyAsync(Guid shopId, CancellationToken cancellationToken = default);
+
         Task AddShippingPolicyAsync(ShippingPolicy policy, CancellationToken cancellationToken = default);
         Task AddReturnPolicyAsync(ReturnPolicy policy, CancellationToken cancellationToken = default);
 

@@ -1,6 +1,8 @@
+using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 using EbayClone.Application.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EbayClone.Infrastructure.Data
@@ -24,6 +26,12 @@ namespace EbayClone.Infrastructure.Data
         {
             if (_currentTransaction != null) return;
             _currentTransaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        }
+
+        public async Task BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+        {
+            if (_currentTransaction != null) return;
+            _currentTransaction = await _context.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
         }
 
         public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)

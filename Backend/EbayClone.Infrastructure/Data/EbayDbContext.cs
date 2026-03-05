@@ -37,6 +37,8 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
                 entity.Property(e => e.FullName).HasMaxLength(200);
                 entity.Property(e => e.Role).HasMaxLength(50).HasDefaultValue("SELLER");
+                entity.Property(e => e.EmailVerificationToken).HasMaxLength(100);
+                entity.Property(e => e.EmailVerificationTokenExpiresAt).HasColumnType("DATETIMEOFFSET");
             });
 
             // Files

@@ -31,22 +31,24 @@ namespace EbayClone.Application.UseCases.Policies
 
         public async Task<Guid> ExecuteAsync(Guid shopId, CreateShippingPolicyRequest request, CancellationToken cancellationToken = default)
         {
-            // Lấy trực tiếp Shop (Không tracking if want, but we need to update it here)
-            // ShopRepository GetByIdAsync hiện đang Tracking mặc định nên ta có thể Update()
-            var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
-            if (shop == null)
-                throw new ArgumentException("Shop not found");
-
-            // Bảo vệ Database: Đọc thẳng từ Cache O(1)
-            if (shop.TotalShippingPolicies >= 100)
-            {
-                throw new InvalidOperationException("You have reached the maximum limit of 100 shipping policies.");
-            }
-
-            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            // Bảo vệ Database tuyệt đối chống Race Condition TOCTOU:
+            // Khóa phạm vi bằng mức IsolationLevel.Serializable để các request query đếm số lượng sẽ phải xếp hàng
+            await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
 
             try
             {
+                // Dùng hàm đếm Count trực tiếp thay vì Select nguyên object Shop khổng lồ (giảm IOPS)
+                var currentPolicyCount = await _policyRepository.CountShippingPoliciesAsync(shopId, cancellationToken);
+                if (currentPolicyCount >= 100)
+                {
+                    throw new InvalidOperationException("You have reached the maximum limit of 100 shipping policies.");
+                }
+                // Dập cờ IsDefault cũ để bảo vệ mảng Data Integrity
+                if (request.IsDefault)
+                {
+                    await _policyRepository.ClearDefaultShippingPolicyAsync(shopId, cancellationToken);
+                }
+
                 var policy = new ShippingPolicy
                 {
                     ShopId = shopId,
@@ -57,12 +59,11 @@ namespace EbayClone.Application.UseCases.Policies
                 };
 
                 await _policyRepository.AddShippingPolicyAsync(policy, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken); // Cần lưu trước để Policy sinh ra ID
                 
-                // Tăng bộ đếm Cache
-                shop.TotalShippingPolicies += 1;
-                _shopRepository.Update(shop);
+                // Tăng bộ đếm bằng lệnh T-SQL Atomic chống Race Condition thay vì (shop.Total += 1)
+                await _shopRepository.IncrementTotalShippingPoliciesAsync(shopId, cancellationToken);
 
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
                 return policy.Id;

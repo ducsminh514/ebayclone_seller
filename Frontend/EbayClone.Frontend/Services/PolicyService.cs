@@ -43,6 +43,35 @@ namespace EbayClone.Frontend.Services
                 throw new InvalidOperationException(error?.Error ?? "Failed to create return policy.");
             }
         }
+        public async Task<IEnumerable<ShippingPolicyDto>> GetShippingPoliciesAsync()
+        {
+            var response = await _httpClient.GetAsync("api/policies/shipping");
+            if (response.IsSuccessStatusCode)
+            {
+                var policies = await response.Content.ReadFromJsonAsync<IEnumerable<ShippingPolicyDto>>();
+                return policies ?? Array.Empty<ShippingPolicyDto>();
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                throw new InvalidOperationException(error?.Error ?? "Lỗi tải dữ liệu Shipping Policies từ máy chủ.");
+            }
+        }
+
+        public async Task<IEnumerable<ReturnPolicyDto>> GetReturnPoliciesAsync()
+        {
+            var response = await _httpClient.GetAsync("api/policies/return");
+            if (response.IsSuccessStatusCode)
+            {
+                var policies = await response.Content.ReadFromJsonAsync<IEnumerable<ReturnPolicyDto>>();
+                return policies ?? Array.Empty<ReturnPolicyDto>();
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                throw new InvalidOperationException(error?.Error ?? "Lỗi tải dữ liệu Return Policies từ máy chủ.");
+            }
+        }
     }
 
     public class PolicyCreationResponse

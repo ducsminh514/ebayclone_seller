@@ -1,0 +1,271 @@
+@page "/register"
+@layout EmptyLayout
+@inject EbayClone.Frontend.Services.AuthService AuthService
+@inject NavigationManager NavigationManager
+@using EbayClone.Application.DTOs.Auth
+
+<PageTitle>Create an account</PageTitle>
+
+<div class="register-wrapper">
+    <div class="register-header">
+        <a href="/"><img src="https://upload.wikimedia.org/wikipedia/commons/1/1b/EBay_logo.svg" alt="eBay" width="100" /></a>
+        <div class="header-right">
+            Already have an account? <a href="/login">Sign in</a>
+        </div>
+    </div>
+
+    <div class="register-grid">
+        <div class="register-image">
+            <img src="/images/auth_lifestyle.png" alt="Ebay Life" />
+        </div>
+
+        <div class="register-form-container">
+            <h1>Create an account</h1>
+            
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="auth-alert alert-danger">
+                    <i class="oi oi-circle-x"></i> @errorMessage
+                </div>
+            }
+
+            @if (isSuccess)
+            {
+                <div class="auth-alert alert-success">
+                    <i class="oi oi-circle-check"></i> Registration successful! Please check your email.
+                    <button class="ebay-btn-primary" style="margin-top: 15px; width: 100%; border-radius: 20px;" @onclick='() => NavigationManager.NavigateTo($"/verify-email?email={model.Email}")'>Verify now</button>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="model" OnValidSubmit="HandleRegister">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="name-row">
+                        <div class="field">
+                            <InputText @bind-Value="model.FirstName" class="ebay-input" placeholder="First name" />
+                            <ValidationMessage For="@(() => model.FirstName)" />
+                        </div>
+                        <div class="field">
+                            <InputText @bind-Value="model.LastName" class="ebay-input" placeholder="Last name" />
+                            <ValidationMessage For="@(() => model.LastName)" />
+                        </div>
+                    </div>
+
+                    <div class="field" style="margin-top: 16px;">
+                        <InputText @bind-Value="model.Email" class="ebay-input" placeholder="Email" />
+                        <ValidationMessage For="@(() => model.Email)" />
+                    </div>
+
+                    <div class="field" style="margin-top: 16px;">
+                        <InputText @bind-Value="model.Password" type="password" class="ebay-input" placeholder="Password" />
+                        <ValidationMessage For="@(() => model.Password)" />
+                    </div>
+
+                    <p class="terms">
+                        By selecting <strong>Create personal account</strong>, you agree to our <a href="#">User Agreement</a> and acknowledge reading our <a href="#">User Privacy Notice</a>.
+                    </p>
+
+                    <button type="submit" disabled="@isSubmitting" class="ebay-btn-create">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <span>Create personal account</span>
+                        }
+                    </button>
+                </EditForm>
+
+                <div class="separator">
+                    <span>or continue with</span>
+                </div>
+
+                <div class="social-row">
+                    <button class="social-btn"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_\"G\"_logo.svg\" width=\"18\"> Google</button>
+                    <button class="social-btn"><img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg\" width=\"18\"> Apple</button>
+                    <button class="social-btn"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg\" width=\"18\"> Facebook</button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .register-wrapper {
+        min-height: 100vh;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        overflow-x: hidden;
+    }
+
+    .register-header {
+        padding: 20px 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-right {
+        font-size: 14px;
+    }
+
+    .register-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        flex: 1;
+    }
+
+    .register-image {
+        padding: 0 40px 40px 40px;
+    }
+
+    .register-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 12px;
+    }
+
+    .register-form-container {
+        padding: 40px 100px;
+        max-width: 600px;
+    }
+
+    h1 {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 30px;
+    }
+
+    .name-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .ebay-input {
+        width: 100%;
+        padding: 14px;
+        border: 1px solid #707070;
+        border-radius: 8px;
+        font-size: 16px;
+        background: #f7f7f7;
+    }
+
+    .ebay-input:focus {
+        background: white;
+        border-color: #3665f3;
+        outline: none;
+    }
+
+    .terms {
+        font-size: 12px;
+        color: #191919;
+        margin: 24px 0;
+        line-height: 1.5;
+    }
+
+    .ebay-btn-create {
+        width: 100%;
+        padding: 16px;
+        background: #cbcbcb;
+        color: white;
+        border: none;
+        border-radius: 32px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .ebay-btn-create:not(:disabled) {
+        background: #3665f3; /* Khi field đã điền thì đổi sang xanh */
+    }
+
+    .separator {
+        margin: 30px 0;
+        position: relative;
+        border-bottom: 1px solid #e5e5e5;
+    }
+
+    .separator span {
+        position: absolute;
+        top: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        padding: 0 10px;
+        color: #707070;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .social-row {
+        display: flex;
+        gap: 12px;
+    }
+
+    .social-btn {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #707070;
+        border-radius: 24px;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .auth-alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 14px;
+    }
+
+    @@media (max-width: 900px) {
+        .register-grid {
+            grid-template-columns: 1fr;
+        }
+        .register-image {
+            display: none;
+        }
+        .register-form-container {
+            padding: 40px 20px;
+            margin: 0 auto;
+        }
+    }
+</style>
+
+@code {
+    private RegisterRequest model = new();
+    private bool isSubmitting = false;
+    private bool isSuccess = false;
+    private string? errorMessage;
+
+    private async Task HandleRegister()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            await AuthService.RegisterAsync(model);
+            isSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

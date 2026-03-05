@@ -29,6 +29,13 @@ namespace EbayClone.Infrastructure.Repositories
             return await _context.ReturnPolicies.CountAsync(p => p.ShopId == shopId, cancellationToken);
         }
 
+        public async Task ClearDefaultShippingPolicyAsync(Guid shopId, CancellationToken cancellationToken = default)
+        {
+            await _context.ShippingPolicies
+                .Where(p => p.ShopId == shopId && p.IsDefault)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsDefault, false), cancellationToken);
+        }
+
         public async Task AddShippingPolicyAsync(ShippingPolicy policy, CancellationToken cancellationToken = default)
         {
             await _context.ShippingPolicies.AddAsync(policy, cancellationToken);

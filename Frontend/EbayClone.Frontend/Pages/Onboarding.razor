@@ -1,5 +1,6 @@
 @page "/onboarding"
 @inject EbayClone.Frontend.Services.ShopService ShopService
+@inject EbayClone.Frontend.Services.AuthService AuthService
 @inject NavigationManager NavigationManager
 @using EbayClone.Application.DTOs.Shops
 
@@ -75,9 +76,13 @@
         {
             var msg = await ShopService.CreateShopAsync(shopModel);
             successMessage = msg;
+            
+            // Tải lại Token Authentication để nạp thẻ HasShop = True cập nhật Layout
+            await AuthService.RefreshTokenAsync();
+            
             // Tự động chuyển trang sau 2 giây
             await Task.Delay(2000);
-            NavigationManager.NavigateTo("/");
+            NavigationManager.NavigateTo("/policies");
         }
         catch (Exception ex)
         {
