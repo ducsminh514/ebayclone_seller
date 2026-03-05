@@ -53,8 +53,14 @@ namespace EbayClone.Infrastructure.Data
 
             // Shops
             modelBuilder.Entity<Shop>(entity => {
+                entity.HasIndex(e => e.OwnerId).IsUnique(); // Chống Race Condition
                 entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
+                entity.Property(e => e.TaxCode).HasMaxLength(20);
+                entity.Property(e => e.Address).HasMaxLength(255);
+                entity.Property(e => e.IsVerified).HasDefaultValue(false);
                 entity.Property(e => e.RatingAvg).HasColumnType("decimal(3, 2)");
+                entity.Property(e => e.TotalShippingPolicies).HasDefaultValue(0);
+                entity.Property(e => e.TotalReturnPolicies).HasDefaultValue(0);
             });
 
             // ShippingPolicies

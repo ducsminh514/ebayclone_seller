@@ -1,4 +1,9 @@
 using EbayClone.Infrastructure.Data;
+using EbayClone.Application.Interfaces;
+using EbayClone.Application.Interfaces.Repositories;
+using EbayClone.Application.UseCases.Shops;
+using EbayClone.Application.UseCases.Policies;
+using EbayClone.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,10 +12,33 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<EbayDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Dependency Injection (Clean Architecture)
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IShopRepository, ShopRepository>();
+builder.Services.AddScoped<ISellerWalletRepository, SellerWalletRepository>();
+builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
+
+builder.Services.AddScoped<ICreateShopUseCase, CreateShopUseCase>();
+builder.Services.AddScoped<IApproveShopUseCase, ApproveShopUseCase>();
+builder.Services.AddScoped<ICreateShippingPolicyUseCase, CreateShippingPolicyUseCase>();
+builder.Services.AddScoped<ICreateReturnPolicyUseCase, CreateReturnPolicyUseCase>();
+
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Khởi tạo CORS Policy cho phép Blazor gọi API không bị Browser chặn (Same-Origin Policy)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        policy =>
+        {
+            policy.WithOrigins("https://localhost:7011", "http://localhost:5070") // Port của Frontend
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
 
 var app = builder.Build();
 
@@ -22,6 +50,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Kích hoạt CORS Pipeline cho Frontend Blazor (port 5002) gọi sang Backend (7132)
+app.UseCors("AllowAll");
 
 app.UseAuthorization();
 
