@@ -1,0 +1,51 @@
+using System;
+
+namespace EbayClone.Domain.Entities
+{
+    public class SellerWallet
+    {
+        public Guid ShopId { get; set; } // Primary Key
+        
+        public decimal AvailableBalance { get; private set; } = 0;
+        public decimal PendingBalance { get; private set; } = 0;
+        public DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.UtcNow;
+        
+        // Navigation
+        public Shop? Shop { get; set; }
+
+        public void AddPending(decimal amount)
+        {
+            if (amount < 0) throw new ArgumentException("Amount must be positive.");
+            PendingBalance += amount;
+            UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        public void ReleaseEscrow(decimal amount)
+        {
+            if (amount < 0) throw new ArgumentException("Amount must be positive.");
+            if (PendingBalance < amount) throw new InvalidOperationException("Not enough pending balance.");
+            
+            PendingBalance -= amount;
+            AvailableBalance += amount;
+            UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        public void Withdraw(decimal amount)
+        {
+            if (amount < 0) throw new ArgumentException("Amount must be positive.");
+            if (AvailableBalance < amount) throw new InvalidOperationException("Not enough available balance.");
+            
+            AvailableBalance -= amount;
+            UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        
+        public void DeductPending(decimal amount) // E.g., for refund before release
+        {
+            if (amount < 0) throw new ArgumentException("Amount must be positive.");
+            if (PendingBalance < amount) throw new InvalidOperationException("Not enough pending balance.");
+            
+            PendingBalance -= amount;
+            UpdatedAt = DateTimeOffset.UtcNow;
+        }
+    }
+}

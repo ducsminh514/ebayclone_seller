@@ -1,0 +1,76 @@
+PHẦN 1: LUỒNG KHỞI TẠO & CẤU HÌNH (ONBOARDING & SETTINGS)
+Đây là bước đầu tiên khi một User bình thường muốn trở thành Người bán (Seller).
+1. Luồng Xác minh (KYC) & Mở Shop:
+●	Bước 1: User gửi yêu cầu mở Shop (nhập tên Shop, mô tả).
+●	Bước 2: Hệ thống tạo bản ghi trong bảng Shops với trạng thái IsVerified = False.
+●	Bước 3 (Admin): Admin duyệt thông tin. Đổi IsVerified = True.
+●	Bước 4 (Hệ thống): Khởi tạo ngay 1 ví rỗng trong bảng SellerWallets cho Shop này. Set MonthlyListingLimit (Giới hạn đăng bài) mặc định cho lính mới (ví dụ: 10 sản phẩm/tháng).
+2. Luồng Thiết lập Chính sách (Policies):
+●	Hành động: Seller phải tạo ít nhất 1 ShippingPolicy (Chính sách giao hàng) và 1 ReturnPolicy (Chính sách trả hàng) trước khi đăng sản phẩm đầu tiên.
+●	Lý do (Gốc rễ): Để khi tạo 100 sản phẩm, Seller không phải nhập tay "phí ship 30k" 100 lần. Mai mốt xăng tăng giá, Seller chỉ cần sửa ở bảng ShippingPolicies, 100 sản phẩm tự động cập nhật phí ship mới.
+________________________________________
+PHẦN 2: LUỒNG QUẢN LÝ NGUỒN CUNG (LISTING & INVENTORY FLOW)
+Đây là luồng tốn nhiều thời gian nhất của Seller và cần UX/UI tốt nhất.
+1. Luồng Đăng bán Sản phẩm (Create Listing):
+●	Bước 1: Seller chọn Danh mục (CategoryId). Hệ thống load các thuộc tính gợi ý (ví dụ: chọn Điện thoại thì gợi ý RAM, Bộ nhớ).
+●	Bước 2: Nhập thông tin chung (Tên, Mô tả, Hãng) -> Lưu vào bảng Products.
+●	Bước 3 (Tạo Biến thể - SKU): Seller tạo các phân loại (Màu Đỏ Size M, Màu Đỏ Size L).
+○	Lưu ý kỹ thuật: Backend biến các phân loại này thành chuỗi JSON (ví dụ: {"Color": "Red", "Size": "M"}).
+○	Nhập Giá (Price) và Số lượng tồn kho (Quantity) cho từng phân loại.
+●	Bước 4: Gắn ShippingPolicyId và ReturnPolicyId vào sản phẩm.
+●	Bước 5: Bấm "Publish". Trạng thái chuyển thành ACTIVE.
+2. Luồng Cập nhật Tồn kho (Restock):
+●	Hành động: Áo Đỏ Size M vừa về thêm 50 cái. Seller vào sửa Quantity = Quantity + 50.
+●	Lưu ý sinh tử: Tuyệt đối không được đụng vào cột ReservedQuantity (Hàng đang bị giữ). Cột này do hệ thống Đơn hàng tự động quản lý.
+________________________________________
+PHẦN 3: LUỒNG VẬN HÀNH ĐƠN HÀNG (ORDER FULFILLMENT FLOW)
+Đây là "xương sống" của hệ thống, nơi dễ xảy ra lỗi đồng thời (Concurrency) nhất.
+1. Luồng Giữ hàng (Reservation) & Đặt hàng:
+●	Khi Buyer bấm "Thanh toán":
+○	Hệ thống kiểm tra: IF (Quantity - ReservedQuantity >= Số lượng mua).
+○	Nếu đủ: UPDATE ProductVariants SET ReservedQuantity = ReservedQuantity + Số lượng mua. (Khóa kho tạm thời).
+○	Tạo đơn hàng vào bảng Orders (Status: PENDING_PAYMENT).
+○	Lưu chi tiết vào OrderItems cùng với giá tiền tại thời điểm đó (PriceAtPurchase).
+2. Luồng Xử lý của Seller (Fulfillment Machine):
+●	Trạng thái PAID: Khách đã trả tiền. Seller nhận Noti có đơn mới.
+○	Lưu ý: Lúc này, hệ thống trừ luôn hàng vật lý: Quantity = Quantity - Mua, đồng thời xả khóa ReservedQuantity = ReservedQuantity - Mua.
+●	Trạng thái READY_TO_SHIP: Seller chuẩn bị hàng xong. Bấm nút "In phiếu giao hàng".
+○	Hệ thống sinh ra 1 TrackingCode giả lập.
+●	Trạng thái SHIPPED: Seller xác nhận đã đưa hàng cho bưu tá.
+●	Trạng thái DELIVERED: Khách nhận hàng thành công. Đơn hàng chuyển sang trạng thái chờ đối soát tiền.
+3. Luồng Xử lý Ngoại lệ (Exceptions):
+●	Khách không thanh toán sau 30 phút: Hệ thống tự động Hủy đơn -> Xả kho (ReservedQuantity = ReservedQuantity - Mua).
+●	Khách bom hàng / Seller tự hủy: Đơn chuyển sang CANCELLED. Hàng tự động cộng lại vào Quantity.
+________________________________________
+PHẦN 4: LUỒNG DÒNG TIỀN & ĐỐI SOÁT (FINANCE & ESCROW FLOW)
+Đây là nơi chứng minh hệ thống của bạn là chuẩn "Thương mại điện tử" chứ không phải web bán hàng cá nhân. Cơ chế Escrow (Ký quỹ/Giữ tiền) là bắt buộc.
+1. Luồng Ghi nhận Doanh thu (Tiền bị giữ):
+●	Khi Buyer thanh toán thành công ($100), tiền KHÔNG vào túi Seller ngay.
+●	Hệ thống ghi nhận vào bảng SellerWallets: PendingBalance = PendingBalance + 100.
+●	Ghi log vào bảng WalletTransactions: "Cộng $100 vào ví Pending từ đơn hàng #123".
+2. Luồng Đối soát & Giải ngân (Release Funds):
+●	Khi đơn hàng chuyển sang DELIVERED. Hệ thống bắt đầu đếm ngược (thường là 3-7 ngày tùy Cấp độ Shop) để chờ xem khách có khiếu nại (Dispute) không.
+●	Nếu không có khiếu nại -> Chạy Job chuyển tiền:
+○	Trừ phí sàn (Platform Fee): Tính dựa trên % quy định (ví dụ 5% = $5).
+○	PendingBalance = PendingBalance - 100.
+○	AvailableBalance = AvailableBalance + 95. (Seller thực nhận $95).
+●	Ghi log WalletTransactions: Phải ghi thành 2 dòng rõ ràng (1 dòng nhận $100, 1 dòng trừ phí sàn $5) để Seller đọc hiểu.
+________________________________________
+PHẦN 5: LUỒNG ĐÁNH GIÁ HIỆU SUẤT (PERFORMANCE & LIMITS FLOW)
+Đây là tính năng giúp phân loại Seller giỏi và Seller lừa đảo.
+1. Luồng Ghi nhận Lỗi (Defect Tracking):
+●	Nếu Seller tự bấm nút "Hủy đơn" với lý do "Hết hàng" (Out of stock) -> Ghi nhận 1 Defect.
+●	Nếu Seller ship hàng sau ngày cam kết (Handling Time) -> Ghi nhận 1 Late Shipment.
+●	Bị khách mở Dispute và Admin xử thua -> Ghi nhận 1 Defect nặng.
+2. Luồng Đánh giá tự động (Evaluation Job):
+●	Ngày 20 hàng tháng, Job ngầm (Quartz Scheduler) chạy.
+●	Tính toán DefectRate (Tỉ lệ lỗi = Số đơn lỗi / Tổng đơn).
+●	Nếu Tỉ lệ lỗi > 2%: Chuyển PerformanceLevel = 'BELOW_STANDARD'. Tăng phí sàn lên 10%. Giảm MonthlyListingLimit xuống 5.
+●	Nếu Bán > 100 đơn + Không lỗi: Chuyển PerformanceLevel = 'TOP_RATED'. Hạ phí sàn xuống 4%. Cho rút tiền ngay khi SHIPPED.
+________________________________________
+🚨 CHECKLIST KỸ THUẬT "SINH TỬ" CHO TEAM (The Root Principles)
+Để bảo vệ các luồng trên không bị sập khi có nhiều người truy cập, team code (Backend) phải tuân thủ 3 nguyên tắc sau:
+1.	Dùng Database Transaction: Mọi thao tác đụng đến Tiền và Kho hàng phải nằm trong 1 khối BEGIN TRANSACTION ... COMMIT. Nếu trừ kho thành công mà lỗi lúc tạo Đơn hàng thì phải ROLLBACK (phục hồi kho) ngay lập tức.
+2.	Cập nhật Kho Nguyên tử (Atomic Update): Tuyệt đối không viết code kiểu int currentStock = db.getStock(); currentStock--; db.save(currentStock);. Mà phải viết lệnh SQL trực tiếp: UPDATE Variants SET Quantity = Quantity - 1 WHERE Id = X AND Quantity > 0.
+3.	Idempotency (Chống Click đúp): Ở nút "Thanh toán", nếu User lag và bấm 5 lần liên tục, hệ thống chỉ được phép xử lý 1 lần và sinh ra 1 đơn hàng. (Có thể dùng mã Hash của giỏ hàng làm Idempotency Key).
+

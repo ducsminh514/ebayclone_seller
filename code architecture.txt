@@ -1,0 +1,39 @@
+1. Đánh giá Clean Architecture cho Project của bạn
+ĐIỂM MẠNH (Tại sao nó phù hợp với hệ thống này?)
+●	Bảo vệ Logic cốt lõi (Core Business Rules): Trong hệ thống của bạn có những logic "sinh tử" (ví dụ: Quy tắc thăng hạng Seller, Quy tắc tính phí sàn, Quy tắc trừ tồn kho). Clean Architecture cách ly hoàn toàn đống logic này khỏi Database hay Web Framework. Dù bạn đổi từ SQL Server sang MySQL, hay đổi từ ExpressJS sang NestJS, logic tính tiền vẫn giữ nguyên.
+●	Chia việc cực tốt cho 4 người: Nhờ cơ chế Dependency Inversion (Đảo ngược phụ thuộc), team bạn chỉ cần thống nhất với nhau các Interfaces (Hợp đồng). Sau đó, người làm API cứ làm, người làm Database cứ làm, không ai phải chờ ai.
+●	Dễ Unit Test: Bạn có thể test logic "Nhả tiền Escrow sau 7 ngày" mà không cần kết nối tới Database thật (chỉ cần dùng Mock Repository).
+ĐIỂM YẾU & RỦI RO (Căn bệnh thường gặp của sinh viên/dev mới)
+●	Over-engineering (Làm quá vấn đề): Clean Architecture bắt buộc bạn phải tạo rất nhiều file (Controller -> DTO -> UseCase -> Interface -> Repository -> Entity -> DB Model). Với những tính năng phức tạp như Đặt hàng thì rất đáng, nhưng với tính năng chỉ là "Thêm/Sửa/Xóa Danh mục" (CRUD cơ bản) thì nó tạo ra một mớ code thừa thãi (Boilerplate) làm team mệt mỏi.
+●	Data Mapping Overhead: Việc copy dữ liệu liên tục từ DB Model sang Domain Entity rồi sang DTO sẽ tốn tài nguyên và dễ viết bug nếu không cẩn thận.
+________________________________________
+2. Phương án triển khai: "Pragmatic Clean Architecture" (Thực dụng)
+Để team 4 người chạy mượt mà không bị ngộp, mình đề xuất chia cấu trúc theo 4 Lớp (Layers) kết hợp với CQRS (Command Query Responsibility Segregation - Phân tách Lệnh và Truy vấn) để trị cái bệnh "Boilerplate".
+Dưới đây là cấu trúc thư mục (Directory Structure) chuẩn để bạn tham khảo:
+Lớp 1: DOMAIN LAYER (Nơi chứa "Bản chất")
+Tuyệt đối không có bất kỳ thư viện hay framework nào ở đây (Không SQL, Không HTTP).
+●	Entities: Các đối tượng cốt lõi. VD: Order, ProductVariant, SellerWallet.
+○	Logic nằm ở đây: Hàm wallet.ReleaseEscrow(amount) hoặc variant.ReserveStock(quantity).
+●	Value Objects: Các giá trị bất biến. VD: Money (gồm Amount và Currency).
+●	Domain Exceptions: Các lỗi nghiệp vụ. VD: OutOfStockException, InsufficientFundsException.
+Lớp 2: APPLICATION LAYER (Use Cases - Luồng công việc)
+Nơi điều phối các Entities để thực hiện 1 chức năng cụ thể mà team đã chia.
+●	Interfaces (Ports): Định nghĩa hợp đồng. VD: IOrderRepository, IWalletLedgerRepository.
+●	Use Cases (Commands - Ghi dữ liệu):
+○	CreateProductUseCase: Gọi DB lưu Product, kiểm tra Limit của Seller.
+○	CheckoutUseCase: Gọi variant.ReserveStock(), gọi orderRepo.Save().
+●	Queries (Đọc dữ liệu - Tối ưu hiệu năng):
+○	Thay vì chui qua Entity phức tạp, các thao tác GET (như xem danh sách đơn hàng) sẽ gọi thẳng vào DB để trả về DTO. Đây là cách chữa bệnh "Over-engineering".
+Lớp 3: INFRASTRUCTURE LAYER (Hạ tầng kỹ thuật)
+Nơi "nhúng tay" vào công nghệ thực tế (SQL Server, AWS, Quartz).
+●	Repositories Implementation: Viết code SQL thực tế cho IOrderRepository (ví dụ dùng Entity Framework hoặc Dapper). Chỗ này là nơi bạn ném câu lệnh UPDATE ... WHERE Quantity > 0 (Atomic Update) vào.
+●	External Services: Gọi API bên thứ 3 (Upload ảnh Cloudinary, gửi Email).
+●	Background Jobs: Nơi chứa các Quartz Schedulers (Job tự động duyệt tiền, tự động đánh giá Seller).
+Lớp 4: PRESENTATION LAYER (Giao tiếp với bên ngoài)
+Nơi nhận Request và trả Response (API).
+●	Controllers: Nhận HTTP Request, xác thực Token (JWT).
+●	DTOs (Data Transfer Objects): Định dạng dữ liệu đầu vào/đầu ra (ẩn đi các trường nhạy cảm trước khi trả về cho Client).
+________________________________________
+
+Clean Architecture ép bạn phải chậm lại ở bước đầu (thiết kế Interface), nhưng sẽ giúp bạn đi rất nhanh và cực kỳ an toàn ở giai đoạn sau, đặc biệt khi ghép code của 4 người lại với nhau.
+
