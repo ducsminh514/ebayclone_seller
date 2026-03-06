@@ -1,0 +1,324 @@
+@page "/listings/create"
+@using EbayClone.Application.DTOs.Products
+@using EbayClone.Application.DTOs.Policies
+@using EbayClone.Frontend.Services
+@inject ProductService ProductService
+@inject PolicyService PolicyService
+@inject CategoryService CategoryService
+@inject NavigationManager NavigationManager
+
+<div class="container mt-4">
+    <h2>Tạo Sản Phẩm Mới</h2>
+    <hr />
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <EditForm Model="request" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <fieldset disabled="@isSubmitting">
+
+
+        <div class="ebay-card">
+            <h4 class="ebay-card-title">Thông tin cơ bản</h4>
+            <div class="mb-3">
+                <label class="form-label">Tên Sản Phẩm *</label>
+                <InputText class="form-control ebay-input" @bind-Value="request.Name" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Thương hiệu</label>
+                <InputText class="form-control ebay-input" @bind-Value="request.Brand" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Mô tả</label>
+                <InputTextArea class="form-control ebay-input" @bind-Value="request.Description" rows="3" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Danh Mục *</label>
+                <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId">
+                    <option value="">-- Chọn Danh Mục --</option>
+                    @foreach (var c in categories)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="ebay-card">
+            <h4 class="ebay-card-title">Ảnh Sản Phẩm</h4>
+            <div class="mb-3">
+                <label class="form-label">URL Ảnh Bìa (Primary Image)</label>
+                <InputText class="form-control ebay-input" @bind-Value="request.PrimaryImageUrl" placeholder="https://example.com/image.jpg" />
+                <small class="text-muted">Ảnh này sẽ hiển thị đầu tiên trên trang sản phẩm</small>
+            </div>
+            @if (!string.IsNullOrEmpty(request.PrimaryImageUrl))
+            {
+                <div class="mb-3">
+                    <img src="@request.PrimaryImageUrl" alt="Preview" style="max-width: 150px; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" />
+                </div>
+            }
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label mb-0">Ảnh phụ (Tối đa 5)</label>
+                    <button type="button" class="btn btn-sm btn-info text-white" @onclick="AddImageUrl" disabled="@(extraImageUrls.Count >= 5)">+ Thêm ảnh</button>
+                </div>
+                @for (int i = 0; i < extraImageUrls.Count; i++)
+                {
+                    var idx = i;
+                    <div class="d-flex gap-2 mb-2">
+                        <input type="text" class="form-control ebay-input" placeholder="URL ảnh phụ" value="@extraImageUrls[idx]" @onchange="(e) => UpdateImageUrl(idx, e.Value?.ToString())" />
+                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveImageUrl(idx)">✕</button>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="ebay-card">
+            <h4 class="ebay-card-title">Chính sách Bán Hàng</h4>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Shipping Policy</label>
+                    <InputSelect class="form-select ebay-input" @bind-Value="request.ShippingPolicyId">
+                        <option value="">-- Chọn Shipping Policy --</option>
+                        @foreach (var p in shippingPolicies)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Return Policy</label>
+                    <InputSelect class="form-select" @bind-Value="request.ReturnPolicyId">
+                        <option value="">-- Chọn Return Policy --</option>
+                        @foreach (var p in returnPolicies)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+        </div>
+
+        <div class="ebay-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="ebay-card-title mb-0">Biến thể Sản Phẩm (SKUs)</h4>
+                <div>
+                    <span class="text-muted me-2">Số lượng: @request.Variants.Count / 50</span>
+                    <button type="button" class="ebay-btn-outline btn-sm" @onclick="AddVariant" disabled="@(request.Variants.Count >= 50)">
+                        + Thêm Biến Thể
+                    </button>
+                </div>
+            </div>
+            
+            @foreach (var variant in request.Variants)
+            {
+                <div class="border p-3 mb-3 bg-light" style="border-radius: var(--border-radius-sm); border-color: var(--border-color) !important;">
+                        <div class="row">
+                            <div class="col-md-2 mb-2">
+                                <label class="form-label">Mã SKU *</label>
+                                <InputText class="form-control" @bind-Value="variant.SkuCode" />
+                            </div>
+                            <div class="col-md-2 mb-2">
+                                <label class="form-label">Giá (VND) *</label>
+                                <InputNumber class="form-control" @bind-Value="variant.Price" />
+                            </div>
+                            <div class="col-md-2 mb-2">
+                                <label class="form-label">Kho hàng *</label>
+                                <InputNumber class="form-control" @bind-Value="variant.Quantity" />
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label class="form-label">ImageUrl (Đường dẫn ảnh)</label>
+                                <InputText class="form-control" @bind-Value="variant.ImageUrl" placeholder="https://" />
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label class="form-label">Khối lượng (gram)</label>
+                                <InputNumber class="form-control" @bind-Value="variant.WeightGram" />
+                            </div>
+                        </div>
+
+                        <div class="mt-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold text-secondary mb-0">Thuộc tính động (VD: Color - Red)</h6>
+                                @if (variantAttributesMap.ContainsKey(variant))
+                                {
+                                    <span class="text-muted" style="font-size: 13px;">@variantAttributesMap[variant].Count / 5</span>
+                                }
+                            </div>
+                            <button type="button" class="btn btn-sm btn-info mb-2 text-white" 
+                                    @onclick="() => AddAttribute(variant)" 
+                                    disabled="@(variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count >= 5)">
+                                + Thêm Thuộc Tính
+                            </button>
+                            
+                            <!-- Mapping Dictionary into a UI list is tricky in basic Blazor bind, we'll use a local helper list -->
+                            @if(variantAttributesMap.ContainsKey(variant))
+                            {
+                                @foreach (var attr in variantAttributesMap[variant])
+                                {
+                                    <div class="d-flex mb-2 gap-2">
+                                        <input type="text" class="form-control ebay-input" placeholder="Tên (VD: Màu sắc)" @bind="attr.Key" />
+                                        <input type="text" class="form-control ebay-input" placeholder="Giá trị (VD: Đỏ)" @bind="attr.Value" />
+                                        <button type="button" class="btn btn-danger" @onclick="() => RemoveAttribute(variant, attr)">Xóa</button>
+                                    </div>
+                                }
+                            }
+                        </div>
+                        <div class="text-end mt-2">
+                            <button type="button" class="btn btn-sm btn-danger" @onclick="() => RemoveVariant(variant)">Xóa Biến Thể Này</button>
+                        </div>
+                    </div>
+                }
+        </div>
+
+        <div class="d-flex gap-3 mt-3 mb-5">
+            <button type="submit" class="ebay-btn-outline btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => publishOnCreate = false">
+                @if(isSubmitting && !publishOnCreate) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu...</span> } else { <span>💾 Lưu Nháp (DRAFT)</span> }
+            </button>
+            <button type="submit" class="ebay-btn-primary btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => publishOnCreate = true">
+                @if(isSubmitting && publishOnCreate) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang đăng bán...</span> } else { <span>🚀 Đăng Bán Ngay (ACTIVE)</span> }
+            </button>
+        </div>
+        </fieldset>
+    </EditForm>
+</div>
+
+@code {
+    private CreateListingRequest request = new CreateListingRequest();
+    private List<ShippingPolicyDto> shippingPolicies = new();
+    private List<ReturnPolicyDto> returnPolicies = new();
+    private List<CategoryDto> categories = new();
+    private string? errorMessage;
+    private bool isSubmitting = false;
+    private bool publishOnCreate = false;
+    private List<string> extraImageUrls = new();
+
+    // Helper class to bind dictionary keys and values easily in UI
+    public class AttributePair
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+
+    private Dictionary<CreateVariantRequest, List<AttributePair>> variantAttributesMap = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var cats = await CategoryService.GetCategoriesAsync();
+            categories = cats.ToList();
+
+            var sp = await PolicyService.GetShippingPoliciesAsync();
+            shippingPolicies = sp.ToList();
+
+            var rp = await PolicyService.GetReturnPoliciesAsync();
+            returnPolicies = rp.ToList();
+
+            // Khởi tạo sẵn 1 biến thể mặc định
+            AddVariant();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void AddVariant()
+    {
+        if (request.Variants.Count >= 50) return;
+        var newVariant = new CreateVariantRequest();
+        request.Variants.Add(newVariant);
+        variantAttributesMap[newVariant] = new List<AttributePair>();
+    }
+
+    private void RemoveVariant(CreateVariantRequest variant)
+    {
+        request.Variants.Remove(variant);
+        variantAttributesMap.Remove(variant);
+    }
+
+    private void AddAttribute(CreateVariantRequest variant)
+    {
+        if (variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count < 5)
+        {
+            variantAttributesMap[variant].Add(new AttributePair());
+        }
+    }
+
+    private void RemoveAttribute(CreateVariantRequest variant, AttributePair attr)
+    {
+        if (variantAttributesMap.ContainsKey(variant))
+        {
+            variantAttributesMap[variant].Remove(attr);
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isSubmitting = true;
+
+        try
+        {
+            // Rebuild Attributes Dictionary from Map
+            foreach (var variant in request.Variants)
+            {
+                variant.Attributes.Clear();
+                if (variantAttributesMap.ContainsKey(variant))
+                {
+                    foreach (var attr in variantAttributesMap[variant])
+                    {
+                        if (!string.IsNullOrWhiteSpace(attr.Key) && !string.IsNullOrWhiteSpace(attr.Value))
+                        {
+                            variant.Attributes[attr.Key] = attr.Value;
+                        }
+                    }
+                }
+            }
+
+            // Gom ảnh phụ
+            request.ImageUrls = extraImageUrls.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+
+            var productId = await ProductService.CreateListingAsync(request);
+            
+            // Nếu Publish: đổi status sang ACTIVE ngay
+            if (publishOnCreate)
+            {
+                await ProductService.UpdateProductStatusAsync(productId, "ACTIVE");
+            }
+            
+            NavigationManager.NavigateTo("/listings");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void AddImageUrl()
+    {
+        if (extraImageUrls.Count < 5)
+            extraImageUrls.Add("");
+    }
+
+    private void RemoveImageUrl(int index)
+    {
+        if (index >= 0 && index < extraImageUrls.Count)
+            extraImageUrls.RemoveAt(index);
+    }
+
+    private void UpdateImageUrl(int index, string? val)
+    {
+        if (index >= 0 && index < extraImageUrls.Count)
+            extraImageUrls[index] = val ?? "";
+    }
+}

@@ -1,0 +1,190 @@
+@page "/listings/edit/{Id:guid}"
+@using EbayClone.Application.DTOs.Products
+@using EbayClone.Application.DTOs.Policies
+@using EbayClone.Frontend.Services
+@inject ProductService ProductService
+@inject PolicyService PolicyService
+@inject CategoryService CategoryService
+@inject NavigationManager NavigationManager
+
+<div class="container mt-4">
+    <h2>Sửa Thông Tin Sản Phẩm</h2>
+    <hr />
+
+    @if (isLoading)
+    {
+        <div class="p-4 text-center">Đang tải dữ liệu sản phẩm...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else
+    {
+        <EditForm Model="request" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <fieldset disabled="@isSubmitting">
+                <div class="ebay-card">
+                    <h4 class="ebay-card-title">Thông tin cơ bản (Master Data)</h4>
+                    <div class="mb-3">
+                        <label class="form-label">Tên Sản Phẩm *</label>
+                        <InputText class="form-control ebay-input" @bind-Value="request.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Thương hiệu</label>
+                        <InputText class="form-control ebay-input" @bind-Value="request.Brand" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mô tả</label>
+                        <InputTextArea class="form-control ebay-input" @bind-Value="request.Description" rows="3" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Danh Mục *</label>
+                        <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId">
+                            <option value="">-- Chọn Danh Mục --</option>
+                            @foreach (var c in categories)
+                            {
+                                <option value="@c.Id">@c.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div class="ebay-card">
+                    <h4 class="ebay-card-title">Chính sách Bán Hàng & Trạng Thái</h4>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Shipping Policy</label>
+                            <InputSelect class="form-select ebay-input" @bind-Value="request.ShippingPolicyId">
+                                <option value="">-- Chọn Shipping Policy --</option>
+                                @foreach (var p in shippingPolicies)
+                                {
+                                    <option value="@p.Id">@p.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Return Policy</label>
+                            <InputSelect class="form-select" @bind-Value="request.ReturnPolicyId">
+                                <option value="">-- Chọn Return Policy --</option>
+                                @foreach (var p in returnPolicies)
+                                {
+                                    <option value="@p.Id">@p.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Trạng Thái Hiển Thị</label>
+                            <InputSelect class="form-select" @bind-Value="request.Status">
+                                <option value="DRAFT">DRAFT (Bản Nháp)</option>
+                                <option value="ACTIVE">ACTIVE (Mở Bán)</option>
+                                <option value="SCHEDULED">SCHEDULED (Hẹn Giờ)</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bỏ qua phần Variants theo yêu cầu của User: Sửa biến thể rủi ro cao -->
+                <div class="alert alert-warning mb-4">
+                    <strong>Lưu ý:</strong> Chức năng cập nhật Biến thể (Variants) đang tạm khóa để bảo vệ hệ thống hóa đơn cũ trước sự cố Race Condition Database.
+                </div>
+
+                <div class="d-flex mb-5 gap-3">
+                    <button type="button" class="btn btn-outline-secondary btn-lg w-50" style="padding: 12px; font-size: 16px;" @onclick='() => NavigationManager.NavigateTo("/listings")'>
+                        Hủy Bỏ
+                    </button>
+                    <button type="submit" class="ebay-btn-primary btn-lg w-50" style="padding: 12px; font-size: 16px;">
+                        @if (isSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span><span>Đang xử lý...</span>
+                        }
+                        else
+                        {
+                            <span>Lưu Sản Phẩm</span>
+                        }
+                    </button>
+                </div>
+            </fieldset>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private UpdateProductBasicRequest request = new();
+    private List<ShippingPolicyDto> shippingPolicies = new();
+    private List<ReturnPolicyDto> returnPolicies = new();
+    private List<CategoryDto> categories = new();
+    
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Load Metadata
+            var cats = await CategoryService.GetCategoriesAsync();
+            categories = cats.ToList();
+
+            var sp = await PolicyService.GetShippingPoliciesAsync();
+            shippingPolicies = sp.ToList();
+
+            var rp = await PolicyService.GetReturnPoliciesAsync();
+            returnPolicies = rp.ToList();
+
+            // Load Master Data của Product để Fill vào Form
+            var product = await ProductService.GetProductByIdAsync(Id);
+            if (product == null)
+            {
+                errorMessage = "Không tìm thấy dữ liệu sản phẩm này.";
+            }
+            else
+            {
+                request.Name = product.Name;
+                request.Description = product.Description;
+                request.Brand = product.Brand;
+                request.CategoryId = product.CategoryId;
+                request.ShippingPolicyId = product.ShippingPolicyId;
+                request.ReturnPolicyId = product.ReturnPolicyId;
+                request.Status = product.Status;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+        isSubmitting = true;
+
+        try
+        {
+            await ProductService.UpdateProductBasicAsync(Id, request);
+            // Thành công -> Điều hướng về trang danh sách kho
+            NavigationManager.NavigateTo("/listings");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

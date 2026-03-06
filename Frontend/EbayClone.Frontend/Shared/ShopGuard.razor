@@ -1,0 +1,63 @@
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Components.Authorization
+@implements IDisposable
+
+@ChildContent
+
+@code {
+    [Parameter] public RenderFragment ChildContent { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+        await CheckAccessAsync(NavigationManager.Uri);
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await CheckAccessAsync(e.Location);
+        StateHasChanged();
+    }
+
+    private async Task CheckAccessAsync(string url)
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var hasShopStr = user.FindFirst("HasShop")?.Value;
+            bool hasShop = false;
+            bool.TryParse(hasShopStr, out hasShop);
+
+            var uri = new Uri(url);
+            var currentPath = uri.AbsolutePath.ToLowerInvariant();
+
+            // Những Route công khai hoặc Layout khác (nhưng ta cũng nên phòng hờ)
+            if (currentPath == "/login" || currentPath == "/register" || currentPath.StartsWith("/verify-email"))
+                return;
+
+            if (!hasShop)
+            {
+                // Nếu User chưa có Shop, ÉP BUỘC chỉ được vô /onboarding
+                if (currentPath != "/onboarding")
+                {
+                    NavigationManager.NavigateTo("/onboarding");
+                }
+            }
+            else
+            {
+                // Nếu User CÓ Shop rồi, nhưng lại đi lạc vào màn /onboarding, Ép về Overview
+                if (currentPath == "/onboarding")
+                {
+                    NavigationManager.NavigateTo("/");
+                }
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}

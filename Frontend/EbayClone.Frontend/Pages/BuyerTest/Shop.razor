@@ -1,0 +1,160 @@
+@page "/buyer-test/shop"
+@using EbayClone.Domain.Entities
+@using EbayClone.Frontend.Services
+@inject BuyerService BuyerService
+
+<div class="container mt-4">
+    <div class="alert alert-info">
+        <strong>Lưu ý:</strong> Đây là trang giả lập Luồng Khách Mua Hàng (Buyer) để test chức năng Giữ Kho (Reserve Stock) và Phục vụ cho Seller ở trang Quản Lý Đơn Hàng.
+    </div>
+
+    <h2 class="ebay-page-title mb-4">Cửa Hàng (Sản phẩm đang bán)</h2>
+
+    @if (isLoading)
+    {
+        <div class="text-center p-5"><span class="spinner-border"></span> Đang tải sản phẩm...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (!products.Any())
+    {
+        <div class="alert alert-warning">Chưa có sản phẩm nào đang được đổi Status sang ACTIVE. Vui lòng vào trang Inventory của Seller để đăng/Publish ít nhất 1 sản phẩm.</div>
+    }
+    else
+    {
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            @foreach (var prod in products)
+            {
+                <div class="col">
+                    <div class="card h-100 ebay-card">
+                        @if (!string.IsNullOrEmpty(prod.PrimaryImageUrl))
+                        {
+                            <img src="@prod.PrimaryImageUrl" class="card-img-top" alt="..." style="height: 200px; object-fit: cover;">
+                        }
+                        else
+                        {
+                            <div class="bg-light text-center d-flex align-items-center justify-content-center" style="height: 200px;">No Image</div>
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title fw-bold">@prod.Name</h5>
+                            <p class="card-text text-muted small">Brand: @prod.Brand</p>
+                            
+                            @if (prod.Variants != null && prod.Variants.Any())
+                            {
+                                var variant = prod.Variants.First(); // Lấy variant đầu tiên để test
+                                var availableStock = variant.Quantity - variant.ReservedQuantity;
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fs-5 text-primary fw-bold">@variant.Price.ToString("N0") đ</span>
+                                    @if(availableStock > 0)
+                                    {
+                                        <span class="badge bg-success">Còn hàng (@availableStock)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Hết hàng</span>
+                                    }
+                                </div>
+                                <div class="small text-muted mb-3">
+                                    (Tổng tồn: @variant.Quantity | Đang giữ: @variant.ReservedQuantity)
+                                </div>
+
+                                <button class="btn btn-primary w-100" 
+                                        disabled="@(availableStock <= 0 || isProcessing)" 
+                                        @onclick="() => BuyNow(variant.Id)">
+                                    @if(isProcessing && processingVariantId == variant.Id)
+                                    {
+                                        <span class="spinner-border spinner-border-sm"></span> <span>Đang xử lý...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Mua ngay 1 cái</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success mt-4">
+            @successMessage
+            <a href="/orders" class="btn btn-sm btn-success ms-3">Về trang Quản Lý Đơn Hàng <i class="bi bi-arrow-right"></i></a>
+        </div>
+    }
+</div>
+
+@code {
+    private IEnumerable<Product> products = Array.Empty<Product>();
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private Guid? processingVariantId = null;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            products = await BuyerService.GetPublicProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task BuyNow(Guid variantId)
+    {
+        try
+        {
+            isProcessing = true;
+            processingVariantId = variantId;
+            errorMessage = null;
+            successMessage = null;
+
+            var request = new CreateBuyerTestOrderRequest
+            {
+                VariantId = variantId,
+                Quantity = 1, // Mặc định test mua 1 cái
+                ReceiverInfo = System.Text.Json.JsonSerializer.Serialize(new {
+                    FullName = "Nguyễn Văn A",
+                    Phone = "0123456789",
+                    Address = "Quận 1, TP HCM"
+                })
+            };
+
+            await BuyerService.CheckoutAsync(request);
+            successMessage = "Mua hàng thành công! Đơn hàng đã được tạo với trạng thái PENDING_PAYMENT. Bạn có thể duyệt tiếp bên luồng Seller.";
+            
+            await LoadProducts(); // Load lại để thấy Available Stock giảm do ReservedQuantity tăng
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi mua hàng: {ex.Message}";
+            // Nổ lỗi nguyên tử nếu Concurrency có vấn đề hoặc hết hàng
+        }
+        finally
+        {
+            isProcessing = false;
+            processingVariantId = null;
+        }
+    }
+}

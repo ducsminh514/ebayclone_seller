@@ -1,0 +1,110 @@
+﻿TÀI LIỆU ĐẶC TẢ LUỒNG NGHIỆP VỤ - PHÂN HỆ NGƯỜI BÁN (SELLER HUB)
+Dự án: eBay Clone Đối tượng: Team Phát triển (Backend, Frontend, QA)
+________________
+
+
+PHẦN 1: LUỒNG KHỞI TẠO & CẤU HÌNH CỬA HÀNG (ONBOARDING & SETTINGS)
+Đây là bước đầu tiên khi một User bình thường muốn trở thành Người bán chuyên nghiệp trên sàn.
+1. Luồng Xác minh (KYC) & Mở Shop:
+* Bước 1: User gửi yêu cầu mở Shop (nhập tên Shop, mô tả).
+* Bước 2: Hệ thống tạo bản ghi trong bảng Shops với trạng thái IsVerified = False.
+* Bước 3 (Admin): Admin duyệt thông tin xác minh. Đổi IsVerified = True. (Yêu cầu: Chỉ seller đã xác minh mới được đăng sản phẩm).
+* Bước 4 (Hệ thống): Khởi tạo ngay 1 ví rỗng trong bảng SellerWallets cho Shop này. Set MonthlyListingLimit (Giới hạn đăng bài) mặc định cho lính mới (ví dụ: 10 sản phẩm/tháng).
+2. Luồng Quản lý Hồ sơ & Trạng thái hoạt động (Store Profile & Context):
+* Chuyển đổi tài khoản (Switch Mode): Nút "Switch to Selling" cho phép User đang ở chế độ Buyer chuyển sang giao diện Dashboard của Seller (load lại UI kèm quyền Seller).
+* Cập nhật Hồ sơ Shop: Seller tải lên Banner, Avatar, sửa Tên Shop và Mô tả. (Ảnh được upload lên Cloud/S3, chỉ lưu URL vào DB).
+3. Luồng Thiết lập Chính sách (Policies):
+* Hành động: Seller tạo các chính sách dùng chung như ShippingPolicy (Chính sách giao hàng: phí ship, thời gian chuẩn bị) và ReturnPolicy (Chính sách trả hàng).
+* Mục đích: Khi đăng 100 sản phẩm, Seller chỉ cần chọn Policy thay vì nhập tay lại phí ship cho từng món.
+________________
+
+
+PHẦN 2: LUỒNG QUẢN LÝ NGUỒN CUNG (LISTING & INVENTORY FLOW)
+Nơi Seller quản lý hàng hóa hiển thị trên sàn.
+1. Luồng Đăng bán Sản phẩm (Create Listing):
+* Bước 1: Chọn Danh mục (CategoryId). Hệ thống load các thuộc tính gợi ý (ví dụ: Điện thoại -> RAM, Bộ nhớ).
+* Bước 2: Nhập thông tin chung (Tên, Mô tả, Hãng) -> Lưu vào bảng Products.
+* Bước 3 (Upload Ảnh): Kéo thả upload nhiều ảnh. Hệ thống lưu mảng URL ảnh, cho phép Seller chọn 1 ảnh làm ảnh bìa (Primary Image).
+* Bước 4 (Tạo Biến thể SKU): Seller tạo các phân loại (Màu Đỏ Size M, Màu Đỏ Size L). Nhập Giá (Price) và Số lượng tồn kho (Quantity) cho từng loại. Backend lưu dưới dạng JSON Attributes.
+* Bước 5: Gắn ShippingPolicyId và ReturnPolicyId. Bấm "Publish". Trạng thái chuyển thành ACTIVE.
+2. Luồng Quản lý Danh sách Sản phẩm (Listing Maintenance):
+* Cập nhật Tồn kho (Restock): Seller vào sửa Quantity = Quantity + 50. (Tuyệt đối không đụng vào ReservedQuantity).
+* Chỉnh sửa (Edit): Cập nhật lại giá, mô tả. Lưu ý: Không làm ảnh hưởng đến giá của các đơn hàng cũ đã bán.
+* Tạm ẩn (Deactivate/Hide): Đổi Status = HIDDEN. Sản phẩm biến mất khỏi trang Buyer nhưng vẫn giữ trong hệ thống kho của Seller.
+* Xóa (Soft Delete): Đổi IsDeleted = True. Không dùng lệnh DELETE SQL để bảo toàn hóa đơn cũ.
+________________
+
+
+PHẦN 3: LUỒNG VẬN HÀNH ĐƠN HÀNG (ORDER FULFILLMENT FLOW)
+Xương sống của hệ thống, điều phối hàng hóa vật lý.
+1. Luồng Giữ hàng (Reservation) & Đặt hàng:
+* Khi Buyer bấm "Thanh toán":
+   * Hệ thống kiểm tra: IF (Quantity - ReservedQuantity >= Số lượng mua).
+   * Nếu đủ: UPDATE ProductVariants SET ReservedQuantity = ReservedQuantity + Số lượng mua. (Khóa kho tạm thời).
+   * Tạo đơn hàng vào bảng Orders (Status: PENDING_PAYMENT).
+   * Lưu chi tiết vào OrderItems cùng với giá tiền tại thời điểm đó (PriceAtPurchase).
+2. Luồng Xử lý của Seller (Fulfillment Machine):
+* Trạng thái PAID: Khách đã thanh toán. Hệ thống trừ kho thật (Quantity = Quantity - Mua) và xả khóa (ReservedQuantity = ReservedQuantity - Mua).
+* Trạng thái READY_TO_SHIP: Seller đóng gói xong, bấm nút "In phiếu giao hàng". Hệ thống sinh mã Tracking giả lập.
+* Trạng thái SHIPPED: Seller cập nhật đã giao hàng cho bưu cục.
+* Trạng thái DELIVERED: Khách nhận hàng. Đơn chuyển sang chờ đối soát tiền.
+3. Luồng Ngoại lệ:
+* Khách không thanh toán quá hạn: Hủy đơn, xả kho (trừ đi ReservedQuantity).
+________________
+
+
+PHẦN 4: LUỒNG DÒNG TIỀN & ĐỐI SOÁT (FINANCE & ESCROW FLOW)
+Đảm bảo an toàn tài chính cho cả sàn và người dùng.
+1. Luồng Ghi nhận Doanh thu (Tiền bị giữ - Escrow):
+* Khi khách thanh toán $100, tiền vào bảng SellerWallets mục PendingBalance = PendingBalance + 100.
+* Ghi log WalletTransactions: "Cộng $100 vào ví Pending từ đơn #123".
+2. Luồng Đối soát & Giải ngân (Release Funds):
+* Khi đơn đạt DELIVERED và qua thời gian chờ khiếu nại (3-7 ngày).
+* Hệ thống (Job ngầm) chạy:
+   * Trừ phí sàn (Platform Fee, vd 5% = $5).
+   * Trừ tiền chờ: PendingBalance = PendingBalance - 100.
+   * Cộng tiền sạch: AvailableBalance = AvailableBalance + 95.
+   * Ghi 2 dòng log vào Sổ cái (WalletTransactions) rõ ràng minh bạch.
+________________
+
+
+PHẦN 5: LUỒNG MARKETING & KHUYẾN MÃI (MARKETING)
+Công cụ giúp Seller kích cầu mua sắm.
+1. Luồng Tạo & Quản lý Mã Giảm Giá (Voucher):
+* Khởi tạo: Seller nhập Mã (Code), Loại giảm (%, tiền mặt), Phạm vi (Toàn shop / Sản phẩm cụ thể), Hạn sử dụng, Số lượng tối đa (UsageLimit) và Đơn tối thiểu.
+* Áp dụng: Khi Buyer checkout, hệ thống kiểm tra tính hợp lệ của mã. Trừ tiền đơn và cập nhật UsedCount = UsedCount + 1 trong bảng Vouchers.
+________________
+
+
+PHẦN 6: LUỒNG TƯƠNG TÁC & CHĂM SÓC KHÁCH HÀNG (CRM)
+Giải quyết vấn đề hậu mãi và xây dựng uy tín.
+1. Luồng Quản lý Đánh giá (Review & Reply):
+* Nhận đánh giá (Rate 1-5 sao + Comment) từ Buyer sau khi giao thành công.
+* Seller nhận Noti, vào trả lời (Reply) đánh giá. Cả hai luồng text được hiển thị công khai.
+2. Luồng Quản lý Khiếu nại (Dispute Management):
+* Khách mở khiếu nại -> Đơn hàng chuyển sang DISPUTE_OPENED. Tiền PendingBalance của đơn này bị đóng băng.
+* Seller nộp bằng chứng (ảnh đóng hàng).
+* Nếu Seller đồng ý hoàn tiền -> Gọi luồng Refund. Nếu Admin xử Seller thua -> Bị ghi nhận 1 lỗi (Defect Rate).
+________________
+
+
+PHẦN 7: LUỒNG BÁO CÁO & ĐÁNH GIÁ HIỆU SUẤT (PERFORMANCE & ANALYTICS)
+Công cụ thống kê và xếp hạng Seller.
+1. Luồng Dashboard Thống kê (Sales Reporting):
+* Giao diện: Tải siêu nhanh (dưới 1s). Hiển thị số lượng đơn hàng, doanh thu theo tuần/tháng.
+* Kỹ thuật: Đọc dữ liệu từ bảng tổng hợp ShopAnalyticsDaily (đã được Job ban đêm tính toán sẵn), không query trực tiếp bảng Orders.
+2. Luồng Ghi nhận Lỗi (Defect Tracking) & Đánh giá Cấp độ:
+* Ghi nhận lỗi nếu: Seller tự hủy đơn do hết hàng, hoặc giao hàng trễ (Late Shipment).
+* Ngày 20 hàng tháng, Job Evaluation tính tỉ lệ lỗi.
+   * Lỗi > 2%: Hạ cấp BELOW_STANDARD, tăng phí sàn, giảm hạn mức đăng bài.
+   * Bán tốt: Lên cấp TOP_RATED, giảm phí sàn.
+________________
+
+
+🚨 PHẦN 8: CHECKLIST KỸ THUẬT "SINH TỬ" CHO TEAM BACKEND (ROOT PRINCIPLES)
+Để đảm bảo hệ thống chịu tải và không bị hack/lỗi dữ liệu:
+1. Giao dịch Database (Transaction): Mọi thao tác đụng đến Tiền và Kho phải nằm trong BEGIN TRANSACTION ... COMMIT. Lỗi ở bất kỳ bước nào phải ROLLBACK.
+2. Cập nhật Kho Nguyên tử (Atomic Update): Tuyệt đối không query số lượng ra rồi trừ bằng code. Phải dùng SQL: UPDATE ProductVariants SET Quantity = Quantity - 1 WHERE Id = X AND Quantity > 0.
+3. Idempotency (Chống Click đúp): Ở nút "Thanh toán", nếu User lag bấm 5 lần, hệ thống chỉ sinh ra 1 đơn hàng duy nhất.
+4. Hạn chế Spam (Rate Limiting & Security): API tạo sản phẩm/đơn hàng phải có Rate Limit (vd: 10 req/phút). Form nhạy cảm cần reCaptcha. Dữ liệu thanh toán giả lập phải có Auth Token.
+5. Log lỗi chi tiết (Error Logging): Ghi log toàn bộ exception phân loại rõ Client Error (4xx - do user nhập sai) và Server Error (50x - kèm Transaction ID để truy vết). Bắt buộc log riêng và mã hóa các dữ liệu nhạy cảm.

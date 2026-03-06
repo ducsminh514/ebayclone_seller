@@ -1,0 +1,268 @@
+@page "/login"
+@layout EmptyLayout
+@inject EbayClone.Frontend.Services.AuthService AuthService
+@inject NavigationManager NavigationManager
+@using EbayClone.Application.DTOs.Auth
+
+<PageTitle>Sign in to your account</PageTitle>
+
+<div class="login-wrapper">
+    <div class="login-header">
+        <a href="/"><img src="https://upload.wikimedia.org/wikipedia/commons/1/1b/EBay_logo.svg" alt="eBay" width="100" /></a>
+        <a href="#" class="tell-us">Tell us what you think</a>
+    </div>
+
+    <div class="login-container">
+        <h1>Sign in to your account</h1>
+        <div class="sub-header">
+            <span>New to eBay?</span>
+            <a href="/register" class="create-account-pill">Create account</a>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="auth-alert alert-danger">
+                <i class="oi oi-circle-x"></i> @errorMessage
+            </div>
+        }
+
+        <EditForm Model="model" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+            
+            <div class="floating-label">
+                <InputText @bind-Value="model.Email" class="ebay-input" placeholder="Email or username" />
+                <ValidationMessage For="@(() => model.Email)" />
+            </div>
+
+            <div class="floating-label" style="margin-top: 16px;">
+                <InputText @bind-Value="model.Password" type="password" class="ebay-input" placeholder="Password" />
+                <ValidationMessage For="@(() => model.Password)" />
+            </div>
+
+            <button type="submit" disabled="@isSubmitting" class="ebay-btn-continue">
+                @if (isSubmitting)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                else
+                {
+                    <span>Continue</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="separator">
+            <span>or</span>
+        </div>
+
+        <div class="social-logins">
+            <button class="social-btn google">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_\"G\"_logo.svg" width="18" />
+                <span>Continue with Google</span>
+            </button>
+            <button class="social-btn facebook">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" width="18" />
+                <span>Continue with Facebook</span>
+            </button>
+            <button class="social-btn apple">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" width="18" />
+                <span>Continue with Apple</span>
+            </button>
+        </div>
+
+        <div class="stay-signed-in">
+            <input type="checkbox" id="stay" />
+            <label for="stay">Stay signed in</label>
+        </div>
+    </div>
+
+    <footer class="login-footer">
+        <p>Copyright © 1995-2026 eBay Inc. All Rights Reserved. <a href="#">Accessibility</a>, <a href="#">User Agreement</a>, <a href="#">Privacy</a>, <a href="#">Cookies</a>.</p>
+    </footer>
+</div>
+
+<style>
+    .login-wrapper {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: white;
+        font-family: 'Inter', sans-serif;
+    }
+
+    .login-header {
+        padding: 20px 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .tell-us {
+        font-size: 12px;
+        color: #707070;
+        text-decoration: underline;
+    }
+
+    .login-container {
+        max-width: 450px;
+        width: 100%;
+        margin: 40px auto;
+        padding: 0 20px;
+        text-align: center;
+    }
+
+    h1 {
+        font-size: 30px;
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+
+    .sub-header {
+        margin-bottom: 30px;
+        font-size: 14px;
+    }
+
+    .create-account-pill {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 6px 16px;
+        border: 1px solid #707070;
+        border-radius: 20px;
+        color: #191919;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .create-account-pill:hover {
+        background: #f7f7f7;
+    }
+
+    .ebay-input {
+        width: 100%;
+        padding: 16px;
+        border: 1px solid #707070;
+        border-radius: 8px;
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+
+    .ebay-btn-continue {
+        width: 100%;
+        padding: 14px;
+        background: #3665f3;
+        color: white;
+        border: none;
+        border-radius: 24px;
+        font-size: 16px;
+        font-weight: 600;
+        margin-top: 24px;
+        cursor: pointer;
+    }
+
+    .separator {
+        margin: 30px 0;
+        position: relative;
+        border-bottom: 1px solid #e5e5e5;
+    }
+
+    .separator span {
+        position: absolute;
+        top: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        padding: 0 10px;
+        color: #707070;
+        font-size: 12px;
+    }
+
+    .social-logins {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .social-btn {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #707070;
+        border-radius: 24px;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .stay-signed-in {
+        margin-top: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 14px;
+    }
+
+    .login-footer {
+        margin-top: auto;
+        padding: 20px;
+        text-align: center;
+        font-size: 11px;
+        color: #707070;
+        border-top: 1px solid #e5e5e5;
+    }
+
+    .login-footer a {
+        color: inherit;
+    }
+
+    .auth-alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 14px;
+        text-align: left;
+    }
+</style>
+
+@code {
+    private LoginRequest model = new();
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+
+    private async Task HandleLogin()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            await AuthService.LoginAsync(model);
+            
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var hasShopClaim = authState.User.FindFirst("HasShop")?.Value;
+
+            if (bool.TryParse(hasShopClaim, out bool hasShop) && hasShop)
+            {
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/onboarding");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

@@ -1,0 +1,271 @@
+@page "/listings"
+@using EbayClone.Domain.Entities
+@using EbayClone.Frontend.Services
+@inject ProductService ProductService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="ebay-page-title mb-1">Quản Lý Sản Phẩm (My Listings)</h2>
+            <p class="text-muted mb-0" style="font-size: 13px;">Xem, sửa, kích hoạt, tạm ẩn hoặc xóa sản phẩm</p>
+        </div>
+        <button class="ebay-btn-primary" @onclick='() => NavigationManager.NavigateTo("/listings/create")'>
+            + Tạo Sản Phẩm Mới
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="font-size: 13px;">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
+    <div class="ebay-card p-0 overflow-hidden">
+        <div class="bg-white border-bottom">
+            <ul class="nav nav-tabs card-header-tabs">
+                <li class="nav-item">
+                    <a class="nav-link @(currentTab == "ACTIVE" ? "active fw-bold" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("ACTIVE")'>ACTIVE</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(currentTab == "DRAFT" ? "active fw-bold" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("DRAFT")'>DRAFT</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(currentTab == "SCHEDULED" ? "active fw-bold" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("SCHEDULED")'>SCHEDULED</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(currentTab == "HIDDEN" ? "active fw-bold" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("HIDDEN")'>HIDDEN</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(currentTab == "OUT_OF_STOCK" ? "active fw-bold text-danger" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("OUT_OF_STOCK")'>OUT OF STOCK</a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="p-4 text-center text-muted">Đang tải danh sách sản phẩm...</div>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger m-3">@errorMessage</div>
+            }
+            else if (products == null || !products.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <h5>Shop của bạn chưa có sản phẩm nào.</h5>
+                    <p>Hãy bấm tạo mới để đăng bán mặt hàng đầu tiên!</p>
+                </div>
+            }
+            else if (!FilteredProducts.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <h5>Không có sản phẩm nào ở trạng thái @currentTab.</h5>
+                </div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-secondary" style="font-size: 13px; text-transform: uppercase;">
+                        <tr>
+                            <th class="py-3 px-4 border-0" style="width: 50px;">Ảnh</th>
+                            <th class="py-3 px-4 border-0">Tên Sản Phẩm</th>
+                            <th class="py-3 px-4 border-0">Thương Hiệu</th>
+                            <th class="py-3 px-4 border-0">Số lượng SKU</th>
+                            <th class="py-3 px-4 border-0">Giá khởi điểm</th>
+                            <th class="py-3 px-4 border-0">Trạng thái</th>
+                            <th class="py-3 px-4 border-0 text-end">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in FilteredProducts)
+                        {
+                            var minPrice = p.BasePrice ?? 0;
+
+                            <tr class="border-bottom">
+                                <td class="py-3 px-4">
+                                    @if (!string.IsNullOrEmpty(p.PrimaryImageUrl))
+                                    {
+                                        <img src="@p.PrimaryImageUrl" alt="@p.Name" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color);" />
+                                    }
+                                    else
+                                    {
+                                        <div style="width: 40px; height: 40px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #bbb;">📷</div>
+                                    }
+                                </td>
+                                <td class="py-3 px-4 fw-bold" style="color: var(--primary-color);">@p.Name</td>
+                                <td class="py-3 px-4">@p.Brand</td>
+                                <td class="py-3 px-4"><span class="badge bg-secondary rounded-pill">@(p.Variants?.Count ?? 0)</span></td>
+                                <td class="py-3 px-4 fw-bold">@minPrice.ToString("N0") ₫</td>
+                                <td class="py-3 px-4">
+                                    @{
+                                        var badgeClass = p.Status switch
+                                        {
+                                            "ACTIVE" => "bg-success",
+                                            "DRAFT" => "bg-secondary",
+                                            "SCHEDULED" => "bg-info",
+                                            "HIDDEN" => "bg-warning text-dark",
+                                            _ => "bg-primary"
+                                        };
+                                    }
+                                    <span class="badge @badgeClass rounded-pill">@p.Status</span>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <div class="action-group">
+                                        <button class="ebay-btn-outline-sm" @onclick='() => NavigationManager.NavigateTo($"/listings/edit/{p.Id}")'>
+                                            Sửa
+                                        </button>
+
+                                        @if (updatingStatusProductId == p.Id)
+                                        {
+                                            <button class="ebay-btn-success-sm" disabled>
+                                                <span class="spinner-border spinner-border-sm"></span>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            @* Nút theo tab *@
+                                            @if (currentTab == "DRAFT")
+                                            {
+                                                <button class="ebay-btn-success-sm" @onclick='() => ChangeProductStatus(p, "ACTIVE")' title="Mở bán ngay">
+                                                    Kích hoạt
+                                                </button>
+                                                <button class="ebay-btn-info-sm" @onclick='() => ChangeProductStatus(p, "SCHEDULED")' title="Hẹn giờ đăng">
+                                                    Hẹn giờ
+                                                </button>
+                                            }
+
+                                            @if (currentTab == "ACTIVE" || currentTab == "SCHEDULED")
+                                            {
+                                                <button class="ebay-btn-outline-sm" style="color: #ff8500; border-color: #ff8500;"
+                                                        @onclick='() => ChangeProductStatus(p, "HIDDEN")' title="Tạm ẩn khỏi trang Buyer">
+                                                    Tạm ẩn
+                                                </button>
+                                            }
+
+                                            @if (currentTab == "HIDDEN")
+                                            {
+                                                <button class="ebay-btn-success-sm" @onclick='() => ChangeProductStatus(p, "ACTIVE")' title="Mở bán lại">
+                                                    Kích hoạt lại
+                                                </button>
+                                            }
+
+                                            @* Nút Xóa (mọi tab) *@
+                                            @if (deletingProductId == p.Id)
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" disabled>
+                                                    <span class="spinner-border spinner-border-sm"></span>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => SoftDeleteProduct(p)" title="Xóa sản phẩm (Soft Delete)">
+                                                    Xóa
+                                                </button>
+                                            }
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<Product>? products;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+    private string currentTab = "ACTIVE";
+    private Guid? updatingStatusProductId = null;
+    private Guid? deletingProductId = null;
+
+    private IEnumerable<Product> FilteredProducts
+    {
+        get
+        {
+            if (products == null) return new List<Product>();
+
+            return products.Where(p =>
+            {
+                var totalStock = p.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
+
+                if (currentTab == "OUT_OF_STOCK")
+                    return totalStock <= 0 && p.Status == "ACTIVE";
+
+                return p.Status == currentTab;
+            });
+        }
+    }
+
+    private void ChangeTab(string tab)
+    {
+        currentTab = tab;
+    }
+
+    private async Task ChangeProductStatus(Product product, string newStatus)
+    {
+        updatingStatusProductId = product.Id;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await ProductService.UpdateProductStatusAsync(product.Id, newStatus);
+            products = await ProductService.GetMyProductsAsync();
+            successMessage = $"Đã chuyển '{product.Name}' sang trạng thái {newStatus}.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi khi cập nhật trạng thái: {ex.Message}";
+        }
+        finally
+        {
+            updatingStatusProductId = null;
+        }
+    }
+
+    private async Task SoftDeleteProduct(Product product)
+    {
+        deletingProductId = product.Id;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await ProductService.SoftDeleteProductAsync(product.Id);
+            products = await ProductService.GetMyProductsAsync();
+            successMessage = $"Đã xóa sản phẩm '{product.Name}' thành công.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi xóa sản phẩm: {ex.Message}";
+        }
+        finally
+        {
+            deletingProductId = null;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            products = await ProductService.GetMyProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

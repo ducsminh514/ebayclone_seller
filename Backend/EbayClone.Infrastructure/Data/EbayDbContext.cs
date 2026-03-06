@@ -37,6 +37,8 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
                 entity.Property(e => e.FullName).HasMaxLength(200);
                 entity.Property(e => e.Role).HasMaxLength(50).HasDefaultValue("SELLER");
+                entity.Property(e => e.EmailVerificationToken).HasMaxLength(100);
+                entity.Property(e => e.EmailVerificationTokenExpiresAt).HasColumnType("DATETIMEOFFSET");
             });
 
             // Files
@@ -53,8 +55,14 @@ namespace EbayClone.Infrastructure.Data
 
             // Shops
             modelBuilder.Entity<Shop>(entity => {
+                entity.HasIndex(e => e.OwnerId).IsUnique(); // Chống Race Condition
                 entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
+                entity.Property(e => e.TaxCode).HasMaxLength(20);
+                entity.Property(e => e.Address).HasMaxLength(255);
+                entity.Property(e => e.IsVerified).HasDefaultValue(false);
                 entity.Property(e => e.RatingAvg).HasColumnType("decimal(3, 2)");
+                entity.Property(e => e.TotalShippingPolicies).HasDefaultValue(0);
+                entity.Property(e => e.TotalReturnPolicies).HasDefaultValue(0);
             });
 
             // ShippingPolicies
@@ -75,6 +83,11 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Brand).HasMaxLength(100);
                 entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("DRAFT");
                 entity.Property(e => e.BasePrice).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.PrimaryImageUrl).HasMaxLength(500);
+                entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+                
+                // Global Query Filter: tự động loại trừ SP đã Soft Delete
+                entity.HasQueryFilter(e => !e.IsDeleted);
             });
 
             // ProductVariants

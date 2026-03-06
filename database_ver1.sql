@@ -33,6 +33,8 @@ CREATE TABLE [Users] (
     [PasswordHash] NVARCHAR(MAX) NOT NULL,
     [FullName] NVARCHAR(200),
     [IsEmailVerified] BIT DEFAULT 0,
+    [EmailVerificationToken] NVARCHAR(MAX),
+    [EmailVerificationTokenExpiresAt] DATETIMEOFFSET,
     [IsIdentityVerified] BIT DEFAULT 0, -- Đã xác minh KYC (Căn cước/Hộ chiếu) chưa?
     [Role] NVARCHAR(50) DEFAULT 'SELLER', -- 'ADMIN', 'BUYER', 'SELLER'
     [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET(),
@@ -80,6 +82,9 @@ CREATE TABLE [Shops] (
     [OwnerId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Users]([Id]),
     [Name] NVARCHAR(255) NOT NULL,
     [Description] NVARCHAR(MAX),
+    [TaxCode] NVARCHAR(20),
+    [Address] NVARCHAR(255),
+    [IsVerified] BIT DEFAULT 0,
     [AvatarUrl] NVARCHAR(MAX),
     [BannerUrl] NVARCHAR(MAX),
     [IsActive] BIT DEFAULT 1,
