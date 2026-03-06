@@ -16,13 +16,13 @@ namespace EbayClone.Frontend.Services
             _httpClient = httpClient;
         }
 
-        public async Task<IEnumerable<EbayClone.Domain.Entities.Order>> GetMyOrdersAsync()
+        public async Task<IEnumerable<OrderDto>> GetMyOrdersAsync()
         {
             var response = await _httpClient.GetAsync("api/orders");
             if (response.IsSuccessStatusCode)
             {
-                var orders = await response.Content.ReadFromJsonAsync<IEnumerable<EbayClone.Domain.Entities.Order>>();
-                return orders ?? Array.Empty<EbayClone.Domain.Entities.Order>();
+                var orders = await response.Content.ReadFromJsonAsync<IEnumerable<OrderDto>>();
+                return orders ?? Array.Empty<OrderDto>();
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
@@ -37,6 +37,20 @@ namespace EbayClone.Frontend.Services
                 var error = await response.Content.ReadAsStringAsync();
                 throw new Exception($"Lỗi máy chủ trả về: {response.StatusCode} - {error}");
             }
+        }
+
+        public async Task<OrderDto> GetOrderByIdAsync(Guid id)
+        {
+            var response = await _httpClient.GetAsync($"api/orders/{id}");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<OrderDto>();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+            throw new Exception($"Không thể tải dữ liệu đơn hàng: {response.StatusCode}");
         }
 
         public async Task UpdateOrderStatusAsync(Guid orderId, UpdateOrderStatusRequest request)

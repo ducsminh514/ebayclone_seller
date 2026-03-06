@@ -40,22 +40,22 @@ namespace EbayClone.Domain.Entities
             if (Status != "PENDING_PAYMENT")
                 throw new InvalidOperationException("Chỉ đơn hàng PENDING_PAYMENT mới được phép thanh toán.");
             
-            Status = "PAID_READY_TO_SHIP";
+            Status = "READY_TO_SHIP";
             PaymentStatus = "PAID";
             PaidAt = DateTimeOffset.UtcNow;
         }
 
         public void MarkAsPrintedLabel()
         {
-            if (Status != "PAID_READY_TO_SHIP")
+            if (Status != "READY_TO_SHIP")
                 throw new InvalidOperationException("Đơn hàng phải ở trạng thái đã thanh toán mới được in phiếu gửi.");
             
-            Status = "PRINTED_LABEL";
+            Status = "PROCESSING";
         }
 
         public void MarkAsShipped(string carrier, string trackingCode)
         {
-            if (Status != "PRINTED_LABEL" && Status != "PAID_READY_TO_SHIP")
+            if (Status != "PROCESSING" && Status != "READY_TO_SHIP")
                 throw new InvalidOperationException("Không thể SHIPPED nếu chưa qua bước Chuẩn bị hàng.");
 
             if (string.IsNullOrWhiteSpace(trackingCode))

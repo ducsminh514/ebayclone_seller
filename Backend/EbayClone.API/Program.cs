@@ -20,6 +20,7 @@ builder.Services.AddDbContext<EbayDbContext>(options =>
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IShopRepository, ShopRepository>();
 builder.Services.AddScoped<ISellerWalletRepository, SellerWalletRepository>();
+builder.Services.AddScoped<IWalletTransactionRepository, WalletTransactionRepository>();
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
@@ -41,6 +42,8 @@ builder.Services.AddScoped<IGetShippingPoliciesUseCase, GetShippingPoliciesUseCa
 builder.Services.AddScoped<IGetReturnPoliciesUseCase, GetReturnPoliciesUseCase>();
 builder.Services.AddScoped<IUpdateOrderStatusUseCase, UpdateOrderStatusUseCase>();
 builder.Services.AddScoped<IGetOrdersUseCase, GetOrdersUseCase>();
+builder.Services.AddScoped<IGetOrderByIdUseCase, GetOrderByIdUseCase>();
+builder.Services.AddScoped<ICreateTestOrderUseCase, CreateTestOrderUseCase>();
 builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
 builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
@@ -66,7 +69,33 @@ builder.Services.AddAuthentication(options =>
         RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
 });
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Description = "Nhập token: Bearer {token}",
+        Name = "Authorization",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
 
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
@@ -100,7 +129,6 @@ app.UseHttpsRedirection();
 
 // Kích hoạt CORS Pipeline cho Frontend Blazor (port 5002) gọi sang Backend (7132)
 app.UseCors("AllowAll");
-
 app.UseAuthentication();
 app.UseAuthorization();
 

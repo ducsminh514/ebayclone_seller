@@ -1,0 +1,295 @@
+@page "/orders/{OrderId:guid}"
+@using EbayClone.Domain.Entities
+@using EbayClone.Frontend.Services
+@using EbayClone.Application.DTOs.Orders
+@inject OrderService OrderService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="d-flex align-items-center mb-3">
+        <button class="btn btn-outline-secondary me-3" @onclick='() => NavigationManager.NavigateTo("/orders")'>
+            <i class="bi bi-arrow-left"></i> Trở về
+        </button>
+        <h2 class="ebay-page-title mb-0">Chi Tiết Đơn Hàng</h2>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center p-5"><span class="spinner-border"></span> Đang tải...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (order != null)
+    {
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- THÔNG TIN SẢN PHẨM -->
+                <div class="ebay-card mb-4">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Danh sách Sản phẩm</h5>
+                    <table class="table table-borderless align-middle">
+                        <thead class="text-secondary small">
+                            <tr>
+                                <th>SẢN PHẨM</th>
+                                <th>ĐƠN GIÁ</th>
+                                <th>SỐ LƯỢNG</th>
+                                <th class="text-end">THÀNH TIỀN</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach(var item in order.Items)
+                            {
+                                <tr class="border-top">
+                                    <td class="py-3">
+                                        <div class="d-flex align-items-center gap-3">
+                                            @if (!string.IsNullOrEmpty(item.Variant?.ImageUrl))
+                                            {
+                                                <img src="@item.Variant.ImageUrl" alt="Product" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" />
+                                            }
+                                            else
+                                            {
+                                                <div class="bg-light d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px; border-radius: 4px;">Img</div>
+                                            }
+                                            <div>
+                                                <strong class="d-block text-dark opacity-100">@item.ProductNameSnapshot</strong>
+                                                <small class="text-muted">SKU: @item.Variant?.SkuCode</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3">@item.PriceAtPurchase.ToString("N0") đ</td>
+                                    <td class="py-3 text-center">x @item.Quantity</td>
+                                    <td class="py-3 text-end fw-bold">@order.TotalAmount đ</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- LỊCH SỬ ĐƠN HÀNG (TIMELINE) -->
+                <div class="ebay-card mb-4">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Lịch sử trạng thái</h5>
+                    <ul class="timeline list-unstyled ps-2 pt-2" style="border-left: 2px solid #0064d2; margin-left:10px;">
+                        <li class="mb-3 ps-3 position-relative">
+                            <span class="position-absolute bg-primary rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
+                            <div><strong>Đặt hàng</strong></div>
+                            <small class="text-muted">@order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                        </li>
+                        @if (order.PaidAt.HasValue)
+                        {
+                        <li class="mb-3 ps-3 position-relative">
+                            <span class="position-absolute bg-success rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
+                            <div><strong>Đã Thanh Toán</strong> & Khoá kho thực tế</div>
+                            <small class="text-muted">@order.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                        </li>
+                        }
+                        @if (order.ShippedAt.HasValue)
+                        {
+                        <li class="mb-3 ps-3 position-relative">
+                            <span class="position-absolute bg-warning rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
+                            <div><strong>Đã Giao Hàng</strong> (Vận chuyển: @order.ShippingCarrier - @order.TrackingCode)</div>
+                            <small class="text-muted">@order.ShippedAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                        </li>
+                        }
+                        @if (order.CompletedAt.HasValue)
+                        {
+                        <li class="mb-3 ps-3 position-relative">
+                            <span class="position-absolute bg-secondary rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
+                            <div><strong>Giao Thành Công (Hoàn Tất)</strong></div>
+                            <small class="text-muted">@order.CompletedAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                        </li>
+                        }
+                    </ul>
+                </div>
+
+            </div>
+            <div class="col-lg-4">
+                <!-- HÀNH ĐỘNG CẬP NHẬT TRẠNG THÁI (MÁY TRẠNG THÁI) -->
+                <div class="ebay-card mb-4 bg-light border-primary">
+                    <h5 class="fw-bold text-primary mb-3">Xử Lý Đơn Hàng</h5>
+                    <div class="mb-2">
+                        Trạng thái hiện tại: <span class="badge bg-primary fs-6">@order.Status</span>
+                    </div>
+                    <div class="badge bg-warning text-dark mb-4 fs-6">Thanh Toán: @order.PaymentStatus</div>
+                    
+                    <div class="d-grid gap-2">
+                        @if (order.Status == "PENDING_PAYMENT")
+                        {
+                            <button class="btn btn-success" @onclick='() => UpdateStatus("READY_TO_SHIP")' disabled="@isUpdating">
+                                Mô phỏng Khách đã Thanh toán
+                            </button>
+                            <button class="btn btn-danger" @onclick='() => UpdateStatus("CANCELLED")' disabled="@isUpdating">
+                                Huỷ & Xả kho dự trữ
+                            </button>
+                        }
+                        else if (order.Status == "READY_TO_SHIP")
+                        {
+                            <button class="btn btn-primary" @onclick='() => UpdateStatus("PROCESSING")' disabled="@isUpdating">
+                                Xác nhận đã In Mã Vận Đơn
+                            </button>
+                        }
+                        else if (order.Status == "PROCESSING")
+                        {
+                            <button class="btn btn-warning text-dark" @onclick='() => UpdateStatus("SHIPPED")' disabled="@isUpdating">
+                                Giao cho Vận Chuyển
+                            </button>
+                        }
+                        else if (order.Status == "SHIPPED")
+                        {
+                            <button class="btn btn-secondary" @onclick='() => UpdateStatus("DELIVERED")' disabled="@isUpdating">
+                                Khách nhận thành công (Giải ngân)
+                            </button>
+                        }
+                        else if (order.Status == "DELIVERED")
+                        {
+                            <div class="alert alert-success mt-2 py-2 text-center">Đơn hàng đã hoàn tất! Tiền đã được cộng vào PendingBalance.</div>
+                        }
+                        else if (order.Status == "CANCELLED")
+                        {
+                            <div class="alert alert-danger mt-2 py-2 text-center">Đơn hàng đã bị huỷ.</div>
+                        }
+                    </div>
+                    @if (!string.IsNullOrEmpty(statusErrorMessage))
+                    {
+                        <div class="mt-2 text-danger small">@statusErrorMessage</div>
+                    }
+                </div>
+
+                <!-- THÔNG TIN ĐƠN HÀNG -->
+                <div class="ebay-card mb-4">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Tổng quan</h5>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Mã đơn:</span>
+                        <strong>#@order.OrderNumber</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Ngày đặt:</span>
+                        <strong>@order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</strong>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Tổng tiền hàng:</span>
+                        <strong>@((order.TotalAmount - order.ShippingFee).ToString("N0")) đ</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Phí vận chuyển:</span>
+                        <strong>@order.ShippingFee.ToString("N0") đ</strong>
+                    </div>
+                    <div class="d-flex justify-content-between fs-5 mt-3 pt-2 border-top">
+                        <span class="fw-bold">Thanh Toán:</span>
+                        <strong class="text-primary">@order.TotalAmount.ToString("N0") đ</strong>
+                    </div>
+                    @if (order.Status == "DELIVERED")
+                    {
+                        <div class="d-flex justify-content-between bg-success text-white px-2 py-1 mt-3 rounded small">
+                            <span>Phí Sàn thu (Platform Fee):</span>
+                            <span>@order.PlatformFee.ToString("N0") đ</span>
+                        </div>
+                        <div class="d-flex justify-content-between bg-info text-dark px-2 py-1 mt-1 rounded small">
+                            <span>Thực nhận (Vào Pending Balance):</span>
+                            <strong>@((order.TotalAmount - order.PlatformFee).ToString("N0")) đ</strong>
+                        </div>
+                    }
+                </div>
+
+                <!-- THÔNG TIN NGƯỜI MUA -->
+                <div class="ebay-card mb-4">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Khách hàng & Giao hàng</h5>
+                    <p class="mb-1 text-muted">Thông tin nhận hàng:</p>
+                    <p class="fw-bold mb-3">@FormatReceiverInfo(order.ReceiverInfo)</p>
+                    @if (!string.IsNullOrEmpty(order.ShippingCarrier))
+                    {
+                        <p class="mb-1 text-muted">Đơn vị vận chuyển:</p>
+                        <p class="fw-bold mb-1">@order.ShippingCarrier</p>
+                        <p class="mb-1 text-muted">Mã vận đơn:</p>
+                        <p class="fw-bold text-primary">@order.TrackingCode</p>
+                    }
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid OrderId { get; set; }
+
+    private OrderDto? order;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? statusErrorMessage;
+    private bool isUpdating = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrder();
+    }
+
+    private async Task LoadOrder()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            order = await OrderService.GetOrderByIdAsync(OrderId);
+            if (order == null)
+            {
+                errorMessage = "Không tìm thấy đơn hàng.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateStatus(string newStatus)
+    {
+        try
+        {
+            isUpdating = true;
+            statusErrorMessage = null;
+            
+            var request = new UpdateOrderStatusRequest 
+            { 
+                NewStatus = newStatus,
+                ShippingCarrier = newStatus == "SHIPPED" ? "GiaoHangNhanh" : null,
+                TrackingCode = newStatus == "SHIPPED" ? "GHN" + DateTime.Now.Ticks.ToString().Substring(10) : null
+            };
+
+            await OrderService.UpdateOrderStatusAsync(OrderId, request);
+            await LoadOrder(); // Refresh the data to trace state change
+        }
+        catch (Exception ex)
+        {
+            statusErrorMessage = $"Lỗi cập nhật: {ex.Message}";
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    private string FormatReceiverInfo(string? jsonInfo)
+    {
+        if (string.IsNullOrEmpty(jsonInfo)) return "Chưa có thông tin";
+        try
+        {
+            var info = System.Text.Json.JsonDocument.Parse(jsonInfo);
+            var root = info.RootElement;
+            var name = root.TryGetProperty("FullName", out var n) ? n.GetString() : "";
+            var phone = root.TryGetProperty("Phone", out var p) ? p.GetString() : "";
+            var addr = root.TryGetProperty("Address", out var a) ? a.GetString() : "";
+            return $"{name} - {phone} - {addr}".Trim('-', ' ');
+        }
+        catch
+        {
+            return jsonInfo; // Fallback if not valid JSON
+        }
+    }
+}

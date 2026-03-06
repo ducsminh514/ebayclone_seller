@@ -65,5 +65,35 @@ namespace EbayClone.Infrastructure.Repositories
                 .Where(v => v.Id == variantId)
                 .ExecuteUpdateAsync(s => s.SetProperty(v => v.Quantity, v => v.Quantity + addedQuantity), cancellationToken);
         }
+
+        public async Task<int> DeductStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default)
+        {
+            return await _context.ProductVariants
+                .Where(v => v.Id == variantId && v.Quantity >= quantity && v.ReservedQuantity >= quantity)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.Quantity, x => x.Quantity - quantity)
+                    .SetProperty(x => x.ReservedQuantity, x => x.ReservedQuantity - quantity), 
+                    cancellationToken);
+        }
+
+        public async Task<int> ReleaseReservationAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default)
+        {
+            return await _context.ProductVariants
+                .Where(v => v.Id == variantId && v.ReservedQuantity >= quantity)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.ReservedQuantity, x => x.ReservedQuantity - quantity), 
+                    cancellationToken);
+        }
+
+        public async Task<int> ReserveStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default)
+        {
+            // AvailableStock = Quantity - ReservedQuantity
+            // Condition to Reserve: Quantity - ReservedQuantity >= quantity
+            return await _context.ProductVariants
+                .Where(v => v.Id == variantId && (v.Quantity - v.ReservedQuantity) >= quantity)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.ReservedQuantity, x => x.ReservedQuantity + quantity), 
+                    cancellationToken);
+        }
     }
 }

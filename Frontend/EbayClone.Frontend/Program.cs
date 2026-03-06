@@ -17,6 +17,7 @@ builder.Services.AddScoped<ShopService>();
 builder.Services.AddScoped<PolicyService>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<BuyerService>();
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddBlazoredLocalStorage();

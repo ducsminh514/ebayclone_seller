@@ -18,5 +18,10 @@ namespace EbayClone.Application.Interfaces.Repositories
         
         // Optimistic Concurrency Update for Restock
         Task<int> RestockVariantAsync(Guid variantId, int addedQuantity, CancellationToken cancellationToken = default);
+        
+        // Fulfillment Atomics
+        Task<int> DeductStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
+        Task<int> ReleaseReservationAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
+        Task<int> ReserveStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
     }
 }

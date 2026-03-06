@@ -15,13 +15,16 @@ namespace EbayClone.API.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly IGetOrdersUseCase _getOrdersUseCase;
+        private readonly IGetOrderByIdUseCase _getOrderByIdUseCase;
         private readonly IUpdateOrderStatusUseCase _updateOrderStatusUseCase;
 
         public OrdersController(
             IGetOrdersUseCase getOrdersUseCase,
+            IGetOrderByIdUseCase getOrderByIdUseCase,
             IUpdateOrderStatusUseCase updateOrderStatusUseCase)
         {
             _getOrdersUseCase = getOrdersUseCase;
+            _getOrderByIdUseCase = getOrderByIdUseCase;
             _updateOrderStatusUseCase = updateOrderStatusUseCase;
         }
 
@@ -36,6 +39,7 @@ namespace EbayClone.API.Controllers
         }
 
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> GetShopOrders()
         {
             var shopId = GetShopId();
@@ -46,6 +50,22 @@ namespace EbayClone.API.Controllers
 
             var orders = await _getOrdersUseCase.ExecuteAsync(shopId.Value);
             return Ok(orders);
+        }
+
+        [HttpGet("{id}")]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> GetOrderById(Guid id)
+        {
+            var shopId = GetShopId();
+            if (!shopId.HasValue)
+            {
+                return StatusCode(403, new { Error = "Account not authorized." });
+            }
+
+            var order = await _getOrderByIdUseCase.ExecuteAsync(shopId.Value, id);
+            if (order == null) return NotFound(new { Error = "Order not found or does not belong to your shop." });
+            
+            return Ok(order);
         }
 
         [HttpPut("{id}/status")]

@@ -15,7 +15,7 @@
             <ul class="nav nav-tabs card-header-tabs" style="cursor: pointer;">
                 <li class="nav-item"><a class="nav-link @GetTabClass("ALL")" @onclick='() => ChangeTab("ALL")'>TẤT CẢ</a></li>
                 <li class="nav-item"><a class="nav-link @GetTabClass("PENDING_PAYMENT")" @onclick='() => ChangeTab("PENDING_PAYMENT")'>CHỜ THANH TOÁN</a></li>
-                <li class="nav-item"><a class="nav-link @GetTabClass("PAID_READY_TO_SHIP")" @onclick='() => ChangeTab("PAID_READY_TO_SHIP")'>CHỜ LẤY HÀNG</a></li>
+                <li class="nav-item"><a class="nav-link @GetTabClass("READY_TO_SHIP")" @onclick='() => ChangeTab("READY_TO_SHIP")'>CHỜ LẤY HÀNG</a></li>
                 <li class="nav-item"><a class="nav-link @GetTabClass("SHIPPED")" @onclick='() => ChangeTab("SHIPPED")'>ĐANG GIAO</a></li>
                 <li class="nav-item"><a class="nav-link @GetTabClass("DELIVERED")" @onclick='() => ChangeTab("DELIVERED")'>ĐÃ GIAO</a></li>
             </ul>
@@ -45,7 +45,7 @@
                             <th class="py-3 px-4 border-0">Tổng Tiền</th>
                             <th class="py-3 px-4 border-0">Thanh Toán</th>
                             <th class="py-3 px-4 border-0">Trạng Thái</th>
-                            <th class="py-3 px-4 border-0 text-end">Cập Nhật Trạng Thái</th>
+                            <th class="py-3 px-4 border-0 text-end">Hành Động</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -64,18 +64,9 @@
                                     <span class="badge bg-primary rounded-pill">@o.Status</span>
                                 </td>
                                 <td class="py-3 px-4 text-end">
-                                    <div class="d-flex justify-content-end align-items-center gap-2">
-                                        <select class="form-select form-select-sm" style="width: 160px;" @bind="updateStatusDict[o.Id]">
-                                            <option value="">-- Chọn --</option>
-                                            <option value="PAID_READY_TO_SHIP">Đã Thanh Toán</option>
-                                            <option value="PRINTED_LABEL">Đã In Mã Vận Đơn</option>
-                                            <option value="SHIPPED">Đã Giao Vận Chuyển</option>
-                                            <option value="DELIVERED">Giao Thành Công</option>
-                                        </select>
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => UpdateStatus(o.Id)" disabled="@isUpdating">
-                                            Lưu
-                                        </button>
-                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary px-3" @onclick='() => NavigationManager.NavigateTo($"/orders/{o.Id}")'>
+                                        Xem Chi Tiết & Xử Lý
+                                    </button>
                                 </td>
                             </tr>
                         }
@@ -87,15 +78,11 @@
 </div>
 
 @code {
-    private IEnumerable<Order>? allOrders;
-    private IEnumerable<Order> filteredOrders = Array.Empty<Order>();
+    private IEnumerable<OrderDto>? allOrders;
+    private IEnumerable<OrderDto> filteredOrders = Array.Empty<OrderDto>();
     private bool isLoading = true;
-    private bool isUpdating = false;
     private string? errorMessage;
     private string currentTab = "ALL";
-    
-    // Dictionary lưu tạm trạng thái người dùng chọn từ Dropdown
-    private Dictionary<Guid, string> updateStatusDict = new Dictionary<Guid, string>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -109,14 +96,6 @@
             isLoading = true;
             errorMessage = null;
             allOrders = await OrderService.GetMyOrdersAsync();
-            
-            // Initiate dictionary
-            updateStatusDict.Clear();
-            foreach(var o in allOrders)
-            {
-                updateStatusDict[o.Id] = "";
-            }
-            
             FilterData();
         }
         catch (Exception ex)
@@ -152,39 +131,5 @@
     private string GetTabClass(string tab)
     {
         return currentTab == tab ? "active fw-bold" : "text-muted";
-    }
-
-    private async Task UpdateStatus(Guid orderId)
-    {
-        if (!updateStatusDict.ContainsKey(orderId) || string.IsNullOrEmpty(updateStatusDict[orderId]))
-        {
-            return;
-        }
-
-        try
-        {
-            isUpdating = true;
-            errorMessage = null; // Clear old errors
-            
-            var request = new UpdateOrderStatusRequest 
-            { 
-                NewStatus = updateStatusDict[orderId],
-                ShippingCarrier = "GiaoHangNhanh", // Hardcode for demo
-                TrackingCode = "GHN" + DateTime.Now.Ticks.ToString()
-            };
-
-            await OrderService.UpdateOrderStatusAsync(orderId, request);
-            
-            // Reload if success
-            await LoadOrders();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Lỗi cập nhật mã đơn thao tác: {ex.Message}";
-        }
-        finally
-        {
-            isUpdating = false;
-        }
     }
 }

@@ -17,15 +17,21 @@ namespace EbayClone.Application.UseCases.Orders
     {
         private readonly IOrderRepository _orderRepository;
         private readonly ISellerWalletRepository _walletRepository;
+        private readonly IWalletTransactionRepository _walletTransactionRepository;
+        private readonly IProductRepository _productRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public UpdateOrderStatusUseCase(
             IOrderRepository orderRepository,
             ISellerWalletRepository walletRepository,
+            IWalletTransactionRepository walletTransactionRepository,
+            IProductRepository productRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _walletRepository = walletRepository;
+            _walletTransactionRepository = walletTransactionRepository;
+            _productRepository = productRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -44,10 +50,15 @@ namespace EbayClone.Application.UseCases.Orders
 
                 switch (request.NewStatus)
                 {
-                    case "PAID_READY_TO_SHIP":
+                    case "READY_TO_SHIP":
                         order.MarkAsPaid();
+                        // Trừ kho thật sự và xả khoá
+                        foreach(var item in order.Items)
+                        {
+                            await _productRepository.DeductStockAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
+                        }
                         break;
-                    case "PRINTED_LABEL":
+                    case "PROCESSING":
                         order.MarkAsPrintedLabel();
                         break;
                     case "SHIPPED":
@@ -62,9 +73,30 @@ namespace EbayClone.Application.UseCases.Orders
                             decimal profit = order.TotalAmount - order.PlatformFee; // Coi như đã trừ các phí.
                             wallet.AddPending(profit);
                             _walletRepository.Update(wallet);
+
+                            // Add Wallet Transaction Log
+                            var wt = new WalletTransaction
+                            {
+                                ShopId = shopId,
+                                Amount = profit,
+                                Type = "ORDER_INCOME",
+                                ReferenceId = order.Id,
+                                ReferenceType = "ORDER",
+                                Description = $"Cộng {profit} đ vào ví Pending từ đơn hàng #{order.OrderNumber}",
+                                BalanceAfter = wallet.PendingBalance
+                            };
+                            await _walletTransactionRepository.AddAsync(wt, cancellationToken);
                         }
                         break;
                     case "CANCELLED":
+                        // Nếu chưa trừ kho thật (chưa PAID), thì xả khoá Reserved
+                        if (order.PaymentStatus == "UNPAID")
+                        {
+                            foreach(var item in order.Items)
+                            {
+                                await _productRepository.ReleaseReservationAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
+                            }
+                        }
                         order.CancelOrder();
                         break;
                     default:
