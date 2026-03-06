@@ -19,6 +19,7 @@ namespace EbayClone.API.Controllers
         private readonly IGetProductByIdUseCase _getProductByIdUseCase;
         private readonly IUpdateProductBasicUseCase _updateProductBasicUseCase;
         private readonly IUpdateProductStatusUseCase _updateProductStatusUseCase;
+        private readonly ISoftDeleteProductUseCase _softDeleteProductUseCase;
 
         public ProductsController(
             ICreateListingUseCase createListingUseCase,
@@ -26,7 +27,8 @@ namespace EbayClone.API.Controllers
             IGetProductsUseCase getProductsUseCase,
             IGetProductByIdUseCase getProductByIdUseCase,
             IUpdateProductBasicUseCase updateProductBasicUseCase,
-            IUpdateProductStatusUseCase updateProductStatusUseCase)
+            IUpdateProductStatusUseCase updateProductStatusUseCase,
+            ISoftDeleteProductUseCase softDeleteProductUseCase)
         {
             _createListingUseCase = createListingUseCase;
             _restockVariantUseCase = restockVariantUseCase;
@@ -34,6 +36,7 @@ namespace EbayClone.API.Controllers
             _getProductByIdUseCase = getProductByIdUseCase;
             _updateProductBasicUseCase = updateProductBasicUseCase;
             _updateProductStatusUseCase = updateProductStatusUseCase;
+            _softDeleteProductUseCase = softDeleteProductUseCase;
         }
 
         [HttpGet]
@@ -139,6 +142,24 @@ namespace EbayClone.API.Controllers
                 return Ok(new { Message = $"Nhập kho thành công (+{request.AddedQuantity} SP)." });
             }
             catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Error = ex.Message }); }
+        }
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> SoftDeleteProduct(Guid id)
+        {
+            try
+            {
+                var shopIdClaim = User.FindFirst("ShopId")?.Value;
+                if (string.IsNullOrEmpty(shopIdClaim))
+                    return Unauthorized(new { Error = "Shop context is required." });
+
+                var shopId = Guid.Parse(shopIdClaim);
+                await _softDeleteProductUseCase.ExecuteAsync(shopId, id);
+                return Ok(new { Message = "Sản phẩm đã được xóa thành công." });
+            }
+            catch (UnauthorizedAccessException ex) { return Forbid(); }
+            catch (ArgumentException ex) { return NotFound(new { Error = ex.Message }); }
             catch (Exception ex) { return StatusCode(500, new { Error = ex.Message }); }
         }
     }

@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EbayClone.Application.DTOs.Products;
@@ -44,6 +47,17 @@ namespace EbayClone.Application.UseCases.Products
             product.ShippingPolicyId = request.ShippingPolicyId;
             product.ReturnPolicyId = request.ReturnPolicyId;
             product.Status = request.Status;
+            
+            // Xử lý ảnh
+            string? primaryImg = request.PrimaryImageUrl;
+            if (string.IsNullOrEmpty(primaryImg) && request.ImageUrls != null && request.ImageUrls.Any())
+                primaryImg = request.ImageUrls[0];
+            
+            product.PrimaryImageUrl = primaryImg;
+            product.ImageUrls = request.ImageUrls != null && request.ImageUrls.Any()
+                ? JsonSerializer.Serialize(request.ImageUrls)
+                : null;
+            
             product.UpdatedAt = DateTimeOffset.UtcNow;
 
             await _productRepository.UpdateAsync(product, cancellationToken);

@@ -97,6 +97,15 @@ namespace EbayClone.Frontend.Services
                 throw new Exception($"Lỗi máy chủ trả về: {response.StatusCode} - {error}");
             }
         }
+        public async Task SoftDeleteProductAsync(Guid id)
+        {
+            var response = await _httpClient.DeleteAsync($"api/products/{id}");
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                throw new Exception($"Lỗi xóa sản phẩm: {error}");
+            }
+        }
     }
 
     public class CreateProductResponse

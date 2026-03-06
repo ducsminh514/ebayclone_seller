@@ -1,0 +1,291 @@
+@page "/inventory"
+@using EbayClone.Domain.Entities
+@using EbayClone.Frontend.Services
+@inject ProductService ProductService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="ebay-page-title mb-1">Quản Lý Tồn Kho</h2>
+            <p class="text-muted mb-0" style="font-size: 13px;">Theo dõi và cập nhật số lượng hàng cho từng phân loại (SKU)</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="p-4 text-center text-muted">
+            <span class="spinner-border spinner-border-sm me-2"></span> Đang tải dữ liệu tồn kho...
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (products == null || !products.Any())
+    {
+        <div class="ebay-card p-5 text-center text-muted">
+            <h5>Chưa có sản phẩm nào trong kho.</h5>
+            <p>Hãy tạo sản phẩm và thêm biến thể để quản lý tồn kho.</p>
+        </div>
+    }
+    else
+    {
+        <!-- Summary Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center mb-0" style="border-left: 4px solid var(--primary-color);">
+                    <div style="font-size: 28px; font-weight: 700; color: var(--primary-color);">@totalProducts</div>
+                    <div class="text-muted" style="font-size: 12px; font-weight: 600; text-transform: uppercase;">Tổng Sản Phẩm</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center mb-0" style="border-left: 4px solid #1a7d32;">
+                    <div style="font-size: 28px; font-weight: 700; color: #1a7d32;">@totalSkus</div>
+                    <div class="text-muted" style="font-size: 12px; font-weight: 600; text-transform: uppercase;">Tổng SKU</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center mb-0" style="border-left: 4px solid #ff8500;">
+                    <div style="font-size: 28px; font-weight: 700; color: #ff8500;">@lowStockSkus</div>
+                    <div class="text-muted" style="font-size: 12px; font-weight: 600; text-transform: uppercase;">SKU Sắp Hết (&lt;5)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center mb-0" style="border-left: 4px solid var(--danger-color);">
+                    <div style="font-size: 28px; font-weight: 700; color: var(--danger-color);">@outOfStockSkus</div>
+                    <div class="text-muted" style="font-size: 12px; font-weight: 600; text-transform: uppercase;">SKU Hết Hàng</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Table with Expand -->
+        <div class="ebay-card p-0 overflow-hidden">
+            <table class="table align-middle mb-0">
+                <thead class="bg-light text-secondary" style="font-size: 12px; text-transform: uppercase;">
+                    <tr>
+                        <th class="py-3 px-4 border-0" style="width: 36px;"></th>
+                        <th class="py-3 px-4 border-0">Sản Phẩm</th>
+                        <th class="py-3 px-4 border-0">Thương Hiệu</th>
+                        <th class="py-3 px-4 border-0 text-center">Tổng SKU</th>
+                        <th class="py-3 px-4 border-0 text-center">Tổng Available</th>
+                        <th class="py-3 px-4 border-0 text-center">Trạng Thái Kho</th>
+                        <th class="py-3 px-4 border-0 text-end">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in products)
+                    {
+                        var totalAvailable = p.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
+                        var skuCount = p.Variants?.Count ?? 0;
+                        var isExpanded = expandedProductIds.Contains(p.Id);
+                        var lowStock = p.Variants?.Count(v => { var a = v.Quantity - v.ReservedQuantity; return a > 0 && a < 5; }) ?? 0;
+                        var outStock = p.Variants?.Count(v => (v.Quantity - v.ReservedQuantity) <= 0) ?? 0;
+
+                        <!-- Product Row -->
+                        <tr class="border-bottom inventory-row" style="cursor: pointer;" @onclick="() => ToggleExpand(p.Id)">
+                            <td class="py-3 ps-4 pe-0 text-center">
+                                <span style="font-size: 12px; color: var(--text-secondary); display: inline-block; transition: transform 0.2s; transform: rotate(@(isExpanded ? "90deg" : "0deg"));">▶</span>
+                            </td>
+                            <td class="py-3 px-4 fw-bold" style="color: var(--primary-color);">@p.Name</td>
+                            <td class="py-3 px-4 text-muted">@(p.Brand ?? "-")</td>
+                            <td class="py-3 px-4 text-center">
+                                <span class="badge bg-secondary rounded-pill">@skuCount</span>
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                <span class="badge rounded-pill fw-bold @(totalAvailable > 0 ? "bg-success" : "bg-danger")">@totalAvailable</span>
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                @if (outStock == skuCount && skuCount > 0)
+                                {
+                                    <span class="badge bg-danger rounded-pill">Hết hàng</span>
+                                }
+                                else if (outStock > 0 || lowStock > 0)
+                                {
+                                    <span class="badge bg-warning text-dark rounded-pill">Cảnh báo</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success rounded-pill">Đủ hàng</span>
+                                }
+                            </td>
+                            <td class="py-3 px-4 text-end" @onclick:stopPropagation="true">
+                                <button class="ebay-btn-outline-sm" @onclick='() => NavigationManager.NavigateTo($"/inventory/{p.Id}")'>
+                                    Xem chi tiết
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- Expanded Quick View -->
+                        @if (isExpanded && p.Variants != null && p.Variants.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="p-0" style="background: #fafbff;">
+                                    <div style="padding: 16px 24px 16px 56px;">
+                                        <div class="row g-3">
+                                            @foreach (var v in p.Variants)
+                                            {
+                                                var available = v.Quantity - v.ReservedQuantity;
+                                                var barColor = available <= 0 ? "#dd1e31" : available < 5 ? "#ff8500" : "#1a7d32";
+                                                var barPercent = v.Quantity > 0 ? (int)Math.Round((double)available / v.Quantity * 100) : 0;
+
+                                                <div class="col-md-6 col-lg-4">
+                                                    <div style="background: white; border-radius: 8px; padding: 14px 16px; border: 1px solid var(--border-color); border-left: 3px solid @barColor;">
+                                                        <!-- SKU Header -->
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <span class="fw-bold" style="font-size: 13px;">@v.SkuCode</span>
+                                                            @if (available <= 0)
+                                                            {
+                                                                <span class="badge bg-danger" style="font-size: 10px;">Hết</span>
+                                                            }
+                                                            else if (available < 5)
+                                                            {
+                                                                <span class="badge bg-warning text-dark" style="font-size: 10px;">Sắp hết</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="badge bg-success" style="font-size: 10px;">OK</span>
+                                                            }
+                                                        </div>
+
+                                                        @if (!string.IsNullOrEmpty(v.Attributes))
+                                                        {
+                                                            <div class="text-muted mb-2" style="font-size: 11px;">@v.Attributes</div>
+                                                        }
+
+                                                        <!-- Stock Numbers -->
+                                                        <div class="d-flex justify-content-between mb-2" style="font-size: 12px;">
+                                                            <div class="text-center">
+                                                                <div class="fw-bold" style="font-size: 16px;">@v.Quantity</div>
+                                                                <div class="text-muted" style="font-size: 10px;">Tổng kho</div>
+                                                            </div>
+                                                            <div class="text-center" style="border-left: 1px solid #eee; border-right: 1px solid #eee; padding: 0 12px;">
+                                                                <div class="fw-bold" style="font-size: 16px; color: #ff8500;">@v.ReservedQuantity</div>
+                                                                <div class="text-muted" style="font-size: 10px;">Đặt trước</div>
+                                                            </div>
+                                                            <div class="text-center">
+                                                                <div class="fw-bold" style="font-size: 16px; color: @barColor;">@available</div>
+                                                                <div class="text-muted" style="font-size: 10px;">Available</div>
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Mini Progress Bar -->
+                                                        <div class="progress mb-2" style="height: 4px; border-radius: 2px;">
+                                                            <div class="progress-bar" style="width: @barPercent%; background-color: @barColor; border-radius: 2px;"></div>
+                                                        </div>
+
+                                                        <!-- Inline Restock -->
+                                                        <div class="d-flex gap-2 align-items-center pt-2" style="border-top: 1px solid #f0f0f0;">
+                                                            <input type="number" class="form-control form-control-sm" placeholder="+Nhập" min="1"
+                                                                   style="font-size: 11px; flex: 1; height: 28px;"
+                                                                   value="@(inlineRestockQty.ContainsKey(v.Id) && inlineRestockQty[v.Id] > 0 ? inlineRestockQty[v.Id] : "")"
+                                                                   @onclick:stopPropagation="true"
+                                                                   @onchange="@((ChangeEventArgs e) => OnInlineQtyChanged(v.Id, e.Value?.ToString()))" />
+                                                            @if (isRestockingVariantId == v.Id)
+                                                            {
+                                                                <button class="ebay-btn-success-sm" disabled style="font-size: 10px; padding: 2px 8px;">
+                                                                    <span class="spinner-border spinner-border-sm" style="width: 12px; height: 12px;"></span>
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button class="ebay-btn-success-sm" style="font-size: 10px; padding: 2px 8px; white-space: nowrap;"
+                                                                        @onclick:stopPropagation="true"
+                                                                        @onclick="() => InlineRestock(v.Id)">
+                                                                    + Nhập
+                                                                </button>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private IEnumerable<Product>? products;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    // Expand state
+    private HashSet<Guid> expandedProductIds = new();
+
+    // Inline Restock
+    private Dictionary<Guid, int> inlineRestockQty = new();
+    private Guid? isRestockingVariantId = null;
+
+    // Computed Summary
+    private int totalProducts => products?.Count() ?? 0;
+    private int totalSkus => products?.Sum(p => p.Variants?.Count ?? 0) ?? 0;
+    private int lowStockSkus => products?.Sum(p => p.Variants?.Count(v =>
+    {
+        var avail = v.Quantity - v.ReservedQuantity;
+        return avail > 0 && avail < 5;
+    }) ?? 0) ?? 0;
+    private int outOfStockSkus => products?.Sum(p => p.Variants?.Count(v => (v.Quantity - v.ReservedQuantity) <= 0) ?? 0) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            products = await ProductService.GetMyProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ToggleExpand(Guid productId)
+    {
+        if (expandedProductIds.Contains(productId))
+            expandedProductIds.Remove(productId);
+        else
+            expandedProductIds.Add(productId);
+    }
+
+    private void OnInlineQtyChanged(Guid variantId, string? val)
+    {
+        if (int.TryParse(val, out int num) && num > 0)
+            inlineRestockQty[variantId] = num;
+        else
+            inlineRestockQty.Remove(variantId);
+    }
+
+    private async Task InlineRestock(Guid variantId)
+    {
+        if (!inlineRestockQty.ContainsKey(variantId) || inlineRestockQty[variantId] <= 0)
+            return;
+
+        isRestockingVariantId = variantId;
+        StateHasChanged();
+
+        try
+        {
+            await ProductService.RestockVariantAsync(variantId, inlineRestockQty[variantId]);
+            products = await ProductService.GetMyProductsAsync();
+            inlineRestockQty.Remove(variantId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi nhập kho: {ex.Message}";
+        }
+        finally
+        {
+            isRestockingVariantId = null;
+        }
+    }
+}

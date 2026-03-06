@@ -39,7 +39,7 @@ namespace EbayClone.Application.UseCases.Products
             }
 
             // Simple validation for allowed statuses
-            var allowedStatuses = new[] { "DRAFT", "ACTIVE", "SCHEDULED" };
+            var allowedStatuses = new[] { "DRAFT", "ACTIVE", "SCHEDULED", "HIDDEN" };
             if (!System.Linq.Enumerable.Contains(allowedStatuses, request.Status.ToUpper()))
             {
                 throw new ArgumentException("Trạng thái không hợp lệ.");

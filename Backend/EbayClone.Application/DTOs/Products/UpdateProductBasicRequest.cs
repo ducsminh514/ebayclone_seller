@@ -11,5 +11,9 @@ namespace EbayClone.Application.DTOs.Products
         public Guid? ShippingPolicyId { get; set; }
         public Guid? ReturnPolicyId { get; set; }
         public string Status { get; set; } = "DRAFT";
+        
+        // Ảnh sản phẩm
+        public string? PrimaryImageUrl { get; set; }
+        public List<string>? ImageUrls { get; set; }
     }
 }

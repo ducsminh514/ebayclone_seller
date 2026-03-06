@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +39,15 @@ namespace EbayClone.Application.UseCases.Products
             try
             {
                 // 1. Khởi tạo đối tượng Product (Entity Cha)
+                // Xử lý ảnh: PrimaryImageUrl lấy ảnh đầu tiên nếu ko chỉ định
+                string? primaryImg = request.PrimaryImageUrl;
+                if (string.IsNullOrEmpty(primaryImg) && request.ImageUrls != null && request.ImageUrls.Any())
+                    primaryImg = request.ImageUrls[0];
+                
+                string? imageUrlsJson = request.ImageUrls != null && request.ImageUrls.Any()
+                    ? JsonSerializer.Serialize(request.ImageUrls)
+                    : null;
+
                 var product = new Product
                 {
                     ShopId = shopId,
@@ -47,6 +57,8 @@ namespace EbayClone.Application.UseCases.Products
                     Name = request.Name,
                     Description = request.Description,
                     Brand = request.Brand,
+                    PrimaryImageUrl = primaryImg,
+                    ImageUrls = imageUrlsJson,
                     Status = "DRAFT", // Đưa vào trạng thái nháp, chờ Publish
                     BasePrice = request.Variants[0].Price // Lấy giá biến thể đầu tiên làm giá base
                 };

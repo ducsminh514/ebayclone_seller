@@ -50,6 +50,35 @@
         </div>
 
         <div class="ebay-card">
+            <h4 class="ebay-card-title">Ảnh Sản Phẩm</h4>
+            <div class="mb-3">
+                <label class="form-label">URL Ảnh Bìa (Primary Image)</label>
+                <InputText class="form-control ebay-input" @bind-Value="request.PrimaryImageUrl" placeholder="https://example.com/image.jpg" />
+                <small class="text-muted">Ảnh này sẽ hiển thị đầu tiên trên trang sản phẩm</small>
+            </div>
+            @if (!string.IsNullOrEmpty(request.PrimaryImageUrl))
+            {
+                <div class="mb-3">
+                    <img src="@request.PrimaryImageUrl" alt="Preview" style="max-width: 150px; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" />
+                </div>
+            }
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="form-label mb-0">Ảnh phụ (Tối đa 5)</label>
+                    <button type="button" class="btn btn-sm btn-info text-white" @onclick="AddImageUrl" disabled="@(extraImageUrls.Count >= 5)">+ Thêm ảnh</button>
+                </div>
+                @for (int i = 0; i < extraImageUrls.Count; i++)
+                {
+                    var idx = i;
+                    <div class="d-flex gap-2 mb-2">
+                        <input type="text" class="form-control ebay-input" placeholder="URL ảnh phụ" value="@extraImageUrls[idx]" @onchange="(e) => UpdateImageUrl(idx, e.Value?.ToString())" />
+                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveImageUrl(idx)">✕</button>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="ebay-card">
             <h4 class="ebay-card-title">Chính sách Bán Hàng</h4>
             <div class="row">
                 <div class="col-md-6 mb-3">
@@ -146,9 +175,14 @@
                 }
         </div>
 
-        <button type="submit" class="ebay-btn-primary btn-lg w-100 mt-2 mb-5" style="padding: 12px; font-size: 16px;">
-            @if(isSubmitting) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang xử lý...</span> } else { <span>Đăng Bán Sản Phẩm</span> }
-        </button>
+        <div class="d-flex gap-3 mt-3 mb-5">
+            <button type="submit" class="ebay-btn-outline btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => publishOnCreate = false">
+                @if(isSubmitting && !publishOnCreate) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu...</span> } else { <span>💾 Lưu Nháp (DRAFT)</span> }
+            </button>
+            <button type="submit" class="ebay-btn-primary btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => publishOnCreate = true">
+                @if(isSubmitting && publishOnCreate) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang đăng bán...</span> } else { <span>🚀 Đăng Bán Ngay (ACTIVE)</span> }
+            </button>
+        </div>
         </fieldset>
     </EditForm>
 </div>
@@ -160,6 +194,8 @@
     private List<CategoryDto> categories = new();
     private string? errorMessage;
     private bool isSubmitting = false;
+    private bool publishOnCreate = false;
+    private List<string> extraImageUrls = new();
 
     // Helper class to bind dictionary keys and values easily in UI
     public class AttributePair
@@ -245,8 +281,17 @@
                 }
             }
 
+            // Gom ảnh phụ
+            request.ImageUrls = extraImageUrls.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+
             var productId = await ProductService.CreateListingAsync(request);
-            // Thành công -> Điều hướng về trang danh sách
+            
+            // Nếu Publish: đổi status sang ACTIVE ngay
+            if (publishOnCreate)
+            {
+                await ProductService.UpdateProductStatusAsync(productId, "ACTIVE");
+            }
+            
             NavigationManager.NavigateTo("/listings");
         }
         catch (Exception ex)
@@ -257,5 +302,23 @@
         {
             isSubmitting = false;
         }
+    }
+
+    private void AddImageUrl()
+    {
+        if (extraImageUrls.Count < 5)
+            extraImageUrls.Add("");
+    }
+
+    private void RemoveImageUrl(int index)
+    {
+        if (index >= 0 && index < extraImageUrls.Count)
+            extraImageUrls.RemoveAt(index);
+    }
+
+    private void UpdateImageUrl(int index, string? val)
+    {
+        if (index >= 0 && index < extraImageUrls.Count)
+            extraImageUrls[index] = val ?? "";
     }
 }

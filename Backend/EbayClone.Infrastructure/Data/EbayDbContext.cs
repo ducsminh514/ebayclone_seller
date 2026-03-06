@@ -83,6 +83,11 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Brand).HasMaxLength(100);
                 entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("DRAFT");
                 entity.Property(e => e.BasePrice).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.PrimaryImageUrl).HasMaxLength(500);
+                entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+                
+                // Global Query Filter: tự động loại trừ SP đã Soft Delete
+                entity.HasQueryFilter(e => !e.IsDeleted);
             });
 
             // ProductVariants

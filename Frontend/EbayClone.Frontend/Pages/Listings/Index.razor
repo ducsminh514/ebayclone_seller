@@ -6,12 +6,23 @@
 
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="ebay-page-title mb-0">Quản Lý Tồn Kho (My Listings)</h2>
+        <div>
+            <h2 class="ebay-page-title mb-1">Quản Lý Sản Phẩm (My Listings)</h2>
+            <p class="text-muted mb-0" style="font-size: 13px;">Xem, sửa, kích hoạt, tạm ẩn hoặc xóa sản phẩm</p>
+        </div>
         <button class="ebay-btn-primary" @onclick='() => NavigationManager.NavigateTo("/listings/create")'>
             + Tạo Sản Phẩm Mới
         </button>
     </div>
-    
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="font-size: 13px;">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+
     <div class="ebay-card p-0 overflow-hidden">
         <div class="bg-white border-bottom">
             <ul class="nav nav-tabs card-header-tabs">
@@ -25,6 +36,9 @@
                     <a class="nav-link @(currentTab == "SCHEDULED" ? "active fw-bold" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("SCHEDULED")'>SCHEDULED</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link @(currentTab == "HIDDEN" ? "active fw-bold" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("HIDDEN")'>HIDDEN</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link @(currentTab == "OUT_OF_STOCK" ? "active fw-bold text-danger" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("OUT_OF_STOCK")'>OUT OF STOCK</a>
                 </li>
             </ul>
@@ -32,7 +46,7 @@
         <div class="card-body p-0">
             @if (isLoading)
             {
-                <div class="p-4 text-center text-muted">Đang tải danh sách mặt hàng...</div>
+                <div class="p-4 text-center text-muted">Đang tải danh sách sản phẩm...</div>
             }
             else if (!string.IsNullOrEmpty(errorMessage))
             {
@@ -56,10 +70,10 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light text-secondary" style="font-size: 13px; text-transform: uppercase;">
                         <tr>
+                            <th class="py-3 px-4 border-0" style="width: 50px;">Ảnh</th>
                             <th class="py-3 px-4 border-0">Tên Sản Phẩm</th>
                             <th class="py-3 px-4 border-0">Thương Hiệu</th>
                             <th class="py-3 px-4 border-0">Số lượng SKU</th>
-                            <th class="py-3 px-4 border-0">Tổng Tồn (Available)</th>
                             <th class="py-3 px-4 border-0">Giá khởi điểm</th>
                             <th class="py-3 px-4 border-0">Trạng thái</th>
                             <th class="py-3 px-4 border-0 text-end">Hành động</th>
@@ -68,45 +82,87 @@
                     <tbody>
                         @foreach (var p in FilteredProducts)
                         {
-                            var totalStock = p.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
                             var minPrice = p.BasePrice ?? 0;
 
                             <tr class="border-bottom">
+                                <td class="py-3 px-4">
+                                    @if (!string.IsNullOrEmpty(p.PrimaryImageUrl))
+                                    {
+                                        <img src="@p.PrimaryImageUrl" alt="@p.Name" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color);" />
+                                    }
+                                    else
+                                    {
+                                        <div style="width: 40px; height: 40px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #bbb;">📷</div>
+                                    }
+                                </td>
                                 <td class="py-3 px-4 fw-bold" style="color: var(--primary-color);">@p.Name</td>
                                 <td class="py-3 px-4">@p.Brand</td>
                                 <td class="py-3 px-4"><span class="badge bg-secondary rounded-pill">@(p.Variants?.Count ?? 0)</span></td>
-                                <td class="py-3 px-4">
-                                    <span class="badge rounded-pill @(totalStock > 0 ? "bg-success" : "bg-danger")">
-                                        @totalStock
-                                    </span>
-                                </td>
                                 <td class="py-3 px-4 fw-bold">@minPrice.ToString("N0") ₫</td>
-                                <td class="py-3 px-4"><span class="badge bg-primary rounded-pill">@p.Status</span></td>
+                                <td class="py-3 px-4">
+                                    @{
+                                        var badgeClass = p.Status switch
+                                        {
+                                            "ACTIVE" => "bg-success",
+                                            "DRAFT" => "bg-secondary",
+                                            "SCHEDULED" => "bg-info",
+                                            "HIDDEN" => "bg-warning text-dark",
+                                            _ => "bg-primary"
+                                        };
+                                    }
+                                    <span class="badge @badgeClass rounded-pill">@p.Status</span>
+                                </td>
                                 <td class="py-3 px-4">
                                     <div class="action-group">
-                                        <button class="ebay-btn-outline-sm" title="Nhập hàng (Restock)" @onclick="() => OpenRestockModal(p)">
-                                            Restock
-                                        </button>
-                                        
                                         <button class="ebay-btn-outline-sm" @onclick='() => NavigationManager.NavigateTo($"/listings/edit/{p.Id}")'>
                                             Sửa
                                         </button>
 
-                                        @if (currentTab == "DRAFT")
+                                        @if (updatingStatusProductId == p.Id)
                                         {
-                                            @if (updatingStatusProductId == p.Id)
-                                            {
-                                                <button class="ebay-btn-success-sm" disabled>
-                                                    <span class="spinner-border spinner-border-sm"></span>
-                                                </button>
-                                            }
-                                            else
+                                            <button class="ebay-btn-success-sm" disabled>
+                                                <span class="spinner-border spinner-border-sm"></span>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            @* Nút theo tab *@
+                                            @if (currentTab == "DRAFT")
                                             {
                                                 <button class="ebay-btn-success-sm" @onclick='() => ChangeProductStatus(p, "ACTIVE")' title="Mở bán ngay">
                                                     Kích hoạt
                                                 </button>
                                                 <button class="ebay-btn-info-sm" @onclick='() => ChangeProductStatus(p, "SCHEDULED")' title="Hẹn giờ đăng">
                                                     Hẹn giờ
+                                                </button>
+                                            }
+
+                                            @if (currentTab == "ACTIVE" || currentTab == "SCHEDULED")
+                                            {
+                                                <button class="ebay-btn-outline-sm" style="color: #ff8500; border-color: #ff8500;"
+                                                        @onclick='() => ChangeProductStatus(p, "HIDDEN")' title="Tạm ẩn khỏi trang Buyer">
+                                                    Tạm ẩn
+                                                </button>
+                                            }
+
+                                            @if (currentTab == "HIDDEN")
+                                            {
+                                                <button class="ebay-btn-success-sm" @onclick='() => ChangeProductStatus(p, "ACTIVE")' title="Mở bán lại">
+                                                    Kích hoạt lại
+                                                </button>
+                                            }
+
+                                            @* Nút Xóa (mọi tab) *@
+                                            @if (deletingProductId == p.Id)
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" disabled>
+                                                    <span class="spinner-border spinner-border-sm"></span>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => SoftDeleteProduct(p)" title="Xóa sản phẩm (Soft Delete)">
+                                                    Xóa
                                                 </button>
                                             }
                                         }
@@ -119,78 +175,16 @@
             }
         </div>
     </div>
-    @if (showRestockModal && selectedProduct != null)
-    {
-        <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content border-0 shadow-lg">
-                    <div class="modal-header bg-light">
-                        <h5 class="modal-title fw-bold">Nhập Kho: @selectedProduct.Name</h5>
-                        <button type="button" class="btn-close" @onclick="CloseRestockModal"></button>
-                    </div>
-                    <div class="modal-body p-0">
-                        @if (!string.IsNullOrEmpty(modalErrorMessage))
-                        {
-                            <div class="alert alert-danger m-3">@modalErrorMessage</div>
-                        }
-                        
-                        <table class="table mb-0 align-middle">
-                            <thead class="bg-light text-secondary" style="font-size: 13px;">
-                                <tr>
-                                    <th class="ps-4">Mã SKU</th>
-                                    <th>Giá phân loại</th>
-                                    <th>Kho hiện tại (Available)</th>
-                                    <th style="width: 200px;">Nhập số lượng mới (+)</th>
-                                    <th class="pe-4 text-end">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var v in selectedProduct.Variants!)
-                                {
-                                    var available = v.Quantity - v.ReservedQuantity;
-                                    var currentVal = restockQuantities.ContainsKey(v.Id) ? restockQuantities[v.Id] : 0;
-                                    
-                                    <tr>
-                                        <td class="ps-4 fw-bold">@v.SkuCode</td>
-                                        <td>@v.Price.ToString("N0") ₫</td>
-                                        <td><span class="badge bg-success rounded-pill">@available</span></td>
-                                        <td>
-                                            <input type="number" class="form-control form-control-sm" min="1" 
-                                                   value="@currentVal" 
-                                                   @onchange="@((ChangeEventArgs e) => OnRestockQuantityChanged(v.Id, e.Value?.ToString()))" />
-                                        </td>
-                                        <td class="pe-4 text-end">
-                                            @if (isRestockingVariantId == v.Id)
-                                            {
-                                                <button class="btn btn-sm btn-primary" disabled>
-                                                    <span class="spinner-border spinner-border-sm"></span>
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <button class="btn btn-sm btn-primary" @onclick="() => ConfirmRestock(v.Id)">Lưu</button>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-secondary" @onclick="CloseRestockModal">Đóng</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
 </div>
 
 @code {
     private IEnumerable<Product>? products;
     private bool isLoading = true;
     private string? errorMessage;
+    private string? successMessage;
     private string currentTab = "ACTIVE";
     private Guid? updatingStatusProductId = null;
+    private Guid? deletingProductId = null;
 
     private IEnumerable<Product> FilteredProducts
     {
@@ -198,17 +192,13 @@
         {
             if (products == null) return new List<Product>();
 
-            // Tính tổng tồn kho để xét điều kiện Out of stock
             return products.Where(p =>
             {
                 var totalStock = p.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
-                
-                if (currentTab == "OUT_OF_STOCK")
-                {
-                    return totalStock <= 0;
-                }
 
-                // Hiển thị theo đúng Status (Draft/Scheduled/Active) bất kể còn kho hay không
+                if (currentTab == "OUT_OF_STOCK")
+                    return totalStock <= 0 && p.Status == "ACTIVE";
+
                 return p.Status == currentTab;
             });
         }
@@ -222,13 +212,14 @@
     private async Task ChangeProductStatus(Product product, string newStatus)
     {
         updatingStatusProductId = product.Id;
+        errorMessage = null;
         StateHasChanged();
 
         try
         {
             await ProductService.UpdateProductStatusAsync(product.Id, newStatus);
-            // Refresh list
             products = await ProductService.GetMyProductsAsync();
+            successMessage = $"Đã chuyển '{product.Name}' sang trạng thái {newStatus}.";
         }
         catch (Exception ex)
         {
@@ -237,6 +228,28 @@
         finally
         {
             updatingStatusProductId = null;
+        }
+    }
+
+    private async Task SoftDeleteProduct(Product product)
+    {
+        deletingProductId = product.Id;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await ProductService.SoftDeleteProductAsync(product.Id);
+            products = await ProductService.GetMyProductsAsync();
+            successMessage = $"Đã xóa sản phẩm '{product.Name}' thành công.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi xóa sản phẩm: {ex.Message}";
+        }
+        finally
+        {
+            deletingProductId = null;
         }
     }
 
@@ -253,71 +266,6 @@
         finally
         {
             isLoading = false;
-        }
-    }
-
-    private bool showRestockModal = false;
-    private Product? selectedProduct = null;
-    private string? modalErrorMessage;
-    private Guid? isRestockingVariantId = null;
-    private Dictionary<Guid, int> restockQuantities = new();
-
-    private void OpenRestockModal(Product product)
-    {
-        selectedProduct = product;
-        restockQuantities.Clear();
-        modalErrorMessage = null;
-        showRestockModal = true;
-    }
-
-    private void CloseRestockModal()
-    {
-        showRestockModal = false;
-        selectedProduct = null;
-    }
-
-    private void OnRestockQuantityChanged(Guid variantId, string? val)
-    {
-        if (int.TryParse(val, out int num) && num > 0)
-        {
-            restockQuantities[variantId] = num;
-        }
-        else
-        {
-            restockQuantities.Remove(variantId);
-        }
-    }
-
-    private async Task ConfirmRestock(Guid variantId)
-    {
-        if (!restockQuantities.ContainsKey(variantId) || restockQuantities[variantId] <= 0)
-        {
-            modalErrorMessage = "Vui lòng nhập số lượng lớn hơn 0 để nhập kho.";
-            return;
-        }
-
-        modalErrorMessage = null;
-        isRestockingVariantId = variantId;
-        StateHasChanged();
-
-        try
-        {
-            int addedQty = restockQuantities[variantId];
-            await ProductService.RestockVariantAsync(variantId, addedQty);
-            
-            // Fetch lại data mới nhất từ Backend để đảm bảo tính Acid (Tránh Race Condition lệch kho)
-            products = await ProductService.GetMyProductsAsync();
-            selectedProduct = products.FirstOrDefault(p => p.Id == selectedProduct!.Id);
-            
-            restockQuantities[variantId] = 0; // Xóa text trên ô input sau khi nhập hàng xong
-        }
-        catch (Exception ex)
-        {
-            modalErrorMessage = ex.Message;
-        }
-        finally
-        {
-            isRestockingVariantId = null;
         }
     }
 }

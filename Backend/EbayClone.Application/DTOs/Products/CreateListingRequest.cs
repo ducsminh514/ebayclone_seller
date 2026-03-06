@@ -22,6 +22,11 @@ namespace EbayClone.Application.DTOs.Products
         [StringLength(100)]
         public string? Brand { get; set; }
 
+        // Ảnh sản phẩm
+        [StringLength(500)]
+        public string? PrimaryImageUrl { get; set; }
+        public List<string>? ImageUrls { get; set; }
+
         [Required(ErrorMessage = "At least one variant (SKU) is required.")]
         [MinLength(1, ErrorMessage = "At least one variant must be provided.")]
         public List<CreateVariantRequest> Variants { get; set; } = new();

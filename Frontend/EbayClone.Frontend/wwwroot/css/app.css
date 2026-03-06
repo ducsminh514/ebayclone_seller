@@ -429,3 +429,12 @@ code {
     justify-content: flex-end;
     align-items: center;
 }
+
+.inventory-row:hover {
+    background-color: #f0f5ff !important;
+    transition: background-color 0.15s ease;
+}
+
+.inventory-row:hover td:first-child {
+    color: var(--primary-color-hover) !important;
+}

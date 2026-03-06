@@ -17,6 +17,13 @@ namespace EbayClone.Domain.Entities
         public string Status { get; set; } = "DRAFT";
         public decimal? BasePrice { get; set; }
         
+        // Ảnh sản phẩm: 1 ảnh bìa + danh sách URL (lưu JSON)
+        public string? PrimaryImageUrl { get; set; }
+        public string? ImageUrls { get; set; } // JSON array: ["url1","url2",...]
+        
+        // Soft Delete: không bao giờ xóa vật lý để bảo toàn hóa đơn cũ
+        public bool IsDeleted { get; set; } = false;
+        
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset? UpdatedAt { get; set; }
 

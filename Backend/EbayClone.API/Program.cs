@@ -36,6 +36,7 @@ builder.Services.AddScoped<IGetProductsUseCase, GetProductsUseCase>();
 builder.Services.AddScoped<IGetProductByIdUseCase, GetProductByIdUseCase>();
 builder.Services.AddScoped<IUpdateProductBasicUseCase, UpdateProductBasicUseCase>();
 builder.Services.AddScoped<IUpdateProductStatusUseCase, UpdateProductStatusUseCase>();
+builder.Services.AddScoped<ISoftDeleteProductUseCase, SoftDeleteProductUseCase>();
 builder.Services.AddScoped<IGetShippingPoliciesUseCase, GetShippingPoliciesUseCase>();
 builder.Services.AddScoped<IGetReturnPoliciesUseCase, GetReturnPoliciesUseCase>();
 builder.Services.AddScoped<IUpdateOrderStatusUseCase, UpdateOrderStatusUseCase>();
