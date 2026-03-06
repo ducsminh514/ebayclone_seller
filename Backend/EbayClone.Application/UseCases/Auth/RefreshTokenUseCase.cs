@@ -29,13 +29,14 @@ namespace EbayClone.Application.UseCases.Auth
                 throw new UnauthorizedAccessException("User not found.");
             }
 
-            bool hasShop = await _shopRepository.ExistsByUserIdAsync(user.Id);
+            var shop = await _shopRepository.GetByUserIdAsync(user.Id);
 
             return new LoginResultDto
             {
                 UserId = user.Id.ToString(),
                 Username = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName.Trim() : user.Username,
-                HasShop = hasShop
+                HasShop = shop != null,
+                ShopId = shop?.Id
             };
         }
     }

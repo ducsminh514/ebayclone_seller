@@ -74,12 +74,13 @@ namespace EbayClone.API.Controllers
             {
                 var loginResult = await _loginUseCase.ExecuteAsync(request);
                 
-                // Cấp phát JWT Token
                 var authClaims = new[]
                 {
                     new Claim(ClaimTypes.NameIdentifier, loginResult.UserId),
                     new Claim(ClaimTypes.Name, loginResult.Username),
+                    new Claim(ClaimTypes.Role, "SELLER"),
                     new Claim("HasShop", loginResult.HasShop.ToString()),
+                    new Claim("ShopId", loginResult.ShopId?.ToString() ?? string.Empty),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 };
 
@@ -123,7 +124,9 @@ namespace EbayClone.API.Controllers
                 {
                     new Claim(ClaimTypes.NameIdentifier, loginResult.UserId),
                     new Claim(ClaimTypes.Name, loginResult.Username),
+                    new Claim(ClaimTypes.Role, "SELLER"),
                     new Claim("HasShop", loginResult.HasShop.ToString()),
+                    new Claim("ShopId", loginResult.ShopId?.ToString() ?? string.Empty),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 };
 

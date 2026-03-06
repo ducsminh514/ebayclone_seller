@@ -291,13 +291,22 @@ code {
     /* Prevent flex overflow */
 }
 
-/* Base Card UI */
+/* Base Card UI & Custom Elements */
 .ebay-card {
     background-color: var(--bg-surface);
-    border-radius: var(--border-radius);
+    border-radius: var(--border-radius-md);
     padding: 24px;
     box-shadow: var(--box-shadow);
     margin-bottom: 24px;
+    border: 1px solid var(--border-color);
+}
+
+.ebay-card-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: var(--text-primary);
 }
 
 .ebay-page-title {
@@ -305,4 +314,118 @@ code {
     font-weight: 700;
     margin-top: 0;
     margin-bottom: 24px;
+}
+
+.ebay-btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.ebay-btn-primary:hover,
+.ebay-btn-primary:focus {
+    background-color: var(--primary-color-hover);
+    color: white;
+}
+
+.ebay-btn-primary:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.ebay-btn-outline {
+    background-color: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    border-radius: 20px;
+    padding: 8px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ebay-btn-outline:hover {
+    background-color: #e5f0fe;
+}
+
+.ebay-input {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 10px 12px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.ebay-input:focus {
+    border-color: var(--primary-color);
+}
+
+/* New specific button styles for Listing Actions */
+.ebay-btn-outline-sm {
+    background-color: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    border-radius: 16px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ebay-btn-outline-sm:hover {
+    background-color: #e5f0fe;
+    border-color: var(--primary-color-hover);
+    color: var(--primary-color-hover);
+}
+
+.ebay-btn-success-sm {
+    background-color: var(--success-color);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ebay-btn-success-sm:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ebay-btn-info-sm {
+    background-color: #00addc;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.ebay-btn-info-sm:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.action-group {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    align-items: center;
 }

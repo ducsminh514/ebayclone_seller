@@ -3,7 +3,9 @@ using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Application.UseCases.Shops;
 using EbayClone.Application.UseCases.Policies;
+using EbayClone.Application.UseCases.Products;
 using EbayClone.Application.UseCases.Auth;
+using EbayClone.Application.UseCases.Orders;
 using EbayClone.Infrastructure.Repositories;
 using EbayClone.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -20,14 +22,24 @@ builder.Services.AddScoped<IShopRepository, ShopRepository>();
 builder.Services.AddScoped<ISellerWalletRepository, SellerWalletRepository>();
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<ICreateShopUseCase, CreateShopUseCase>();
 builder.Services.AddScoped<IApproveShopUseCase, ApproveShopUseCase>();
 builder.Services.AddScoped<ICreateShippingPolicyUseCase, CreateShippingPolicyUseCase>();
 builder.Services.AddScoped<ICreateReturnPolicyUseCase, CreateReturnPolicyUseCase>();
+builder.Services.AddScoped<ICreateListingUseCase, CreateListingUseCase>();
+builder.Services.AddScoped<IRestockVariantUseCase, RestockVariantUseCase>();
+builder.Services.AddScoped<IGetProductsUseCase, GetProductsUseCase>();
+builder.Services.AddScoped<IGetProductByIdUseCase, GetProductByIdUseCase>();
+builder.Services.AddScoped<IUpdateProductBasicUseCase, UpdateProductBasicUseCase>();
+builder.Services.AddScoped<IUpdateProductStatusUseCase, UpdateProductStatusUseCase>();
 builder.Services.AddScoped<IGetShippingPoliciesUseCase, GetShippingPoliciesUseCase>();
 builder.Services.AddScoped<IGetReturnPoliciesUseCase, GetReturnPoliciesUseCase>();
+builder.Services.AddScoped<IUpdateOrderStatusUseCase, UpdateOrderStatusUseCase>();
+builder.Services.AddScoped<IGetOrdersUseCase, GetOrdersUseCase>();
 builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
 builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
@@ -49,11 +61,15 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:7094",
         ValidAudience = builder.Configuration["Jwt:Audience"] ?? "http://localhost:7011",
-        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "superSecretKey@345EbayClone@Authentication123!"))
+        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "superSecretKey@345EbayClone@Authentication123!")),
+        RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+});
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

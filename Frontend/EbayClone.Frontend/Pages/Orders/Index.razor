@@ -1,0 +1,190 @@
+@page "/orders"
+@using EbayClone.Domain.Entities
+@using EbayClone.Frontend.Services
+@using EbayClone.Application.DTOs.Orders
+@inject OrderService OrderService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="ebay-page-title mb-0">Quản Lý Đơn Hàng (Orders)</h2>
+    </div>
+    
+    <div class="ebay-card p-0 overflow-hidden">
+        <div class="bg-white border-bottom">
+            <ul class="nav nav-tabs card-header-tabs" style="cursor: pointer;">
+                <li class="nav-item"><a class="nav-link @GetTabClass("ALL")" @onclick='() => ChangeTab("ALL")'>TẤT CẢ</a></li>
+                <li class="nav-item"><a class="nav-link @GetTabClass("PENDING_PAYMENT")" @onclick='() => ChangeTab("PENDING_PAYMENT")'>CHỜ THANH TOÁN</a></li>
+                <li class="nav-item"><a class="nav-link @GetTabClass("PAID_READY_TO_SHIP")" @onclick='() => ChangeTab("PAID_READY_TO_SHIP")'>CHỜ LẤY HÀNG</a></li>
+                <li class="nav-item"><a class="nav-link @GetTabClass("SHIPPED")" @onclick='() => ChangeTab("SHIPPED")'>ĐANG GIAO</a></li>
+                <li class="nav-item"><a class="nav-link @GetTabClass("DELIVERED")" @onclick='() => ChangeTab("DELIVERED")'>ĐÃ GIAO</a></li>
+            </ul>
+        </div>
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="p-4 text-center text-muted">Đang tải danh sách đơn hàng...</div>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger m-3">@errorMessage</div>
+            }
+            else if (!filteredOrders.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <h5>Không tìm thấy đơn hàng nào.</h5>
+                </div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-secondary" style="font-size: 13px; text-transform: uppercase;">
+                        <tr>
+                            <th class="py-3 px-4 border-0">Mã Đơn</th>
+                            <th class="py-3 px-4 border-0">Ngày Đặt</th>
+                            <th class="py-3 px-4 border-0">Tổng Tiền</th>
+                            <th class="py-3 px-4 border-0">Thanh Toán</th>
+                            <th class="py-3 px-4 border-0">Trạng Thái</th>
+                            <th class="py-3 px-4 border-0 text-end">Cập Nhật Trạng Thái</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var o in filteredOrders)
+                        {
+                            <tr class="border-bottom">
+                                <td class="py-3 px-4 fw-bold" style="color: var(--primary-color);">#@o.OrderNumber</td>
+                                <td class="py-3 px-4">@o.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td class="py-3 px-4 fw-bold">@o.TotalAmount.ToString("N0") ₫</td>
+                                <td class="py-3 px-4">
+                                    <span class="badge rounded-pill @(o.PaymentStatus == "PAID" ? "bg-success" : "bg-warning text-dark")">
+                                        @o.PaymentStatus
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="badge bg-primary rounded-pill">@o.Status</span>
+                                </td>
+                                <td class="py-3 px-4 text-end">
+                                    <div class="d-flex justify-content-end align-items-center gap-2">
+                                        <select class="form-select form-select-sm" style="width: 160px;" @bind="updateStatusDict[o.Id]">
+                                            <option value="">-- Chọn --</option>
+                                            <option value="PAID_READY_TO_SHIP">Đã Thanh Toán</option>
+                                            <option value="PRINTED_LABEL">Đã In Mã Vận Đơn</option>
+                                            <option value="SHIPPED">Đã Giao Vận Chuyển</option>
+                                            <option value="DELIVERED">Giao Thành Công</option>
+                                        </select>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => UpdateStatus(o.Id)" disabled="@isUpdating">
+                                            Lưu
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<Order>? allOrders;
+    private IEnumerable<Order> filteredOrders = Array.Empty<Order>();
+    private bool isLoading = true;
+    private bool isUpdating = false;
+    private string? errorMessage;
+    private string currentTab = "ALL";
+    
+    // Dictionary lưu tạm trạng thái người dùng chọn từ Dropdown
+    private Dictionary<Guid, string> updateStatusDict = new Dictionary<Guid, string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrders();
+    }
+
+    private async Task LoadOrders()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            allOrders = await OrderService.GetMyOrdersAsync();
+            
+            // Initiate dictionary
+            updateStatusDict.Clear();
+            foreach(var o in allOrders)
+            {
+                updateStatusDict[o.Id] = "";
+            }
+            
+            FilterData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ChangeTab(string tab)
+    {
+        currentTab = tab;
+        FilterData();
+    }
+
+    private void FilterData()
+    {
+        if (allOrders == null) return;
+        
+        if (currentTab == "ALL")
+        {
+            filteredOrders = allOrders;
+        }
+        else
+        {
+            filteredOrders = allOrders.Where(o => o.Status == currentTab);
+        }
+    }
+
+    private string GetTabClass(string tab)
+    {
+        return currentTab == tab ? "active fw-bold" : "text-muted";
+    }
+
+    private async Task UpdateStatus(Guid orderId)
+    {
+        if (!updateStatusDict.ContainsKey(orderId) || string.IsNullOrEmpty(updateStatusDict[orderId]))
+        {
+            return;
+        }
+
+        try
+        {
+            isUpdating = true;
+            errorMessage = null; // Clear old errors
+            
+            var request = new UpdateOrderStatusRequest 
+            { 
+                NewStatus = updateStatusDict[orderId],
+                ShippingCarrier = "GiaoHangNhanh", // Hardcode for demo
+                TrackingCode = "GHN" + DateTime.Now.Ticks.ToString()
+            };
+
+            await OrderService.UpdateOrderStatusAsync(orderId, request);
+            
+            // Reload if success
+            await LoadOrders();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi cập nhật mã đơn thao tác: {ex.Message}";
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+}

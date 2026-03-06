@@ -14,24 +14,75 @@ namespace EbayClone.Domain.Entities
         public decimal ShippingFee { get; set; }
         public decimal PlatformFee { get; set; } = 0;
         
-        public string Status { get; set; } = "PENDING_PAYMENT";
-        public string PaymentStatus { get; set; } = "UNPAID";
+        public string Status { get; private set; } = "PENDING_PAYMENT";
+        public string PaymentStatus { get; private set; } = "UNPAID";
         
-        public string? ShippingCarrier { get; set; }
-        public string? TrackingCode { get; set; }
+        public string? ShippingCarrier { get; private set; }
+        public string? TrackingCode { get; private set; }
         
         // JSON snapshot
         public string? ReceiverInfo { get; set; }
         
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-        public DateTimeOffset? PaidAt { get; set; }
-        public DateTimeOffset? ShippedAt { get; set; }
-        public DateTimeOffset? CompletedAt { get; set; }
+        public DateTimeOffset? PaidAt { get; private set; }
+        public DateTimeOffset? ShippedAt { get; private set; }
+        public DateTimeOffset? CompletedAt { get; private set; }
 
         // Navigation
         public Shop? Shop { get; set; }
         public User? Buyer { get; set; }
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+
+        // --- HỆ THỐNG MÁY TRẠNG THÁI (STATE MACHINE) ---
+
+        public void MarkAsPaid()
+        {
+            if (Status != "PENDING_PAYMENT")
+                throw new InvalidOperationException("Chỉ đơn hàng PENDING_PAYMENT mới được phép thanh toán.");
+            
+            Status = "PAID_READY_TO_SHIP";
+            PaymentStatus = "PAID";
+            PaidAt = DateTimeOffset.UtcNow;
+        }
+
+        public void MarkAsPrintedLabel()
+        {
+            if (Status != "PAID_READY_TO_SHIP")
+                throw new InvalidOperationException("Đơn hàng phải ở trạng thái đã thanh toán mới được in phiếu gửi.");
+            
+            Status = "PRINTED_LABEL";
+        }
+
+        public void MarkAsShipped(string carrier, string trackingCode)
+        {
+            if (Status != "PRINTED_LABEL" && Status != "PAID_READY_TO_SHIP")
+                throw new InvalidOperationException("Không thể SHIPPED nếu chưa qua bước Chuẩn bị hàng.");
+
+            if (string.IsNullOrWhiteSpace(trackingCode))
+                throw new ArgumentException("Mã Tracking không được để trống khi gửi hàng.");
+
+            Status = "SHIPPED";
+            ShippingCarrier = carrier;
+            TrackingCode = trackingCode;
+            ShippedAt = DateTimeOffset.UtcNow;
+        }
+
+        public void MarkAsDelivered()
+        {
+            if (Status != "SHIPPED")
+                throw new InvalidOperationException("Đơn hàng chưa được vận chuyển (SHIPPED). Không thể giao thành công.");
+
+            Status = "DELIVERED";
+            CompletedAt = DateTimeOffset.UtcNow;
+        }
+
+        public void CancelOrder()
+        {
+            if (Status == "SHIPPED" || Status == "DELIVERED")
+                throw new InvalidOperationException("Không thể hủy đơn hàng đã bắt đầu giao.");
+
+            Status = "CANCELLED";
+        }
     }
     
     public class OrderItem

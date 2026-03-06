@@ -1,13 +1,15 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="ebay-layout">
-    <GlobalHeader />
+<ShopGuard>
+    <div class="ebay-layout">
+        <GlobalHeader />
 
-    <div class="ebay-body-wrapper">
-        <Sidebar />
+        <div class="ebay-body-wrapper">
+            <Sidebar />
 
-        <main class="ebay-main-content">
-            @Body
-        </main>
+            <main class="ebay-main-content">
+                @Body
+            </main>
+        </div>
     </div>
-</div>
+</ShopGuard>

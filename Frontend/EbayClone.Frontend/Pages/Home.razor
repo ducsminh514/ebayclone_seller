@@ -4,18 +4,43 @@
 
 <h1 class="ebay-page-title">Overview</h1>
 
-<div class="ebay-card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Tasks</h2>
-        <a href="#" style="font-size: 14px;">View all</a>
-    </div>
-    
-    <div style="padding: 16px; background-color: #f9f9f9; border-radius: 4px; border: 1px solid var(--border-color);">
-        <h3 style="margin: 0 0 8px 0; font-size: 16px;">Complete your seller registration</h3>
-        <p style="margin: 0; color: var(--text-secondary);">We need a few more details before you can start selling. It only takes a few minutes.</p>
-        <button style="margin-top: 16px; background-color: var(--primary-color); color: white; border: none; padding: 10px 24px; border-radius: 20px; font-weight: 600; cursor: pointer;">Complete registration</button>
-    </div>
-</div>
+@using Microsoft.AspNetCore.Components.Authorization
+<AuthorizeView>
+    <Authorized>
+        @{
+            var hasShopStr = context.User.FindFirst("HasShop")?.Value;
+            bool.TryParse(hasShopStr, out bool hasShop);
+        }
+
+        @if (!hasShop)
+        {
+            <div class="ebay-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Tasks</h2>
+                    <a href="javascript:void(0)" style="font-size: 14px;">View all</a>
+                </div>
+                
+                <div class="p-3 bg-light rounded border">
+                    <h3 style="margin: 0 0 8px 0; font-size: 16px;">Complete your seller registration</h3>
+                    <p style="margin: 0; color: var(--text-secondary);">We need a few more details before you can start selling. It only takes a few minutes.</p>
+                    <a href="/onboarding" class="btn text-white mt-3 px-4 py-2 rounded-pill fw-bold" style="background-color: var(--primary-color);">Complete registration</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="ebay-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Cửa hàng của bạn đã sẵn sàng</h2>
+                </div>
+                <div class="p-3 rounded border" style="background-color: #e6f4ea; border-color: #ceead6;">
+                    <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #137333;"><i class="bi bi-check-circle-fill me-2"></i>You are ready to sell!</h3>
+                    <p style="margin: 0; color: #1e8e3e;">Cửa hàng đã được khởi tạo thành công. Bạn đã có quyền đăng bán các mặt hàng đầu tiên vào kho.</p>
+                </div>
+            </div>
+        }
+    </Authorized>
+</AuthorizeView>
 
 <div class="ebay-card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">

@@ -1,0 +1,209 @@
+@page "/admin/categories"
+@using EbayClone.Frontend.Services
+@inject CategoryService CategoryService
+@inject IJSRuntime JSRuntime
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold mb-0">Quản Lý Danh Mục (Admin)</h2>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row">
+        <!-- Form Thêm Mới -->
+        <div class="col-md-4 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-bold">
+                    @(isEditing ? "Cập Nhật Danh Mục" : "Thêm Danh Mục Mới")
+                </div>
+                <div class="card-body">
+                    <fieldset disabled="@isSubmitting">
+                        <div class="mb-3">
+                            <label class="form-label">Tên danh mục *</label>
+                            <input type="text" class="form-control" @bind="currentCategory.Name" @bind:event="oninput" @onkeyup="GenerateSlug" placeholder="VD: Điện thoại & Phụ kiện" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Đường dẫn tĩnh (Slug) *</label>
+                            <input type="text" class="form-control" @bind="currentCategory.Slug" placeholder="VD: dien-thoai-phu-kien" />
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary w-100" @onclick="SaveCategory">
+                                @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                                Lưu Dữ Liệu
+                            </button>
+                            @if (isEditing)
+                            {
+                                <button class="btn btn-secondary w-100" @onclick="CancelEdit">Hủy</button>
+                            }
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bảng Danh Sách -->
+        <div class="col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    @if (isLoading)
+                    {
+                        <div class="p-4 text-center text-muted">Đang tải cấu trúc danh mục...</div>
+                    }
+                    else if (!categories.Any())
+                    {
+                        <div class="p-4 text-center text-muted">Chưa có danh mục nào trên hệ thống.</div>
+                    }
+                    else
+                    {
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-secondary" style="font-size: 13px;">
+                                <tr>
+                                    <th class="ps-4">Tên Danh Mục</th>
+                                    <th>Đường Dẫn (Slug)</th>
+                                    <th class="text-end pe-4">Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in categories)
+                                {
+                                    <tr>
+                                        <td class="ps-4 fw-bold">@c.Name</td>
+                                        <td class="text-muted">@c.Slug</td>
+                                        <td class="text-end pe-4">
+                                            <button class="btn btn-sm btn-outline-secondary me-2" @onclick="() => EditCategory(c)">Sửa</button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteCategory(c.Id)">Xóa</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CategoryDto> categories = new();
+    private CategoryDto currentCategory = new();
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private bool isEditing = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategories();
+    }
+
+    private async Task LoadCategories()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var data = await CategoryService.GetCategoriesAsync();
+            categories = data.ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // Tự động tạo slug không dấu khi gõ tên
+    private void GenerateSlug()
+    {
+        if (!string.IsNullOrWhiteSpace(currentCategory.Name))
+        {
+            currentCategory.Slug = currentCategory.Name.ToLower()
+                .Replace("đ", "d").Replace(" & ", "-").Replace(" ", "-")
+                .Replace("á", "a").Replace("à", "a").Replace("ã", "a").Replace("ả", "a").Replace("ạ", "a")
+                .Replace("é", "e").Replace("è", "e").Replace("ẽ", "e").Replace("ẻ", "e").Replace("ẹ", "e")
+                .Replace("ê", "e").Replace("ế", "e").Replace("ề", "e").Replace("ễ", "e").Replace("ể", "e").Replace("ệ", "e")
+                .Replace("í", "i").Replace("ì", "i").Replace("ĩ", "i").Replace("ỉ", "i").Replace("ị", "i")
+                .Replace("ó", "o").Replace("ò", "o").Replace("õ", "o").Replace("ỏ", "o").Replace("ọ", "o")
+                .Replace("ô", "o").Replace("ố", "o").Replace("ồ", "o").Replace("ỗ", "o").Replace("ổ", "o").Replace("ộ", "o")
+                .Replace("ơ", "o").Replace("ớ", "o").Replace("ờ", "o").Replace("ỡ", "o").Replace("ở", "o").Replace("ợ", "o")
+                .Replace("ú", "u").Replace("ù", "u").Replace("ũ", "u").Replace("ủ", "u").Replace("ụ", "u")
+                .Replace("ư", "u").Replace("ứ", "u").Replace("ừ", "u").Replace("ữ", "u").Replace("ử", "u").Replace("ự", "u")
+                .Replace("ý", "y").Replace("ỳ", "y").Replace("ỹ", "y").Replace("ỷ", "y").Replace("ỵ", "y");
+        }
+    }
+
+    private void EditCategory(CategoryDto cat)
+    {
+        currentCategory = new CategoryDto { Id = cat.Id, Name = cat.Name, Slug = cat.Slug };
+        isEditing = true;
+        errorMessage = null;
+    }
+
+    private void CancelEdit()
+    {
+        currentCategory = new();
+        isEditing = false;
+        errorMessage = null;
+    }
+
+    private async Task SaveCategory()
+    {
+        if (string.IsNullOrWhiteSpace(currentCategory.Name) || string.IsNullOrWhiteSpace(currentCategory.Slug))
+        {
+            errorMessage = "Vui lòng nhập đầy đủ Tên và Slug.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            if (isEditing)
+            {
+                await CategoryService.UpdateCategoryAsync(currentCategory.Id, currentCategory);
+            }
+            else
+            {
+                await CategoryService.CreateCategoryAsync(currentCategory);
+            }
+            
+            await LoadCategories();
+            CancelEdit();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task DeleteCategory(Guid id)
+    {
+        bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc chắn muốn xóa danh mục này? Thao tác này sẽ ẩn danh mục thay vì xóa vĩnh viễn dữ liệu (Soft Delete).");
+        if (confirm)
+        {
+            try
+            {
+                await CategoryService.DeleteCategoryAsync(id);
+                await LoadCategories();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+            }
+        }
+    }
+}
