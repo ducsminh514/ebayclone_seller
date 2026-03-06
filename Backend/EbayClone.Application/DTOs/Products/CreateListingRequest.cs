@@ -27,6 +27,9 @@ namespace EbayClone.Application.DTOs.Products
         public string? PrimaryImageUrl { get; set; }
         public List<string>? ImageUrls { get; set; }
 
+        // Hẹn giờ đăng bán (nếu có, sản phẩm sẽ ở status SCHEDULED)
+        public DateTimeOffset? ScheduledAt { get; set; }
+
         [Required(ErrorMessage = "At least one variant (SKU) is required.")]
         [MinLength(1, ErrorMessage = "At least one variant must be provided.")]
         public List<CreateVariantRequest> Variants { get; set; } = new();

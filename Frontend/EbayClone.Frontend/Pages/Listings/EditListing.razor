@@ -5,7 +5,9 @@
 @inject ProductService ProductService
 @inject PolicyService PolicyService
 @inject CategoryService CategoryService
+@inject FileUploadService FileUploadService
 @inject NavigationManager NavigationManager
+@using Microsoft.AspNetCore.Components.Forms
 
 <div class="container mt-4">
     <h2>Sửa Thông Tin Sản Phẩm</h2>
@@ -28,27 +30,64 @@
             <fieldset disabled="@isSubmitting">
                 <div class="ebay-card">
                     <h4 class="ebay-card-title">Thông tin cơ bản (Master Data)</h4>
-                    <div class="mb-3">
-                        <label class="form-label">Tên Sản Phẩm *</label>
-                        <InputText class="form-control ebay-input" @bind-Value="request.Name" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Thương hiệu</label>
-                        <InputText class="form-control ebay-input" @bind-Value="request.Brand" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Mô tả</label>
-                        <InputTextArea class="form-control ebay-input" @bind-Value="request.Description" rows="3" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Danh Mục *</label>
-                        <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId">
-                            <option value="">-- Chọn Danh Mục --</option>
-                            @foreach (var c in categories)
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Ảnh bìa (Primary Image) *</label>
+                        <div class="ebay-upload-box" style="width: 200px; height: 200px; position: relative; border: 2px dashed #0052ff; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8f9ff;">
+                            @if (!string.IsNullOrEmpty(request.PrimaryImageUrl))
                             {
-                                <option value="@c.Id">@c.Name</option>
+                                <img src="@request.PrimaryImageUrl" class="w-100 h-100" style="object-fit: cover;" />
+                                <div class="upload-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.3); opacity: 0; transition: 0.3s; display: flex; align-items: center; justify-content: center;">
+                                    <span class="text-white fw-bold">Thay đổi ảnh</span>
+                                </div>
                             }
-                        </InputSelect>
+
+                            @if (isUploadingPrimary)
+                            {
+                                <div class="text-center p-3">
+                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    <div class="text-muted mt-2" style="font-size: 11px;">Đang tải...</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <InputFile OnChange="UploadPrimaryImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2;" />
+                                @if (string.IsNullOrEmpty(request.PrimaryImageUrl))
+                                {
+                                    <div class="text-center">
+                                        <span style="font-size: 32px;">📷</span>
+                                        <div class="text-muted mt-1" style="font-size: 12px;">Bấm để chọn</div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Ảnh phụ (Tối đa 5)</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @for (int i = 0; i < extraImageUrls.Count; i++)
+                            {
+                                var idx = i;
+                                <div style="position: relative; width: 80px; height: 80px;">
+                                    <img src="@extraImageUrls[idx]" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;" />
+                                    <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%;" @onclick="() => extraImageUrls.RemoveAt(idx)">✕</button>
+                                </div>
+                            }
+                            @if (extraImageUrls.Count < 5)
+                            {
+                                <div style="width: 80px; height: 80px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative;">
+                                    @if (isUploadingExtra)
+                                    {
+                                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-secondary">+</span>
+                                        <InputFile OnChange="UploadExtraImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
                 </div>
 
@@ -86,23 +125,69 @@
                     </div>
                 </div>
 
-                <!-- Bỏ qua phần Variants theo yêu cầu của User: Sửa biến thể rủi ro cao -->
-                <div class="alert alert-warning mb-4">
-                    <strong>Lưu ý:</strong> Chức năng cập nhật Biến thể (Variants) đang tạm khóa để bảo vệ hệ thống hóa đơn cũ trước sự cố Race Condition Database.
+                <div class="ebay-card">
+                    <h4 class="ebay-card-title">📦 Quản lý Biến thể (Variants)</h4>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Phân loại (Attributes)</th>
+                                    <th>SKU Code</th>
+                                    <th>Giá Bán (₫)</th>
+                                    <th>Ảnh</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var v in variantsRequest.Variants)
+                                {
+                                    <tr>
+                                        <td>
+                                            @foreach (var attr in v.Attributes)
+                                            {
+                                                <div class="badge bg-light text-dark me-1 border">@attr.Key: @attr.Value</div>
+                                            }
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control form-control-sm" @bind="v.SkuCode" />
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" @bind="v.Price" step="1000" />
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(v.ImageUrl))
+                                            {
+                                                <div style="position: relative; display: inline-block;">
+                                                    <img src="@v.ImageUrl" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;" />
+                                                    <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; font-size: 8px;" @onclick="() => v.ImageUrl = null">✕</button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div style="width: 45px; height: 45px; border: 1px dashed #aaa; border-radius: 4px; display: flex; align-items: center; justify-content: center; position: relative;">
+                                                    <span style="font-size: 12px; color: #888;">+ 📷</span>
+                                                    <InputFile OnChange="(e) => UploadVariantImage(e, v)" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
+                                                </div>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div class="d-flex mb-5 gap-3">
-                    <button type="button" class="btn btn-outline-secondary btn-lg w-50" style="padding: 12px; font-size: 16px;" @onclick='() => NavigationManager.NavigateTo("/listings")'>
+                    <button type="button" class="btn btn-outline-secondary btn-lg w-50" @onclick='() => NavigationManager.NavigateTo("/listings")'>
                         Hủy Bỏ
                     </button>
-                    <button type="submit" class="ebay-btn-primary btn-lg w-50" style="padding: 12px; font-size: 16px;">
+                    <button type="submit" class="ebay-btn-primary btn-lg w-50">
                         @if (isSubmitting)
                         {
-                            <span class="spinner-border spinner-border-sm me-2"></span><span>Đang xử lý...</span>
+                            <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu...</span>
                         }
                         else
                         {
-                            <span>Lưu Sản Phẩm</span>
+                            <span>Lưu thay đổi</span>
                         }
                     </button>
                 </div>
@@ -111,11 +196,13 @@
     }
 </div>
 
+@using System.Text.Json
 @code {
     [Parameter]
     public Guid Id { get; set; }
 
     private UpdateProductBasicRequest request = new();
+    private UpdateProductVariantsRequest variantsRequest = new();
     private List<ShippingPolicyDto> shippingPolicies = new();
     private List<ReturnPolicyDto> returnPolicies = new();
     private List<CategoryDto> categories = new();
@@ -123,6 +210,64 @@
     private bool isLoading = true;
     private bool isSubmitting = false;
     private string? errorMessage;
+
+    private List<string> extraImageUrls = new();
+    private bool isUploadingPrimary = false;
+    private bool isUploadingExtra = false;
+
+    private async Task UploadPrimaryImage(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            isUploadingPrimary = true;
+            StateHasChanged();
+            var url = await FileUploadService.UploadImageAsync(e.File);
+            request.PrimaryImageUrl = url;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi upload ảnh chính: {ex.Message}";
+        }
+        finally
+        {
+            isUploadingPrimary = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UploadExtraImage(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            isUploadingExtra = true;
+            StateHasChanged();
+            var url = await FileUploadService.UploadImageAsync(e.File);
+            extraImageUrls.Add(url);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi upload ảnh phụ: {ex.Message}";
+        }
+        finally
+        {
+            isUploadingExtra = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UploadVariantImage(InputFileChangeEventArgs e, UpdateVariantDto v)
+    {
+        try
+        {
+            var url = await FileUploadService.UploadImageAsync(e.File);
+            v.ImageUrl = url;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi upload ảnh biến thể: {ex.Message}";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,6 +300,24 @@
                 request.ShippingPolicyId = product.ShippingPolicyId;
                 request.ReturnPolicyId = product.ReturnPolicyId;
                 request.Status = product.Status;
+                request.PrimaryImageUrl = product.PrimaryImageUrl;
+
+                if (!string.IsNullOrEmpty(product.ImageUrls))
+                {
+                    extraImageUrls = JsonSerializer.Deserialize<List<string>>(product.ImageUrls) ?? new();
+                }
+
+                // Load Variants để sửa
+                if (product.Variants != null)
+                {
+                    variantsRequest.Variants = product.Variants.Select(v => new UpdateVariantDto {
+                        Id = v.Id,
+                        SkuCode = v.SkuCode,
+                        Price = v.Price,
+                        ImageUrl = v.ImageUrl,
+                        Attributes = JsonSerializer.Deserialize<Dictionary<string, string>>(v.Attributes ?? "{}") ?? new()
+                    }).ToList();
+                }
             }
         }
         catch (Exception ex)
@@ -174,7 +337,15 @@
 
         try
         {
+            // Sync extra images
+            request.ImageUrls = extraImageUrls;
+
+            // 1. Cập nhật thông tin cơ bản
             await ProductService.UpdateProductBasicAsync(Id, request);
+            
+            // 2. Cập nhật các biến thể
+            await ProductService.UpdateProductVariantsAsync(Id, variantsRequest);
+            
             // Thành công -> Điều hướng về trang danh sách kho
             NavigationManager.NavigateTo("/listings");
         }

@@ -23,5 +23,8 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task<int> DeductStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
         Task<int> ReleaseReservationAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
         Task<int> ReserveStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
+        
+        // Kiểm tra giới hạn MonthlyListingLimit
+        Task<int> CountProductsThisMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
     }
 }

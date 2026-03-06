@@ -3,6 +3,7 @@
 @using EbayClone.Frontend.Services
 @inject ProductService ProductService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -132,8 +133,8 @@
                                                 <button class="ebay-btn-success-sm" @onclick='() => ChangeProductStatus(p, "ACTIVE")' title="Mở bán ngay">
                                                     Kích hoạt
                                                 </button>
-                                                <button class="ebay-btn-info-sm" @onclick='() => ChangeProductStatus(p, "SCHEDULED")' title="Hẹn giờ đăng">
-                                                    Hẹn giờ
+                                                <button class="ebay-btn-info-sm" @onclick='() => OpenScheduleModal(p)' title="Hẹn giờ đăng">
+                                                    ⏰ Hẹn giờ
                                                 </button>
                                             }
 
@@ -177,6 +178,36 @@
     </div>
 </div>
 
+@* ─── MODAL HẸN GIỜ ĐĂNG BÁN ─── *@
+@if (scheduleModalProduct != null)
+{
+    <div class="modal-backdrop" style="position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1050; display: flex; align-items: center; justify-content: center;">
+        <div class="bg-white rounded-3 shadow-lg p-4" style="width: 380px; max-width: 95vw;">
+            <h5 class="mb-3">⏰ Hẹn giờ đăng bán</h5>
+            <p class="text-muted" style="font-size: 13px;">Sản phẩm: <strong>@scheduleModalProduct.Name</strong></p>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Thời gian đăng (sau thời điểm hiện tại)</label>
+                <input type="datetime-local" class="form-control"
+                       value="@scheduledAtInput"
+                       @onchange="OnScheduleInputChanged"
+                       min="@minScheduleTime" />
+                <small class="text-muted">Thời gian tối thiểu: 5 phút kể từ bây giờ</small>
+            </div>
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn btn-outline-secondary" @onclick="CloseScheduleModal">Hủy</button>
+                <button class="btn btn-info text-white" @onclick="ConfirmSchedule" disabled="@(string.IsNullOrEmpty(scheduledAtInput) || isConfirmingSchedule)">
+                    @if (isConfirmingSchedule) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Xác nhận hẹn giờ
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(scheduleError))
+            {
+                <div class="alert alert-danger mt-2 mb-0 py-2" style="font-size: 13px;">@scheduleError</div>
+            }
+        </div>
+    </div>
+}
+
 @code {
     private IEnumerable<Product>? products;
     private bool isLoading = true;
@@ -209,6 +240,65 @@
         currentTab = tab;
     }
 
+    // ─── State hẹn giờ modal ───
+    private Product? scheduleModalProduct = null;
+    private string scheduledAtInput = string.Empty;
+    private string minScheduleTime => DateTime.Now.AddMinutes(5).ToString("yyyy-MM-ddTHH:mm");
+    private bool isConfirmingSchedule = false;
+    private string? scheduleError = null;
+
+    private void OnScheduleInputChanged(ChangeEventArgs e)
+        => scheduledAtInput = e.Value?.ToString() ?? string.Empty;
+
+    private void OpenScheduleModal(Product product)
+    {
+        scheduleModalProduct = product;
+        scheduledAtInput = DateTime.Now.AddHours(1).ToString("yyyy-MM-ddTHH:mm"); // Mặc định 1 giờ sau
+        scheduleError = null;
+    }
+
+    private void CloseScheduleModal()
+    {
+        scheduleModalProduct = null;
+        scheduledAtInput = string.Empty;
+        scheduleError = null;
+    }
+
+    private async Task ConfirmSchedule()
+    {
+        if (scheduleModalProduct == null) return;
+        if (string.IsNullOrEmpty(scheduledAtInput)) { scheduleError = "Vui lòng chọn thời gian."; return; }
+
+        if (!DateTime.TryParse(scheduledAtInput, out var dt) || dt <= DateTime.Now.AddMinutes(4))
+        {
+            scheduleError = "Thời gian hẹn giờ phải ít nhất 5 phút trong tương lai.";
+            return;
+        }
+
+        // Chuyển sang DateTimeOffset UTC+7
+        var scheduledAt = new DateTimeOffset(dt, TimeSpan.FromHours(7));
+
+        isConfirmingSchedule = true;
+        scheduleError = null;
+        StateHasChanged();
+
+        try
+        {
+            await ProductService.UpdateProductStatusAsync(scheduleModalProduct.Id, "SCHEDULED", scheduledAt);
+            products = await ProductService.GetMyProductsAsync();
+            successMessage = $"⏰ Đã hẹn giờ đăng '{scheduleModalProduct.Name}' lúc {dt:HH:mm dd/MM/yyyy}.";
+            CloseScheduleModal();
+        }
+        catch (Exception ex)
+        {
+            scheduleError = ex.Message;
+        }
+        finally
+        {
+            isConfirmingSchedule = false;
+        }
+    }
+
     private async Task ChangeProductStatus(Product product, string newStatus)
     {
         updatingStatusProductId = product.Id;
@@ -233,6 +323,11 @@
 
     private async Task SoftDeleteProduct(Product product)
     {
+        // Confirm trước khi xóa để tránh bấm nhầm
+        var confirmed = await JS.InvokeAsync<bool>("confirm",
+            $"Bạn có chắc muốn xóa '{product.Name}'?\nSản phẩm sẽ bị ẩn hoàn toàn (Soft Delete).");
+        if (!confirmed) return;
+
         deletingProductId = product.Id;
         errorMessage = null;
         StateHasChanged();

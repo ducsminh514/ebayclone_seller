@@ -15,6 +15,8 @@ namespace EbayClone.Domain.Entities
         public string? Description { get; set; }
         public string? Brand { get; set; }
         public string Status { get; set; } = "DRAFT";
+        // Thời điểm hẹn giờ đăng bán (chỉ dùng khi Status = SCHEDULED)
+        public DateTimeOffset? ScheduledAt { get; set; }
         public decimal? BasePrice { get; set; }
         
         // Ảnh sản phẩm: 1 ảnh bìa + danh sách URL (lưu JSON)

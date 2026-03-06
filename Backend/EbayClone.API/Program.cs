@@ -9,10 +9,16 @@ using EbayClone.Application.UseCases.Orders;
 using EbayClone.Infrastructure.Repositories;
 using EbayClone.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Cho phép upload file tối đa 10MB
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024;
+});
 builder.Services.AddDbContext<EbayDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -36,6 +42,7 @@ builder.Services.AddScoped<IRestockVariantUseCase, RestockVariantUseCase>();
 builder.Services.AddScoped<IGetProductsUseCase, GetProductsUseCase>();
 builder.Services.AddScoped<IGetProductByIdUseCase, GetProductByIdUseCase>();
 builder.Services.AddScoped<IUpdateProductBasicUseCase, UpdateProductBasicUseCase>();
+builder.Services.AddScoped<IUpdateProductVariantsUseCase, UpdateProductVariantsUseCase>();
 builder.Services.AddScoped<IUpdateProductStatusUseCase, UpdateProductStatusUseCase>();
 builder.Services.AddScoped<ISoftDeleteProductUseCase, SoftDeleteProductUseCase>();
 builder.Services.AddScoped<IGetShippingPoliciesUseCase, GetShippingPoliciesUseCase>();
@@ -47,6 +54,9 @@ builder.Services.AddScoped<ICreateTestOrderUseCase, CreateTestOrderUseCase>();
 builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
 builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
+
+// Background Service: tự động kích hoạt sản phẩm SCHEDULED → ACTIVE khi đến giờ
+builder.Services.AddHostedService<EbayClone.API.BackgroundServices.ScheduledListingActivatorService>();
 builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
 
 // Cấu hình JWT Authentication
@@ -100,6 +110,30 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 });
+
+// Rate Limiting: chống spam API tạo sản phẩm và upload ảnh
+builder.Services.AddRateLimiter(options =>
+{
+    // Policy cho CreateListing: 10 request/phút/IP
+    options.AddFixedWindowLimiter("create_listing", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0; // Không queue, từ chối ngay khi vượt
+    });
+    // Policy cho Upload ảnh: 20 request/phút/IP
+    options.AddFixedWindowLimiter("upload_image", opt =>
+    {
+        opt.PermitLimit = 20;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+    // HTTP 429 khi vượt giới hạn
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -131,6 +165,12 @@ app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Serve file ảnh từ wwwroot (cần đặt sau UseAuthorization để ảnh public không cần auth)
+app.UseStaticFiles();
+
+// Kích hoạt Rate Limiter middleware
+app.UseRateLimiter();
 
 app.MapControllers();
 

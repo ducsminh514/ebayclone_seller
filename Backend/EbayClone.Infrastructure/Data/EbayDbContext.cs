@@ -51,6 +51,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
                 entity.Property(e => e.Slug).HasMaxLength(255).IsRequired();
                 entity.HasOne(c => c.Parent).WithMany(c => c.SubCategories).HasForeignKey(c => c.ParentId);
+                // AttributeHints lưu JSON, không giới hạn độ dài
             });
 
             // Shops
@@ -88,6 +89,11 @@ namespace EbayClone.Infrastructure.Data
                 
                 // Global Query Filter: tự động loại trừ SP đã Soft Delete
                 entity.HasQueryFilter(e => !e.IsDeleted);
+
+                // Indexes cho Performance & Scalability
+                entity.HasIndex(e => e.ShopId);
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.ScheduledAt);
             });
 
             // ProductVariants

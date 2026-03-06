@@ -64,9 +64,9 @@ namespace EbayClone.Frontend.Services
             }
         }
 
-        public async Task UpdateProductStatusAsync(Guid id, string status)
+        public async Task UpdateProductStatusAsync(Guid id, string status, DateTimeOffset? scheduledAt = null)
         {
-            var request = new UpdateProductStatusRequest { Status = status };
+            var request = new UpdateProductStatusRequest { Status = status, ScheduledAt = scheduledAt };
             var response = await _httpClient.PatchAsJsonAsync($"api/products/{id}/status", request);
             if (!response.IsSuccessStatusCode)
             {
@@ -104,6 +104,16 @@ namespace EbayClone.Frontend.Services
             {
                 var error = await response.Content.ReadAsStringAsync();
                 throw new Exception($"Lỗi xóa sản phẩm: {error}");
+            }
+        }
+
+        public async Task UpdateProductVariantsAsync(Guid id, UpdateProductVariantsRequest request)
+        {
+            var response = await _httpClient.PatchAsJsonAsync($"api/products/{id}/variants", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                throw new Exception($"Lỗi cập nhật biến thể: {error}");
             }
         }
     }

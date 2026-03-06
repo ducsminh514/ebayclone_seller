@@ -95,5 +95,21 @@ namespace EbayClone.Infrastructure.Repositories
                     .SetProperty(x => x.ReservedQuantity, x => x.ReservedQuantity + quantity), 
                     cancellationToken);
         }
+
+        public async Task<int> CountProductsThisMonthAsync(Guid shopId, CancellationToken cancellationToken = default)
+        {
+            // Dùng timezone Việt Nam (UTC+7) để tính đầu tháng hiện tại
+            // Tránh sai lệch: 00:30 ngày 1 VN = 17:30 UTC ngày trước → sẽ bị đếm vào tháng sai nếu dùng UTC thuần
+            var vnTimeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+            var nowVn = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vnTimeZone);
+            var startOfMonthVn = new DateTime(nowVn.Year, nowVn.Month, 1, 0, 0, 0, DateTimeKind.Unspecified);
+            // Convert lại sang UTC để so sánh với DateTimeOffset lưu trong DB
+            var startOfMonthUtc = new DateTimeOffset(
+                TimeZoneInfo.ConvertTimeToUtc(startOfMonthVn, vnTimeZone), TimeSpan.Zero);
+
+            return await _context.Products
+                .Where(p => p.ShopId == shopId && !p.IsDeleted && p.CreatedAt >= startOfMonthUtc)
+                .CountAsync(cancellationToken);
+        }
     }
 }

@@ -19,13 +19,16 @@ namespace EbayClone.Application.UseCases.Products
     public class CreateListingUseCase : ICreateListingUseCase
     {
         private readonly IProductRepository _productRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateListingUseCase(
             IProductRepository productRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -33,6 +36,16 @@ namespace EbayClone.Application.UseCases.Products
         {
             if (request.Variants == null || request.Variants.Count == 0)
                 throw new ArgumentException("At least one variant is required");
+
+            // Kiểm tra giới hạn đăng bài hàng tháng (MonthlyListingLimit)
+            var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+            if (shop != null)
+            {
+                var countThisMonth = await _productRepository.CountProductsThisMonthAsync(shopId, cancellationToken);
+                if (countThisMonth >= shop.MonthlyListingLimit)
+                    throw new InvalidOperationException(
+                        $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
+            }
 
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
@@ -59,7 +72,9 @@ namespace EbayClone.Application.UseCases.Products
                     Brand = request.Brand,
                     PrimaryImageUrl = primaryImg,
                     ImageUrls = imageUrlsJson,
-                    Status = "DRAFT", // Đưa vào trạng thái nháp, chờ Publish
+                    ScheduledAt = request.ScheduledAt,
+                    // Nếu seller chọn hẹn giờ → SCHEDULED, không thì DRAFT
+                    Status = request.ScheduledAt.HasValue ? "SCHEDULED" : "DRAFT",
                     BasePrice = request.Variants[0].Price // Lấy giá biến thể đầu tiên làm giá base
                 };
 

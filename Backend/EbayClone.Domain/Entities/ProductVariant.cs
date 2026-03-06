@@ -23,6 +23,9 @@ namespace EbayClone.Domain.Entities
         public string? ImageUrl { get; set; }
         public int? WeightGram { get; set; }
 
+        public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset? UpdatedAt { get; set; }
+
         // Navigation
         public Product? Product { get; set; }
         

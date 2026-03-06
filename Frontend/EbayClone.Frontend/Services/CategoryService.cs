@@ -66,5 +66,14 @@ namespace EbayClone.Frontend.Services
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Slug { get; set; } = string.Empty;
+
+        // Gợi ý thuộc tính từ server (JSON string: ["RAM","Màu sắc"])
+        public string? AttributeHints { get; set; }
+
+        // Đã parse thành List để dùng trực tiếp trong UI
+        public List<string> SuggestedAttributes =>
+            !string.IsNullOrEmpty(AttributeHints)
+                ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(AttributeHints) ?? new()
+                : new();
     }
 }

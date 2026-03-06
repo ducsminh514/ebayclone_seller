@@ -2,9 +2,11 @@
 @using EbayClone.Application.DTOs.Products
 @using EbayClone.Application.DTOs.Policies
 @using EbayClone.Frontend.Services
+@using Microsoft.AspNetCore.Components.Forms
 @inject ProductService ProductService
 @inject PolicyService PolicyService
 @inject CategoryService CategoryService
+@inject FileUploadService FileUploadService
 @inject NavigationManager NavigationManager
 
 <div class="container mt-4">
@@ -22,7 +24,6 @@
 
         <fieldset disabled="@isSubmitting">
 
-
         <div class="ebay-card">
             <h4 class="ebay-card-title">Thông tin cơ bản</h4>
             <div class="mb-3">
@@ -39,7 +40,8 @@
             </div>
             <div class="mb-3">
                 <label class="form-label">Danh Mục *</label>
-                <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId">
+                <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId"
+                             @bind-Value:after="OnCategoryChanged">
                     <option value="">-- Chọn Danh Mục --</option>
                     @foreach (var c in categories)
                     {
@@ -47,34 +49,105 @@
                     }
                 </InputSelect>
             </div>
-        </div>
 
-        <div class="ebay-card">
-            <h4 class="ebay-card-title">Ảnh Sản Phẩm</h4>
-            <div class="mb-3">
-                <label class="form-label">URL Ảnh Bìa (Primary Image)</label>
-                <InputText class="form-control ebay-input" @bind-Value="request.PrimaryImageUrl" placeholder="https://example.com/image.jpg" />
-                <small class="text-muted">Ảnh này sẽ hiển thị đầu tiên trên trang sản phẩm</small>
-            </div>
-            @if (!string.IsNullOrEmpty(request.PrimaryImageUrl))
+            @if (suggestedAttributes.Any())
             {
-                <div class="mb-3">
-                    <img src="@request.PrimaryImageUrl" alt="Preview" style="max-width: 150px; max-height: 150px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" />
+                <div class="mb-3" style="background: #f0f7ff; border: 1px solid #c2dff7; border-radius: 8px; padding: 12px;">
+                    <div class="fw-bold mb-2" style="font-size: 13px; color: #1a6bbf;">
+                        💡 Gợi ý thuộc tính cho danh mục này:
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var hint in suggestedAttributes)
+                        {
+                            <button type="button"
+                                    class="badge rounded-pill @(usedHints.Contains(hint) ? "bg-primary" : "bg-light border text-dark")"
+                                    style="font-size: 12px; padding: 5px 10px; cursor: pointer;"
+                                    @onclick="() => ApplyHintToVariants(hint)">
+                                @(usedHints.Contains(hint) ? "✔ " : "+ ")@hint
+                            </button>
+                        }
+                    </div>
+                    <div class="text-muted mt-1" style="font-size: 11px;">Bấm vào một gợi ý để tự động thêm vào thuộc tính các biến thể.</div>
                 </div>
             }
-            <div class="mb-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <label class="form-label mb-0">Ảnh phụ (Tối đa 5)</label>
-                    <button type="button" class="btn btn-sm btn-info text-white" @onclick="AddImageUrl" disabled="@(extraImageUrls.Count >= 5)">+ Thêm ảnh</button>
+        </div>
+
+        @* ─────────────── ẢNH SẢN PHẨM ─────────────── *@
+        <div class="ebay-card">
+            <h4 class="ebay-card-title">Ảnh Sản Phẩm</h4>
+
+            @* Ảnh bìa *@
+            <div class="mb-4">
+                <label class="form-label fw-bold">Ảnh Bìa (Primary Image) *</label>
+                <div class="upload-area @(isDraggingPrimary ? "dragging" : "")"
+                     style="border: 2px dashed var(--border-color); border-radius: 10px; padding: 20px; text-align: center; background: #fafafa; position: relative; cursor: pointer;"
+                     @ondragover:preventDefault @ondragover="() => isDraggingPrimary = true"
+                     @ondragleave="() => isDraggingPrimary = false"
+                     @ondrop:preventDefault>
+                    @if (!string.IsNullOrEmpty(request.PrimaryImageUrl))
+                    {
+                        <div style="position: relative; display: inline-block;">
+                            <img src="@request.PrimaryImageUrl" alt="Ảnh bìa" style="max-height: 180px; max-width: 100%; border-radius: 8px; object-fit: contain;" />
+                            <button type="button" class="btn btn-sm btn-danger" style="position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-size: 12px;"
+                                    @onclick="() => request.PrimaryImageUrl = null">✕</button>
+                        </div>
+                        <div class="mt-2 text-muted" style="font-size: 12px;">✅ Đã có ảnh bìa. Bấm ✕ để xóa và chọn ảnh khác.</div>
+                    }
+                    else if (isUploadingPrimary)
+                    {
+                        <div class="my-3">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <div class="text-muted mt-2">Đang tải ảnh lên...</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="my-2">
+                            <span style="font-size: 36px;">📷</span>
+                            <div class="mt-2 fw-bold">Kéo thả ảnh vào đây hoặc</div>
+                            <div class="text-muted" style="font-size: 12px;">JPG, PNG, WEBP — Tối đa 10MB</div>
+                        </div>
+                    }
+
+                    @if (!isUploadingPrimary && string.IsNullOrEmpty(request.PrimaryImageUrl))
+                    {
+                        <InputFile OnChange="UploadPrimaryImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
+                    }
                 </div>
-                @for (int i = 0; i < extraImageUrls.Count; i++)
-                {
-                    var idx = i;
-                    <div class="d-flex gap-2 mb-2">
-                        <input type="text" class="form-control ebay-input" placeholder="URL ảnh phụ" value="@extraImageUrls[idx]" @onchange="(e) => UpdateImageUrl(idx, e.Value?.ToString())" />
-                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveImageUrl(idx)">✕</button>
-                    </div>
-                }
+            </div>
+
+            @* Ảnh phụ *@
+            <div class="mb-2">
+                <label class="form-label fw-bold">Ảnh Phụ (tối đa 5)</label>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    @for (int i = 0; i < extraImageUrls.Count; i++)
+                    {
+                        var idx = i;
+                        <div style="position: relative; width: 90px; height: 90px;">
+                            <img src="@extraImageUrls[idx]" alt="Ảnh phụ @(idx+1)"
+                                 style="width: 90px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" />
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 10px;"
+                                    @onclick="() => extraImageUrls.RemoveAt(idx)">✕</button>
+                        </div>
+                    }
+
+                    @if (extraImageUrls.Count < 5)
+                    {
+                        <div style="width: 90px; height: 90px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; background: #fafafa;">
+                            @if (isUploadingExtra)
+                            {
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                            }
+                            else
+                            {
+                                <span style="font-size: 24px; color: #aaa;">+</span>
+                                <InputFile OnChange="UploadExtraImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
+                            }
+                        </div>
+                    }
+                </div>
+                <small class="text-muted">Bấm ô + để thêm ảnh từ máy tính</small>
             </div>
         </div>
 
@@ -104,6 +177,7 @@
             </div>
         </div>
 
+        @* ─────────────── BIẾN THỂ / SKU ─────────────── *@
         <div class="ebay-card">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="ebay-card-title mb-0">Biến thể Sản Phẩm (SKUs)</h4>
@@ -118,74 +192,118 @@
             @foreach (var variant in request.Variants)
             {
                 <div class="border p-3 mb-3 bg-light" style="border-radius: var(--border-radius-sm); border-color: var(--border-color) !important;">
-                        <div class="row">
-                            <div class="col-md-2 mb-2">
-                                <label class="form-label">Mã SKU *</label>
-                                <InputText class="form-control" @bind-Value="variant.SkuCode" />
-                            </div>
-                            <div class="col-md-2 mb-2">
-                                <label class="form-label">Giá (VND) *</label>
-                                <InputNumber class="form-control" @bind-Value="variant.Price" />
-                            </div>
-                            <div class="col-md-2 mb-2">
-                                <label class="form-label">Kho hàng *</label>
-                                <InputNumber class="form-control" @bind-Value="variant.Quantity" />
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <label class="form-label">ImageUrl (Đường dẫn ảnh)</label>
-                                <InputText class="form-control" @bind-Value="variant.ImageUrl" placeholder="https://" />
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <label class="form-label">Khối lượng (gram)</label>
-                                <InputNumber class="form-control" @bind-Value="variant.WeightGram" />
+                    <div class="row g-2 align-items-start">
+                        @* Ảnh biến thể *@
+                        <div class="col-md-1">
+                            <label class="form-label" style="font-size: 12px;">Ảnh</label>
+                            <div style="width: 60px; height: 60px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; background: #fff; cursor: pointer; overflow: hidden;">
+                                @if (!string.IsNullOrEmpty(variant.ImageUrl))
+                                {
+                                    <img src="@variant.ImageUrl" alt="Ảnh biến thể"
+                                         style="width: 100%; height: 100%; object-fit: cover;" />
+                                    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.4); text-align: center; cursor: pointer; font-size: 10px; color: white; padding: 2px;"
+                                         @onclick="() => variant.ImageUrl = null">Xóa</div>
+                                }
+                                else if (uploadingVariants.Contains(variant))
+                                {
+                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                }
+                                else
+                                {
+                                    <span style="font-size: 20px; color: #aaa;">📷</span>
+                                    <InputFile OnChange="(e) => UploadVariantImage(e, variant)" accept="image/*"
+                                               style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
+                                }
                             </div>
                         </div>
 
-                        <div class="mt-2">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h6 class="fw-bold text-secondary mb-0">Thuộc tính động (VD: Color - Red)</h6>
-                                @if (variantAttributesMap.ContainsKey(variant))
-                                {
-                                    <span class="text-muted" style="font-size: 13px;">@variantAttributesMap[variant].Count / 5</span>
-                                }
-                            </div>
-                            <button type="button" class="btn btn-sm btn-info mb-2 text-white" 
-                                    @onclick="() => AddAttribute(variant)" 
-                                    disabled="@(variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count >= 5)">
-                                + Thêm Thuộc Tính
-                            </button>
-                            
-                            <!-- Mapping Dictionary into a UI list is tricky in basic Blazor bind, we'll use a local helper list -->
-                            @if(variantAttributesMap.ContainsKey(variant))
-                            {
-                                @foreach (var attr in variantAttributesMap[variant])
-                                {
-                                    <div class="d-flex mb-2 gap-2">
-                                        <input type="text" class="form-control ebay-input" placeholder="Tên (VD: Màu sắc)" @bind="attr.Key" />
-                                        <input type="text" class="form-control ebay-input" placeholder="Giá trị (VD: Đỏ)" @bind="attr.Value" />
-                                        <button type="button" class="btn btn-danger" @onclick="() => RemoveAttribute(variant, attr)">Xóa</button>
-                                    </div>
-                                }
-                            }
+                        <div class="col-md-2">
+                            <label class="form-label">Mã SKU *</label>
+                            <InputText class="form-control" @bind-Value="variant.SkuCode" />
                         </div>
-                        <div class="text-end mt-2">
-                            <button type="button" class="btn btn-sm btn-danger" @onclick="() => RemoveVariant(variant)">Xóa Biến Thể Này</button>
+                        <div class="col-md-2">
+                            <label class="form-label">Giá (VND) *</label>
+                            <InputNumber class="form-control" @bind-Value="variant.Price" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Kho hàng *</label>
+                            <InputNumber class="form-control" @bind-Value="variant.Quantity" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Khối lượng (gram)</label>
+                            <InputNumber class="form-control" @bind-Value="variant.WeightGram" />
                         </div>
                     </div>
+
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-secondary mb-0">Thuộc tính động (VD: Color - Red)</h6>
+                            @if (variantAttributesMap.ContainsKey(variant))
+                            {
+                                <span class="text-muted" style="font-size: 13px;">@variantAttributesMap[variant].Count / 5</span>
+                            }
+                        </div>
+                        <button type="button" class="btn btn-sm btn-info mb-2 text-white" 
+                                @onclick="() => AddAttribute(variant)" 
+                                disabled="@(variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count >= 5)">
+                            + Thêm Thuộc Tính
+                        </button>
+                        
+                        @if(variantAttributesMap.ContainsKey(variant))
+                        {
+                            @foreach (var attr in variantAttributesMap[variant])
+                            {
+                                <div class="d-flex mb-2 gap-2">
+                                    <input type="text" class="form-control ebay-input" placeholder="Tên (VD: Màu sắc)" @bind="attr.Key" />
+                                    <input type="text" class="form-control ebay-input" placeholder="Giá trị (VD: Đỏ)" @bind="attr.Value" />
+                                    <button type="button" class="btn btn-danger" @onclick="() => RemoveAttribute(variant, attr)">Xóa</button>
+                                </div>
+                            }
+                        }
+                    </div>
+                    <div class="text-end mt-2">
+                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => RemoveVariant(variant)">Xóa Biến Thể Này</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="ebay-card">
+            <h4 class="ebay-card-title">⏰ Hẹn Giờ Đăng Bán (Schedule)</h4>
+            <div class="mb-2 text-muted" style="font-size: 13px;">Bỏ trống nếu muốn đăng ngay. Chọn ngày giờ để sản phẩm tự động xuất hiện vào lúc đó.</div>
+            <div class="d-flex align-items-center gap-3">
+                <input type="datetime-local" class="form-control ebay-input"
+                       style="max-width: 300px;"
+                       value="@(request.ScheduledAt.HasValue ? request.ScheduledAt.Value.LocalDateTime.ToString("yyyy-MM-ddTHH:mm") : "")"
+                       @onchange="OnScheduledAtChanged" />
+                @if (request.ScheduledAt.HasValue)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => request.ScheduledAt = null">
+                        ✕ Xóa hẹn giờ
+                    </button>
+                    <span class="badge bg-info text-dark">⏰ Sẽ đăng lúc @request.ScheduledAt.Value.LocalDateTime.ToString("HH:mm dd/MM/yyyy")</span>
                 }
+            </div>
         </div>
 
         <div class="d-flex gap-3 mt-3 mb-5">
-            <button type="submit" class="ebay-btn-outline btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => publishOnCreate = false">
-                @if(isSubmitting && !publishOnCreate) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu...</span> } else { <span>💾 Lưu Nháp (DRAFT)</span> }
+            <button type="submit" class="ebay-btn-outline btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => SetSubmitMode(0)">
+                @if(isSubmitting && submitMode==0) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu...</span> } else { <span>💾 Lưu Nháp (DRAFT)</span> }
             </button>
-            <button type="submit" class="ebay-btn-primary btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => publishOnCreate = true">
-                @if(isSubmitting && publishOnCreate) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang đăng bán...</span> } else { <span>🚀 Đăng Bán Ngay (ACTIVE)</span> }
+            @if (request.ScheduledAt.HasValue)
+            {
+                <button type="submit" class="btn btn-lg btn-info text-white flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => SetSubmitMode(2)">
+                    @if(isSubmitting && submitMode==2) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu hẹn...</span> } else { <span>⏰ Hẹn Giờ Đăng</span> }
+                </button>
+            }
+            <button type="submit" class="ebay-btn-primary btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => SetSubmitMode(1)">
+                @if(isSubmitting && submitMode==1) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang đăng bán...</span> } else { <span>🚀 Đăng Bán Ngay (ACTIVE)</span> }
             </button>
         </div>
         </fieldset>
     </EditForm>
 </div>
+
 
 @code {
     private CreateListingRequest request = new CreateListingRequest();
@@ -194,10 +312,53 @@
     private List<CategoryDto> categories = new();
     private string? errorMessage;
     private bool isSubmitting = false;
-    private bool publishOnCreate = false;
+    private int submitMode = 0; // 0=DRAFT, 1=ACTIVE, 2=SCHEDULED
+    private bool publishOnCreate => submitMode == 1; // compat
+
+    // Gợi ý thuộc tính theo danh mục
+    private List<string> suggestedAttributes = new();
+    private HashSet<string> usedHints = new();
+
+    private void OnCategoryChanged()
+    {
+        var selectedCat = categories.FirstOrDefault(c => c.Id == request.CategoryId);
+        suggestedAttributes = selectedCat?.SuggestedAttributes ?? new();
+        usedHints.Clear();
+    }
+
+    // Bấm chip gợi ý → toggle thêm/xóa key đó vào tất cả biến thể
+    private void ApplyHintToVariants(string hint)
+    {
+        bool alreadyUsed = usedHints.Contains(hint);
+        foreach (var variant in request.Variants)
+        {
+            if (!variantAttributesMap.ContainsKey(variant)) continue;
+            var attrs = variantAttributesMap[variant];
+            if (alreadyUsed)
+            {
+                attrs.RemoveAll(a => a.Key == hint);
+            }
+            else
+            {
+                if (!attrs.Any(a => a.Key == hint) && attrs.Count < 5)
+                    attrs.Add(new AttributePair { Key = hint, Value = "" });
+            }
+        }
+        if (alreadyUsed) usedHints.Remove(hint);
+        else usedHints.Add(hint);
+    }
+
+
+    // Ảnh sản phẩm phụ
     private List<string> extraImageUrls = new();
 
-    // Helper class to bind dictionary keys and values easily in UI
+    // Trạng thái upload
+    private bool isUploadingPrimary = false;
+    private bool isUploadingExtra = false;
+    private bool isDraggingPrimary = false;
+    private HashSet<CreateVariantRequest> uploadingVariants = new();
+
+    // Helper class để bind dictionary attributes
     public class AttributePair
     {
         public string Key { get; set; } = string.Empty;
@@ -228,6 +389,85 @@
         }
     }
 
+    // ─── HẸN GIỜ ĐĂNG BÁN ───
+
+    private void SetSubmitMode(int mode) => submitMode = mode;
+
+    private void OnScheduledAtChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            request.ScheduledAt = new DateTimeOffset(dt, TimeSpan.FromHours(7)); // UTC+7
+        else
+            request.ScheduledAt = null;
+    }
+
+    // ─── UPLOAD ẢNH SẢN PHẨM ───
+
+    private async Task UploadPrimaryImage(InputFileChangeEventArgs e)
+    {
+        isUploadingPrimary = true;
+        errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            var url = await FileUploadService.UploadImageAsync(e.File);
+            request.PrimaryImageUrl = url;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi upload ảnh bìa: {ex.Message}";
+        }
+        finally
+        {
+            isUploadingPrimary = false;
+        }
+    }
+
+    private async Task UploadExtraImage(InputFileChangeEventArgs e)
+    {
+        if (extraImageUrls.Count >= 5) return;
+        isUploadingExtra = true;
+        errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            var url = await FileUploadService.UploadImageAsync(e.File);
+            extraImageUrls.Add(url);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi upload ảnh phụ: {ex.Message}";
+        }
+        finally
+        {
+            isUploadingExtra = false;
+        }
+    }
+
+    // ─── UPLOAD ẢNH BIẾN THỂ ───
+
+    private async Task UploadVariantImage(InputFileChangeEventArgs e, CreateVariantRequest variant)
+    {
+        uploadingVariants.Add(variant);
+        errorMessage = null;
+        StateHasChanged();
+        try
+        {
+            var url = await FileUploadService.UploadImageAsync(e.File);
+            variant.ImageUrl = url;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi upload ảnh biến thể: {ex.Message}";
+        }
+        finally
+        {
+            uploadingVariants.Remove(variant);
+        }
+    }
+
+    // ─── QUẢN LÝ BIẾN THỂ ───
+
     private void AddVariant()
     {
         if (request.Variants.Count >= 50) return;
@@ -240,6 +480,7 @@
     {
         request.Variants.Remove(variant);
         variantAttributesMap.Remove(variant);
+        uploadingVariants.Remove(variant);
     }
 
     private void AddAttribute(CreateVariantRequest variant)
@@ -257,6 +498,8 @@
             variantAttributesMap[variant].Remove(attr);
         }
     }
+
+    // ─── SUBMIT ───
 
     private async Task HandleSubmit()
     {
@@ -286,11 +529,12 @@
 
             var productId = await ProductService.CreateListingAsync(request);
             
-            // Nếu Publish: đổi status sang ACTIVE ngay
-            if (publishOnCreate)
+            // submitMode: 0=DRAFT (mặc định từ backend), 1=ACTIVE, 2=SCHEDULED (đã handled trong usecase)
+            if (submitMode == 1) // Publish ngay
             {
                 await ProductService.UpdateProductStatusAsync(productId, "ACTIVE");
             }
+            // submitMode == 2: ScheduledAt đã được gửi kèm, backend tự set SCHEDULED
             
             NavigationManager.NavigateTo("/listings");
         }
@@ -302,23 +546,5 @@
         {
             isSubmitting = false;
         }
-    }
-
-    private void AddImageUrl()
-    {
-        if (extraImageUrls.Count < 5)
-            extraImageUrls.Add("");
-    }
-
-    private void RemoveImageUrl(int index)
-    {
-        if (index >= 0 && index < extraImageUrls.Count)
-            extraImageUrls.RemoveAt(index);
-    }
-
-    private void UpdateImageUrl(int index, string? val)
-    {
-        if (index >= 0 && index < extraImageUrls.Count)
-            extraImageUrls[index] = val ?? "";
     }
 }
