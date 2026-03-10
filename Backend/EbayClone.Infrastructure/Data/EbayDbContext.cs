@@ -50,6 +50,7 @@ namespace EbayClone.Infrastructure.Data
             modelBuilder.Entity<Category>(entity => {
                 entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
                 entity.Property(e => e.Slug).HasMaxLength(255).IsRequired();
+                entity.Property(e => e.AttributeHints);
                 entity.HasOne(c => c.Parent).WithMany(c => c.SubCategories).HasForeignKey(c => c.ParentId);
             });
 
@@ -63,6 +64,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.RatingAvg).HasColumnType("decimal(3, 2)");
                 entity.Property(e => e.TotalShippingPolicies).HasDefaultValue(0);
                 entity.Property(e => e.TotalReturnPolicies).HasDefaultValue(0);
+                entity.Property(e => e.MonthlyListingLimit).HasDefaultValue(50);
             });
 
             // ShippingPolicies
@@ -85,6 +87,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.BasePrice).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.PrimaryImageUrl).HasMaxLength(500);
                 entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+                entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
                 
                 // Global Query Filter: tự động loại trừ SP đã Soft Delete
                 entity.HasQueryFilter(e => !e.IsDeleted);
@@ -97,6 +100,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Price).HasColumnType("decimal(18, 2)");
                 // Computed Column mapping
                 entity.Property(e => e.AvailableStock).HasComputedColumnSql("[Quantity] - [ReservedQuantity]", stored: false);
+                entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
 
             // Orders

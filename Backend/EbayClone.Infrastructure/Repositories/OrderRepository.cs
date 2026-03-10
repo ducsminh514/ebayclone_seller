@@ -24,6 +24,13 @@ namespace EbayClone.Infrastructure.Repositories
             await _context.Orders.AddAsync(order, cancellationToken);
         }
 
+        public async Task<Order?> GetByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrEmpty(idempotencyKey)) return null;
+            return await _context.Orders
+                .FirstOrDefaultAsync(o => o.IdempotencyKey == idempotencyKey, cancellationToken);
+        }
+
         public async Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Orders

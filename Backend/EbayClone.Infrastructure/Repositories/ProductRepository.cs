@@ -48,6 +48,14 @@ namespace EbayClone.Infrastructure.Repositories
                                  .ToListAsync(cancellationToken);
         }
 
+        public async Task<int> GetCountByShopInCurrentMonthAsync(Guid shopId, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var firstDayOfMonth = new DateTime(now.Year, now.Month, 1);
+            return await _context.Products
+                .CountAsync(p => p.ShopId == shopId && p.CreatedAt >= firstDayOfMonth, cancellationToken);
+        }
+
         public async Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default)
         {
             await _context.ProductVariants.AddRangeAsync(variants, cancellationToken);

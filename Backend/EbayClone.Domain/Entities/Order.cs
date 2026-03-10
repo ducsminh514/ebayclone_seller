@@ -7,6 +7,7 @@ namespace EbayClone.Domain.Entities
     {
         public Guid Id { get; set; } = Guid.NewGuid();
         public string OrderNumber { get; set; } = string.Empty;
+        public string IdempotencyKey { get; set; } = string.Empty;
         public Guid ShopId { get; set; }
         public Guid BuyerId { get; set; }
         

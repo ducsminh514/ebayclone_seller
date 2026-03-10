@@ -1,347 +1,672 @@
-﻿/* =================================================================================
-PROJECT: EBAY CLONE - SELLER HUB MODULE
-DATABASE SYSTEM: SQL SERVER (T-SQL)
-DESCRIPTION: Hệ thống lõi quản lý bán hàng, tồn kho và dòng tiền dành cho Seller.
-CREATED BY: Gemini (Based on User Requirements)
-=================================================================================
-*/
-
--- 1. Tạo Database
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'EbaySellerClone')
-BEGIN
-    CREATE DATABASE EbaySellerClone;
-END
+﻿USE [master]
+GO
+/****** Object:  Database [EbaySellerClone]    Script Date: 10/03/2026 4:17:34 CH ******/
+CREATE DATABASE [EbaySellerClone]
+ 
+GO
+ALTER DATABASE [EbaySellerClone] SET COMPATIBILITY_LEVEL = 160
+GO
+IF (1 = FULLTEXTSERVICEPROPERTY('IsFullTextInstalled'))
+begin
+EXEC [EbaySellerClone].[dbo].[sp_fulltext_database] @action = 'enable'
+end
+GO
+ALTER DATABASE [EbaySellerClone] SET ANSI_NULL_DEFAULT OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET ANSI_NULLS OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET ANSI_PADDING OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET ANSI_WARNINGS OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET ARITHABORT OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET AUTO_CLOSE OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET AUTO_SHRINK OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET AUTO_UPDATE_STATISTICS ON 
+GO
+ALTER DATABASE [EbaySellerClone] SET CURSOR_CLOSE_ON_COMMIT OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET CURSOR_DEFAULT  GLOBAL 
+GO
+ALTER DATABASE [EbaySellerClone] SET CONCAT_NULL_YIELDS_NULL OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET NUMERIC_ROUNDABORT OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET QUOTED_IDENTIFIER OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET RECURSIVE_TRIGGERS OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET  ENABLE_BROKER 
+GO
+ALTER DATABASE [EbaySellerClone] SET AUTO_UPDATE_STATISTICS_ASYNC OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET DATE_CORRELATION_OPTIMIZATION OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET TRUSTWORTHY OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET ALLOW_SNAPSHOT_ISOLATION OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET PARAMETERIZATION SIMPLE 
+GO
+ALTER DATABASE [EbaySellerClone] SET READ_COMMITTED_SNAPSHOT OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET HONOR_BROKER_PRIORITY OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET RECOVERY FULL 
+GO
+ALTER DATABASE [EbaySellerClone] SET  MULTI_USER 
+GO
+ALTER DATABASE [EbaySellerClone] SET PAGE_VERIFY CHECKSUM  
+GO
+ALTER DATABASE [EbaySellerClone] SET DB_CHAINING OFF 
+GO
+ALTER DATABASE [EbaySellerClone] SET FILESTREAM( NON_TRANSACTED_ACCESS = OFF ) 
+GO
+ALTER DATABASE [EbaySellerClone] SET TARGET_RECOVERY_TIME = 60 SECONDS 
+GO
+ALTER DATABASE [EbaySellerClone] SET DELAYED_DURABILITY = DISABLED 
+GO
+ALTER DATABASE [EbaySellerClone] SET ACCELERATED_DATABASE_RECOVERY = OFF  
+GO
+EXEC sys.sp_db_vardecimal_storage_format N'EbaySellerClone', N'ON'
+GO
+ALTER DATABASE [EbaySellerClone] SET QUERY_STORE = ON
+GO
+ALTER DATABASE [EbaySellerClone] SET QUERY_STORE (OPERATION_MODE = READ_WRITE, CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30), DATA_FLUSH_INTERVAL_SECONDS = 900, INTERVAL_LENGTH_MINUTES = 60, MAX_STORAGE_SIZE_MB = 1000, QUERY_CAPTURE_MODE = AUTO, SIZE_BASED_CLEANUP_MODE = AUTO, MAX_PLANS_PER_QUERY = 200, WAIT_STATS_CAPTURE_MODE = ON)
+GO
+USE [EbaySellerClone]
+GO
+/****** Object:  Table [dbo].[__EFMigrationsHistory]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[__EFMigrationsHistory](
+	[MigrationId] [nvarchar](150) NOT NULL,
+	[ProductVersion] [nvarchar](32) NOT NULL,
+ CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY CLUSTERED 
+(
+	[MigrationId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Categories]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Categories](
+	[Id] [uniqueidentifier] NOT NULL,
+	[ParentId] [uniqueidentifier] NULL,
+	[Name] [nvarchar](255) NOT NULL,
+	[Slug] [nvarchar](255) NOT NULL,
+	[IsActive] [bit] NULL,
+	[AttributeHints] [nvarchar](max) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Files]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Files](
+	[Id] [uniqueidentifier] NOT NULL,
+	[OwnerId] [uniqueidentifier] NOT NULL,
+	[Url] [nvarchar](max) NOT NULL,
+	[Type] [nvarchar](50) NULL,
+	[CreatedAt] [datetimeoffset](7) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[OrderItems]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[OrderItems](
+	[Id] [uniqueidentifier] NOT NULL,
+	[OrderId] [uniqueidentifier] NOT NULL,
+	[ProductId] [uniqueidentifier] NOT NULL,
+	[VariantId] [uniqueidentifier] NOT NULL,
+	[ProductNameSnapshot] [nvarchar](255) NULL,
+	[Quantity] [int] NOT NULL,
+	[PriceAtPurchase] [decimal](18, 2) NOT NULL,
+	[TotalLineAmount]  AS ([Quantity]*[PriceAtPurchase]) PERSISTED,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Orders]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Orders](
+	[Id] [uniqueidentifier] NOT NULL,
+	[OrderNumber] [nvarchar](50) NOT NULL,
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[BuyerId] [uniqueidentifier] NOT NULL,
+	[TotalAmount] [decimal](18, 2) NOT NULL,
+	[ShippingFee] [decimal](18, 2) NOT NULL,
+	[PlatformFee] [decimal](18, 2) NULL,
+	[Status] [nvarchar](50) NOT NULL,
+	[PaymentStatus] [nvarchar](50) NULL,
+	[ShippingCarrier] [nvarchar](100) NULL,
+	[TrackingCode] [nvarchar](100) NULL,
+	[ReceiverInfo] [nvarchar](max) NULL,
+	[CreatedAt] [datetimeoffset](7) NULL,
+	[PaidAt] [datetimeoffset](7) NULL,
+	[ShippedAt] [datetimeoffset](7) NULL,
+	[CompletedAt] [datetimeoffset](7) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+UNIQUE NONCLUSTERED 
+(
+	[OrderNumber] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Products]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Products](
+	[Id] [uniqueidentifier] NOT NULL,
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[CategoryId] [uniqueidentifier] NOT NULL,
+	[ShippingPolicyId] [uniqueidentifier] NULL,
+	[ReturnPolicyId] [uniqueidentifier] NULL,
+	[Name] [nvarchar](255) NOT NULL,
+	[Description] [nvarchar](max) NULL,
+	[Brand] [nvarchar](100) NULL,
+	[Status] [nvarchar](20) NULL,
+	[BasePrice] [decimal](18, 2) NULL,
+	[CreatedAt] [datetimeoffset](7) NULL,
+	[UpdatedAt] [datetimeoffset](7) NULL,
+	[PrimaryImageUrl] [nvarchar](500) NULL,
+	[ImageUrls] [nvarchar](max) NULL,
+	[IsDeleted] [bit] NOT NULL,
+	[ScheduledAt] [datetimeoffset](7) NULL,
+	[RowVersion] [timestamp] NOT NULL,
+	[LastModifiedBy] [nvarchar](255) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ProductVariants]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ProductVariants](
+	[Id] [uniqueidentifier] NOT NULL,
+	[ProductId] [uniqueidentifier] NOT NULL,
+	[SkuCode] [nvarchar](100) NOT NULL,
+	[Price] [decimal](18, 2) NOT NULL,
+	[Attributes] [nvarchar](max) NULL,
+	[Quantity] [int] NOT NULL,
+	[ReservedQuantity] [int] NOT NULL,
+	[AvailableStock]  AS ([Quantity]-[ReservedQuantity]),
+	[ImageUrl] [nvarchar](max) NULL,
+	[WeightGram] [int] NULL,
+	[CreatedAt] [datetimeoffset](7) NOT NULL,
+	[UpdatedAt] [datetimeoffset](7) NULL,
+	[RowVersion] [timestamp] NOT NULL,
+	[LastModifiedBy] [nvarchar](255) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ProductViewLogs]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ProductViewLogs](
+	[Id] [bigint] IDENTITY(1,1) NOT NULL,
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[ProductId] [uniqueidentifier] NOT NULL,
+	[ViewerIP] [nvarchar](50) NULL,
+	[ViewedAt] [datetimeoffset](7) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ReturnPolicies]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ReturnPolicies](
+	[Id] [uniqueidentifier] NOT NULL,
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[Name] [nvarchar](100) NOT NULL,
+	[ReturnDays] [int] NULL,
+	[ShippingPaidBy] [nvarchar](20) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Reviews]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Reviews](
+	[Id] [uniqueidentifier] NOT NULL,
+	[OrderId] [uniqueidentifier] NOT NULL,
+	[ProductId] [uniqueidentifier] NOT NULL,
+	[BuyerId] [uniqueidentifier] NOT NULL,
+	[Rating] [int] NULL,
+	[Comment] [nvarchar](max) NULL,
+	[SellerReply] [nvarchar](max) NULL,
+	[RepliedAt] [datetimeoffset](7) NULL,
+	[CreatedAt] [datetimeoffset](7) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[SellerWallets]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[SellerWallets](
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[AvailableBalance] [decimal](18, 2) NULL,
+	[PendingBalance] [decimal](18, 2) NULL,
+	[UpdatedAt] [datetimeoffset](7) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ShopId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ShippingPolicies]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ShippingPolicies](
+	[Id] [uniqueidentifier] NOT NULL,
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[Name] [nvarchar](100) NOT NULL,
+	[HandlingTimeDays] [int] NULL,
+	[Cost] [decimal](18, 2) NULL,
+	[IsDefault] [bit] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[ShopAnalyticsDaily]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[ShopAnalyticsDaily](
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[ReportDate] [date] NOT NULL,
+	[TotalRevenue] [decimal](18, 2) NULL,
+	[TotalOrders] [int] NULL,
+	[ItemsSold] [int] NULL,
+	[ViewsCount] [int] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[ShopId] ASC,
+	[ReportDate] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Shops]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Shops](
+	[Id] [uniqueidentifier] NOT NULL,
+	[OwnerId] [uniqueidentifier] NOT NULL,
+	[Name] [nvarchar](255) NOT NULL,
+	[Description] [nvarchar](max) NULL,
+	[AvatarUrl] [nvarchar](max) NULL,
+	[BannerUrl] [nvarchar](max) NULL,
+	[IsActive] [bit] NULL,
+	[RatingAvg] [decimal](3, 2) NULL,
+	[CreatedAt] [datetimeoffset](7) NULL,
+	[TaxCode] [nvarchar](20) NULL,
+	[Address] [nvarchar](255) NULL,
+	[IsVerified] [bit] NULL,
+	[TotalShippingPolicies] [int] NULL,
+	[TotalReturnPolicies] [int] NULL,
+	[MonthlyListingLimit] [int] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Users]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Users](
+	[Id] [uniqueidentifier] NOT NULL,
+	[Username] [nvarchar](100) NOT NULL,
+	[Email] [nvarchar](255) NOT NULL,
+	[PasswordHash] [nvarchar](max) NOT NULL,
+	[FullName] [nvarchar](200) NULL,
+	[IsEmailVerified] [bit] NULL,
+	[IsIdentityVerified] [bit] NULL,
+	[Role] [nvarchar](50) NULL,
+	[CreatedAt] [datetimeoffset](7) NULL,
+	[UpdatedAt] [datetimeoffset](7) NULL,
+	[EmailVerificationToken] [nvarchar](max) NULL,
+	[EmailVerificationTokenExpiresAt] [datetimeoffset](7) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+UNIQUE NONCLUSTERED 
+(
+	[Email] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[Vouchers]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Vouchers](
+	[Id] [uniqueidentifier] NOT NULL,
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[Code] [nvarchar](50) NOT NULL,
+	[DiscountType] [nvarchar](20) NULL,
+	[Value] [decimal](18, 2) NOT NULL,
+	[MinOrderValue] [decimal](18, 2) NULL,
+	[UsageLimit] [int] NULL,
+	[UsedCount] [int] NULL,
+	[ValidFrom] [datetimeoffset](7) NOT NULL,
+	[ValidTo] [datetimeoffset](7) NOT NULL,
+	[IsActive] [bit] NULL,
+	[RowVersion] [timestamp] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [dbo].[WalletTransactions]    Script Date: 10/03/2026 4:17:34 CH ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[WalletTransactions](
+	[Id] [uniqueidentifier] NOT NULL,
+	[ShopId] [uniqueidentifier] NOT NULL,
+	[Amount] [decimal](18, 2) NOT NULL,
+	[Type] [nvarchar](50) NOT NULL,
+	[ReferenceId] [uniqueidentifier] NULL,
+	[ReferenceType] [nvarchar](50) NULL,
+	[Description] [nvarchar](255) NULL,
+	[BalanceAfter] [decimal](18, 2) NOT NULL,
+	[CreatedAt] [datetimeoffset](7) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+SET ANSI_PADDING ON
+GO
+/****** Object:  Index [IX_Variants_Sku]    Script Date: 10/03/2026 4:17:34 CH ******/
+CREATE NONCLUSTERED INDEX [IX_Variants_Sku] ON [dbo].[ProductVariants]
+(
+	[SkuCode] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+/****** Object:  Index [IX_Shops_OwnerId]    Script Date: 10/03/2026 4:17:34 CH ******/
+CREATE UNIQUE NONCLUSTERED INDEX [IX_Shops_OwnerId] ON [dbo].[Shops]
+(
+	[OwnerId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+ALTER TABLE [dbo].[Categories] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Categories] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+ALTER TABLE [dbo].[Files] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Files] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[OrderItems] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Orders] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Orders] ADD  DEFAULT ((0)) FOR [PlatformFee]
+GO
+ALTER TABLE [dbo].[Orders] ADD  DEFAULT ('PENDING_PAYMENT') FOR [Status]
+GO
+ALTER TABLE [dbo].[Orders] ADD  DEFAULT ('UNPAID') FOR [PaymentStatus]
+GO
+ALTER TABLE [dbo].[Orders] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[Products] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Products] ADD  DEFAULT ('DRAFT') FOR [Status]
+GO
+ALTER TABLE [dbo].[Products] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[Products] ADD  DEFAULT ((0)) FOR [IsDeleted]
+GO
+ALTER TABLE [dbo].[ProductVariants] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[ProductVariants] ADD  DEFAULT ((0)) FOR [Quantity]
+GO
+ALTER TABLE [dbo].[ProductVariants] ADD  DEFAULT ((0)) FOR [ReservedQuantity]
+GO
+ALTER TABLE [dbo].[ProductVariants] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[ProductViewLogs] ADD  DEFAULT (sysdatetimeoffset()) FOR [ViewedAt]
+GO
+ALTER TABLE [dbo].[ReturnPolicies] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[ReturnPolicies] ADD  DEFAULT ((0)) FOR [ReturnDays]
+GO
+ALTER TABLE [dbo].[Reviews] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Reviews] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[SellerWallets] ADD  DEFAULT ((0)) FOR [AvailableBalance]
+GO
+ALTER TABLE [dbo].[SellerWallets] ADD  DEFAULT ((0)) FOR [PendingBalance]
+GO
+ALTER TABLE [dbo].[SellerWallets] ADD  DEFAULT (sysdatetimeoffset()) FOR [UpdatedAt]
+GO
+ALTER TABLE [dbo].[ShippingPolicies] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[ShippingPolicies] ADD  DEFAULT ((2)) FOR [HandlingTimeDays]
+GO
+ALTER TABLE [dbo].[ShippingPolicies] ADD  DEFAULT ((0)) FOR [Cost]
+GO
+ALTER TABLE [dbo].[ShippingPolicies] ADD  DEFAULT ((0)) FOR [IsDefault]
+GO
+ALTER TABLE [dbo].[ShopAnalyticsDaily] ADD  DEFAULT ((0)) FOR [TotalRevenue]
+GO
+ALTER TABLE [dbo].[ShopAnalyticsDaily] ADD  DEFAULT ((0)) FOR [TotalOrders]
+GO
+ALTER TABLE [dbo].[ShopAnalyticsDaily] ADD  DEFAULT ((0)) FOR [ItemsSold]
+GO
+ALTER TABLE [dbo].[ShopAnalyticsDaily] ADD  DEFAULT ((0)) FOR [ViewsCount]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT ((0)) FOR [RatingAvg]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT ((0)) FOR [IsVerified]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT ((0)) FOR [TotalShippingPolicies]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT ((0)) FOR [TotalReturnPolicies]
+GO
+ALTER TABLE [dbo].[Shops] ADD  DEFAULT ((10)) FOR [MonthlyListingLimit]
+GO
+ALTER TABLE [dbo].[Users] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Users] ADD  DEFAULT ((0)) FOR [IsEmailVerified]
+GO
+ALTER TABLE [dbo].[Users] ADD  DEFAULT ((0)) FOR [IsIdentityVerified]
+GO
+ALTER TABLE [dbo].[Users] ADD  DEFAULT ('SELLER') FOR [Role]
+GO
+ALTER TABLE [dbo].[Users] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[Vouchers] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[Vouchers] ADD  DEFAULT ('PERCENTAGE') FOR [DiscountType]
+GO
+ALTER TABLE [dbo].[Vouchers] ADD  DEFAULT ((0)) FOR [MinOrderValue]
+GO
+ALTER TABLE [dbo].[Vouchers] ADD  DEFAULT ((100)) FOR [UsageLimit]
+GO
+ALTER TABLE [dbo].[Vouchers] ADD  DEFAULT ((0)) FOR [UsedCount]
+GO
+ALTER TABLE [dbo].[Vouchers] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+ALTER TABLE [dbo].[WalletTransactions] ADD  DEFAULT (newid()) FOR [Id]
+GO
+ALTER TABLE [dbo].[WalletTransactions] ADD  DEFAULT (sysdatetimeoffset()) FOR [CreatedAt]
+GO
+ALTER TABLE [dbo].[Categories]  WITH CHECK ADD FOREIGN KEY([ParentId])
+REFERENCES [dbo].[Categories] ([Id])
+GO
+ALTER TABLE [dbo].[Files]  WITH CHECK ADD FOREIGN KEY([OwnerId])
+REFERENCES [dbo].[Users] ([Id])
+GO
+ALTER TABLE [dbo].[OrderItems]  WITH CHECK ADD FOREIGN KEY([OrderId])
+REFERENCES [dbo].[Orders] ([Id])
+GO
+ALTER TABLE [dbo].[OrderItems]  WITH CHECK ADD FOREIGN KEY([ProductId])
+REFERENCES [dbo].[Products] ([Id])
+GO
+ALTER TABLE [dbo].[OrderItems]  WITH CHECK ADD FOREIGN KEY([VariantId])
+REFERENCES [dbo].[ProductVariants] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([BuyerId])
+REFERENCES [dbo].[Users] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[Products]  WITH CHECK ADD FOREIGN KEY([CategoryId])
+REFERENCES [dbo].[Categories] ([Id])
+GO
+ALTER TABLE [dbo].[Products]  WITH CHECK ADD FOREIGN KEY([ReturnPolicyId])
+REFERENCES [dbo].[ReturnPolicies] ([Id])
+GO
+ALTER TABLE [dbo].[Products]  WITH CHECK ADD FOREIGN KEY([ShippingPolicyId])
+REFERENCES [dbo].[ShippingPolicies] ([Id])
+GO
+ALTER TABLE [dbo].[Products]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[ProductVariants]  WITH CHECK ADD FOREIGN KEY([ProductId])
+REFERENCES [dbo].[Products] ([Id])
+GO
+ALTER TABLE [dbo].[ProductViewLogs]  WITH CHECK ADD FOREIGN KEY([ProductId])
+REFERENCES [dbo].[Products] ([Id])
+GO
+ALTER TABLE [dbo].[ProductViewLogs]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[ReturnPolicies]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[Reviews]  WITH CHECK ADD FOREIGN KEY([BuyerId])
+REFERENCES [dbo].[Users] ([Id])
+GO
+ALTER TABLE [dbo].[Reviews]  WITH CHECK ADD FOREIGN KEY([OrderId])
+REFERENCES [dbo].[Orders] ([Id])
+GO
+ALTER TABLE [dbo].[Reviews]  WITH CHECK ADD FOREIGN KEY([ProductId])
+REFERENCES [dbo].[Products] ([Id])
+GO
+ALTER TABLE [dbo].[SellerWallets]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[ShippingPolicies]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[ShopAnalyticsDaily]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[Shops]  WITH CHECK ADD FOREIGN KEY([OwnerId])
+REFERENCES [dbo].[Users] ([Id])
+GO
+ALTER TABLE [dbo].[Vouchers]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[WalletTransactions]  WITH CHECK ADD FOREIGN KEY([ShopId])
+REFERENCES [dbo].[Shops] ([Id])
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD CHECK  ((isjson([ReceiverInfo])=(1)))
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD  CONSTRAINT [CK_OrderStatus] CHECK  (([Status]='RETURNED' OR [Status]='CANCELLED' OR [Status]='DELIVERED' OR [Status]='SHIPPED' OR [Status]='PROCESSING' OR [Status]='READY_TO_SHIP' OR [Status]='PENDING_PAYMENT'))
+GO
+ALTER TABLE [dbo].[Orders] CHECK CONSTRAINT [CK_OrderStatus]
+GO
+ALTER TABLE [dbo].[Orders]  WITH CHECK ADD  CONSTRAINT [CK_PaymentStatus] CHECK  (([PaymentStatus]='REFUNDED' OR [PaymentStatus]='PAID' OR [PaymentStatus]='UNPAID'))
+GO
+ALTER TABLE [dbo].[Orders] CHECK CONSTRAINT [CK_PaymentStatus]
+GO
+ALTER TABLE [dbo].[ProductVariants]  WITH CHECK ADD CHECK  ((isjson([Attributes])=(1)))
+GO
+ALTER TABLE [dbo].[ProductVariants]  WITH CHECK ADD  CONSTRAINT [CK_Stock_Valid] CHECK  (([Quantity]>=(0) AND [ReservedQuantity]>=(0)))
+GO
+ALTER TABLE [dbo].[ProductVariants] CHECK CONSTRAINT [CK_Stock_Valid]
+GO
+ALTER TABLE [dbo].[ReturnPolicies]  WITH CHECK ADD CHECK  (([ShippingPaidBy]='SELLER' OR [ShippingPaidBy]='BUYER'))
+GO
+ALTER TABLE [dbo].[Reviews]  WITH CHECK ADD CHECK  (([Rating]>=(1) AND [Rating]<=(5)))
+GO
+ALTER TABLE [dbo].[SellerWallets]  WITH CHECK ADD CHECK  (([AvailableBalance]>=(0)))
+GO
+ALTER TABLE [dbo].[SellerWallets]  WITH CHECK ADD CHECK  (([PendingBalance]>=(0)))
+GO
+USE [master]
+GO
+ALTER DATABASE [EbaySellerClone] SET  READ_WRITE 
 GO
 
-USE EbaySellerClone;
-GO
 
--- ==============================================================================
--- MODULE 1: HẠ TẦNG & TÀI KHOẢN (INFRASTRUCTURE)
--- ==============================================================================
-
-/* BẢNG 1: Users (Người dùng)
----------------------------
-- Nghiệp vụ: Quản lý danh tính.
-- Lưu ý: 'Role' phân biệt người mua/người bán. 'IsVerified' cực kỳ quan trọng với Seller 
-  (phải xác minh danh tính mới được đăng bán để chống lừa đảo).
-*/
-CREATE TABLE [Users] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [Username] NVARCHAR(100) NOT NULL,
-    [Email] NVARCHAR(255) NOT NULL UNIQUE,
-    [PasswordHash] NVARCHAR(MAX) NOT NULL,
-    [FullName] NVARCHAR(200),
-    [IsEmailVerified] BIT DEFAULT 0,
-    [EmailVerificationToken] NVARCHAR(MAX),
-    [EmailVerificationTokenExpiresAt] DATETIMEOFFSET,
-    [IsIdentityVerified] BIT DEFAULT 0, -- Đã xác minh KYC (Căn cước/Hộ chiếu) chưa?
-    [Role] NVARCHAR(50) DEFAULT 'SELLER', -- 'ADMIN', 'BUYER', 'SELLER'
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET(),
-    [UpdatedAt] DATETIMEOFFSET
-);
-
-/* BẢNG 2: Files (Quản lý Media)
------------------------------
-- Nghiệp vụ: Lưu trữ tập trung mọi hình ảnh/video của hệ thống.
-- Lưu ý: Không lưu file binary vào DB. Chỉ lưu URL (link tới AWS S3, Cloudinary, Firebase).
-*/
-CREATE TABLE [Files] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [OwnerId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Users]([Id]), -- Ai upload?
-    [Url] NVARCHAR(MAX) NOT NULL, -- Link ảnh
-    [Type] NVARCHAR(50), -- 'PRODUCT_IMAGE', 'AVATAR', 'DOCUMENT'
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
-);
-
-/* BẢNG 3: Categories (Danh mục ngành hàng)
-----------------------------------------
-- Nghiệp vụ: Cây thư mục sản phẩm (VD: Điện tử -> Điện thoại -> iPhone).
-- Lưu ý: Sử dụng đệ quy (ParentId) để tạo n cấp độ con.
-*/
-CREATE TABLE [Categories] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ParentId] UNIQUEIDENTIFIER NULL REFERENCES [Categories]([Id]), -- Null là danh mục gốc
-    [Name] NVARCHAR(255) NOT NULL,
-    [Slug] NVARCHAR(255) NOT NULL,
-    [IsActive] BIT DEFAULT 1
-);
-
--- ==============================================================================
--- MODULE 2: THIẾT LẬP CỬA HÀNG (STORE SETTINGS)
--- ==============================================================================
-
-/* BẢNG 4: Shops (Hồ sơ cửa hàng)
-------------------------------
-- Nghiệp vụ: Đại diện thương hiệu của Seller trên sàn.
-- Lưu ý: 'RatingAvg' được tính toán và lưu lại (Cache) để hiển thị nhanh, 
-  không cần tính lại mỗi lần user load trang.
-*/
-CREATE TABLE [Shops] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [OwnerId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Users]([Id]),
-    [Name] NVARCHAR(255) NOT NULL,
-    [Description] NVARCHAR(MAX),
-    [TaxCode] NVARCHAR(20),
-    [Address] NVARCHAR(255),
-    [IsVerified] BIT DEFAULT 0,
-    [AvatarUrl] NVARCHAR(MAX),
-    [BannerUrl] NVARCHAR(MAX),
-    [IsActive] BIT DEFAULT 1,
-    [RatingAvg] DECIMAL(3, 2) DEFAULT 0, -- Điểm uy tín (0.0 -> 5.0)
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
-);
-
-/* BẢNG 5: ShippingPolicies (Chính sách vận chuyển)
-------------------------------------------------
-- Nghiệp vụ: Giúp Seller cấu hình phí ship 1 lần và áp dụng cho hàng nghìn sản phẩm.
-- Ví dụ: Policy A: "Giao nhanh $5", Policy B: "Free Ship".
-*/
-CREATE TABLE [ShippingPolicies] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    [Name] NVARCHAR(100) NOT NULL, 
-    [HandlingTimeDays] INT DEFAULT 2, -- Thời gian chuẩn bị hàng (Cam kết với khách)
-    [Cost] DECIMAL(18, 2) DEFAULT 0,
-    [IsDefault] BIT DEFAULT 0 -- Policy mặc định khi tạo SP mới
-);
-
-/* BẢNG 6: ReturnPolicies (Chính sách đổi trả)
--------------------------------------------
-- Nghiệp vụ: Quy định rõ luật chơi trước khi bán. Rất quan trọng khi xảy ra tranh chấp (Dispute).
-- Ví dụ: "Không đổi trả" hoặc "Cho phép đổi trong 30 ngày, người mua chịu phí ship".
-*/
-CREATE TABLE [ReturnPolicies] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    [Name] NVARCHAR(100) NOT NULL,
-    [ReturnDays] INT DEFAULT 0, -- 0 = No Returns
-    [ShippingPaidBy] NVARCHAR(20) CHECK (ShippingPaidBy IN ('BUYER', 'SELLER')) -- Ai trả tiền ship hoàn về?
-);
-
--- ==============================================================================
--- MODULE 3: SẢN PHẨM & TỒN KHO (CORE INVENTORY) - QUAN TRỌNG NHẤT
--- ==============================================================================
-
-/* BẢNG 7: Products (Sản phẩm gốc - Parent)
-----------------------------------------
-- Nghiệp vụ: Chứa thông tin chung (SEO, Tên, Mô tả). Bảng này KHÔNG chứa giá và tồn kho cụ thể.
-- Lý do: Một mẫu áo (Product) có thể có nhiều size, mỗi size là 1 Variant khác nhau.
-*/
-CREATE TABLE [Products] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    [CategoryId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Categories]([Id]),
-    [ShippingPolicyId] UNIQUEIDENTIFIER REFERENCES [ShippingPolicies]([Id]),
-    [ReturnPolicyId] UNIQUEIDENTIFIER REFERENCES [ReturnPolicies]([Id]),
-    
-    [Name] NVARCHAR(255) NOT NULL, -- Tên hiển thị (VD: Áo thun Nike Air)
-    [Description] NVARCHAR(MAX), -- Mô tả HTML
-    [Brand] NVARCHAR(100),
-    [Status] NVARCHAR(20) DEFAULT 'DRAFT', -- DRAFT, ACTIVE, HIDDEN, BANNED
-    [BasePrice] DECIMAL(18, 2), -- Giá tham khảo hiển thị bên ngoài
-    
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET(),
-    [UpdatedAt] DATETIMEOFFSET
-);
-
-/* BẢNG 8: ProductVariants (Biến thể/SKU - Child)
-----------------------------------------------
-- Nghiệp vụ: Đây là hàng hóa thực tế trong kho.
-- Cải tiến:
-  + Attributes (JSON): Lưu {"Color": "Red", "Size": "M", "Material": "Cotton"}. Không cần tạo nhiều cột cứng.
-  + AvailableStock (Computed): Tự động tính = Quantity - Reserved. Giúp frontend biết chính xác còn bán được bao nhiêu.
-*/
-CREATE TABLE [ProductVariants] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ProductId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Products]([Id]),
-    
-    [SkuCode] NVARCHAR(100) NOT NULL, -- Mã quản lý nội bộ duy nhất (VD: NK-AIR-RED-M)
-    [Price] DECIMAL(18, 2) NOT NULL, -- Giá bán thực tế của biến thể này
-    [Attributes] NVARCHAR(MAX) CHECK (ISJSON([Attributes]) = 1), -- JSON thuộc tính
-    
-    -- LOGIC KHO HÀNG ATOMIC (CHỐNG BÁN LỐ)
-    [Quantity] INT NOT NULL DEFAULT 0, -- Tổng số lượng đang có trong kho
-    [ReservedQuantity] INT NOT NULL DEFAULT 0, -- Số lượng đang nằm trong đơn chờ thanh toán
-    
-    -- Cột ảo: Số lượng thực sự có thể bán
-    [AvailableStock] AS ([Quantity] - [ReservedQuantity]), 
-    
-    [ImageUrl] NVARCHAR(MAX), -- Ảnh riêng cho biến thể (VD: Ảnh áo màu đỏ)
-    [WeightGram] INT, -- Cân nặng để tính phí ship
-    
-    CONSTRAINT [CK_Stock_Valid] CHECK ([Quantity] >= 0 AND [ReservedQuantity] >= 0)
-);
-CREATE INDEX [IX_Variants_Sku] ON [ProductVariants]([SkuCode]);
-
--- ==============================================================================
--- MODULE 4: ĐƠN HÀNG & DÒNG TIỀN (ORDER FLOW)
--- ==============================================================================
-
-/* BẢNG 9: Orders (Đơn hàng)
--------------------------
-- Nghiệp vụ: Quản lý vòng đời đơn hàng. Trạng thái đơn hàng (Status) sẽ kích hoạt các thay đổi trong Ví tiền.
-- State Machine: PENDING -> PAID -> SHIPPED -> DELIVERED.
-*/
-CREATE TABLE [Orders] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [OrderNumber] NVARCHAR(50) NOT NULL UNIQUE, -- Mã đơn user thấy (VD: #ORD-2026-001)
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    [BuyerId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Users]([Id]),
-    
-    -- Tiền nong
-    [TotalAmount] DECIMAL(18, 2) NOT NULL, -- Tổng khách phải trả
-    [ShippingFee] DECIMAL(18, 2) NOT NULL,
-    [PlatformFee] DECIMAL(18, 2) DEFAULT 0, -- Phí sàn thu của Seller (VD: 5%)
-    
-    -- Trạng thái: ÉP BUỘC RÀNG BUỘC THEO CƠ CHẾ STATE MACHINE
-    [Status] NVARCHAR(50) NOT NULL DEFAULT 'PENDING_PAYMENT' 
-    CONSTRAINT [CK_OrderStatus] CHECK ([Status] IN ('PENDING_PAYMENT', 'READY_TO_SHIP', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED')),
-    
-    [PaymentStatus] NVARCHAR(50) DEFAULT 'UNPAID'
-    CONSTRAINT [CK_PaymentStatus] CHECK ([PaymentStatus] IN ('UNPAID', 'PAID', 'REFUNDED')),
-    
-    -- Vận chuyển
-    [ShippingCarrier] NVARCHAR(100), -- Đơn vị vận chuyển (GHN, UPS, FedEx)
-    [TrackingCode] NVARCHAR(100), -- Mã vận đơn
-    [ReceiverInfo] NVARCHAR(MAX) CHECK (ISJSON([ReceiverInfo]) = 1), -- Snapshot địa chỉ người nhận (JSON)
-    
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET(),
-    [PaidAt] DATETIMEOFFSET,
-    [ShippedAt] DATETIMEOFFSET,
-    [CompletedAt] DATETIMEOFFSET -- Lúc này tiền mới được chuyển vào ví khả dụng
-);
-
-/* BẢNG 10: OrderItems (Chi tiết đơn hàng)
----------------------------------------
-- Nghiệp vụ: Lưu trữ chính xác khách mua cái gì.
-- Cải tiến: 'PriceAtPurchase' (Snapshot). Nếu Seller đổi giá SP sau khi bán, giá trong đơn này KHÔNG được đổi.
-*/
-CREATE TABLE [OrderItems] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [OrderId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Orders]([Id]),
-    [ProductId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Products]([Id]),
-    [VariantId] UNIQUEIDENTIFIER NOT NULL REFERENCES [ProductVariants]([Id]),
-    
-    [ProductNameSnapshot] NVARCHAR(255), -- Lưu cứng tên SP lúc mua
-    [Quantity] INT NOT NULL,
-    [PriceAtPurchase] DECIMAL(18, 2) NOT NULL, -- QUAN TRỌNG: Giá chốt tại thời điểm mua
-    
-    [TotalLineAmount] AS ([Quantity] * [PriceAtPurchase]) PERSISTED -- Tự động tính toán
-);
-
-/* BẢNG 11: Vouchers (Mã giảm giá)
--------------------------------
-- Nghiệp vụ: Công cụ Marketing.
-- Lưu ý: 'UsageLimit' để giới hạn số lượng mã (VD: Chỉ 100 người nhanh nhất).
-*/
-CREATE TABLE [Vouchers] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    [Code] NVARCHAR(50) NOT NULL, -- VD: SALE50
-    [DiscountType] NVARCHAR(20) DEFAULT 'PERCENTAGE', -- 'FIXED_AMOUNT' hoặc 'PERCENTAGE'
-    [Value] DECIMAL(18, 2) NOT NULL, -- Giá trị giảm (VD: 10% hoặc 50k)
-    [MinOrderValue] DECIMAL(18, 2) DEFAULT 0,
-    [UsageLimit] INT DEFAULT 100, -- Tổng số mã
-    [UsedCount] INT DEFAULT 0, -- Số mã đã dùng
-    [ValidFrom] DATETIMEOFFSET NOT NULL,
-    [ValidTo] DATETIMEOFFSET NOT NULL,
-    [IsActive] BIT DEFAULT 1,
-    
-    -- CƠ CHẾ OPTIMISTIC LOCKING CHỐNG RACE CONDITION KHI APPLICATON UPDATE
-    [RowVersion] ROWVERSION NOT NULL
-);
-
--- ==============================================================================
--- MODULE 5: TÀI CHÍNH & ĐỐI SOÁT (FINANCIAL LEDGER)
--- ==============================================================================
-
-/* BẢNG 12: SellerWallets (Ví tiền)
---------------------------------
-- Nghiệp vụ: Quản lý số dư hiện tại của Shop.
-- Logic Escrow: 
-  + PendingBalance: Tiền từ đơn hàng đang giao (chưa được rút).
-  + AvailableBalance: Tiền sạch (đã giao hàng xong + hết hạn khiếu nại), được phép rút.
-*/
-CREATE TABLE [SellerWallets] (
-    [ShopId] UNIQUEIDENTIFIER PRIMARY KEY REFERENCES [Shops]([Id]),
-    [AvailableBalance] DECIMAL(18, 2) DEFAULT 0 CHECK ([AvailableBalance] >= 0),
-    [PendingBalance] DECIMAL(18, 2) DEFAULT 0 CHECK ([PendingBalance] >= 0),
-    [UpdatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
-);
-
-/* BẢNG 13: WalletTransactions (Sổ cái giao dịch)
-----------------------------------------------
-- Nghiệp vụ: Lịch sử dòng tiền bất biến. Bảng này CẤM UPDATE/DELETE.
-- Tác dụng: Dùng để đối soát khi Seller thắc mắc "Tại sao tiền tôi bị trừ?".
-*/
-CREATE TABLE [WalletTransactions] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    
-    [Amount] DECIMAL(18, 2) NOT NULL, -- (+) Tiền vào, (-) Tiền ra
-    [Type] NVARCHAR(50) NOT NULL, -- 'ORDER_INCOME', 'WITHDRAW', 'REFUND', 'PLATFORM_FEE'
-    [ReferenceId] UNIQUEIDENTIFIER, -- Link tới ID cụ thể
-    [ReferenceType] NVARCHAR(50), -- ('ORDER', 'WITHDRAW_REQUEST') Để code dễ Audit Trail
-    [Description] NVARCHAR(255), -- VD: "Thu nhập đơn hàng #123"
-    
-    [BalanceAfter] DECIMAL(18, 2) NOT NULL, -- Snapshot số dư sau giao dịch
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
-);
-
--- ==============================================================================
--- MODULE 6: BÁO CÁO & TƯƠNG TÁC (ANALYTICS & EXTRAS)
--- ==============================================================================
-
-/* BẢNG 14: ShopAnalyticsDaily (Báo cáo tổng hợp)
-----------------------------------------------
-- Nghiệp vụ: Bảng này dùng để vẽ Dashboard.
-- Cơ chế: Hệ thống (Job) sẽ chạy mỗi đêm, tính tổng doanh thu/đơn hàng trong ngày và ghi 1 dòng vào đây.
-- Lợi ích: Load Dashboard cực nhanh (dưới 1s) vì không phải Query bảng Orders khổng lồ.
-*/
-CREATE TABLE [ShopAnalyticsDaily] (
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    [ReportDate] DATE NOT NULL,
-    
-    [TotalRevenue] DECIMAL(18, 2) DEFAULT 0,
-    [TotalOrders] INT DEFAULT 0,
-    [ItemsSold] INT DEFAULT 0,
-    [ViewsCount] INT DEFAULT 0, -- Số lượt xem Shop
-    
-    PRIMARY KEY ([ShopId], [ReportDate])
-);
-
-/* BẢNG 15: Reviews (Đánh giá & Phản hồi)
----------------------------------------
-- Nghiệp vụ: Hệ thống uy tín.
-- Lưu ý: 'SellerReply' cho phép Seller giải trình khi bị đánh giá xấu (Tăng Trust).
-*/
-CREATE TABLE [Reviews] (
-    [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [OrderId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Orders]([Id]),
-    [ProductId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Products]([Id]),
-    [BuyerId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Users]([Id]),
-    
-    [Rating] INT CHECK (Rating BETWEEN 1 AND 5),
-    [Comment] NVARCHAR(MAX),
-    [SellerReply] NVARCHAR(MAX), 
-    [RepliedAt] DATETIMEOFFSET,
-    
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
-);
-
-/* BẢNG 16: ProductViewLogs (Khắc phục cổ chai ROW LOCK)
----------------------------------------
-- Nghiệp vụ: Ghi nhận lượt xem sản phẩm dưới dạng chuỗi sự kiện.
-- Đặc tả: Khách vào xem thì Insert trực tiếp 1 dòng (Append-Only) thay vì Update `ViewsCount`.
-- Tối ưu RAM: Một Job hàng đêm sẽ gom (Aggregate) lượt view từ bảng này dội vào `ShopAnalyticsDaily` và có thể xóa đi để giải phóng bộ nhớ.
-*/
-CREATE TABLE [ProductViewLogs] (
-    [Id] BIGINT IDENTITY(1,1) PRIMARY KEY,
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
-    [ProductId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Products]([Id]),
-    [ViewerIP] NVARCHAR(50) NULL,
-    [ViewedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
-);
-
-GO

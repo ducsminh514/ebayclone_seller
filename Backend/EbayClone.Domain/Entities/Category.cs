@@ -9,6 +9,7 @@ namespace EbayClone.Domain.Entities
         public Guid? ParentId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Slug { get; set; } = string.Empty;
+        public string? AttributeHints { get; set; } // JSON metadata for dynamic attributes
         public bool IsActive { get; set; } = true;
 
         // Navigation properties

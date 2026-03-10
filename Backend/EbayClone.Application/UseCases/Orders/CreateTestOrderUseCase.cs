@@ -12,6 +12,7 @@ namespace EbayClone.Application.UseCases.Orders
     // DTO cho Test Buyer Order
     public class CreateBuyerTestOrderRequest
     {
+        public string IdempotencyKey { get; set; } = string.Empty;
         public Guid VariantId { get; set; }
         public int Quantity { get; set; }
         public string ReceiverInfo { get; set; } = string.Empty;
@@ -40,6 +41,10 @@ namespace EbayClone.Application.UseCases.Orders
 
         public async Task<Guid> ExecuteAsync(Guid buyerId, CreateBuyerTestOrderRequest request, CancellationToken cancellationToken = default)
         {
+            // 0. Check Idempotency (eBay Standard)
+            var existingOrder = await _orderRepository.GetByIdempotencyKeyAsync(request.IdempotencyKey, cancellationToken);
+            if (existingOrder != null) return existingOrder.Id;
+
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
             try
             {
@@ -62,11 +67,12 @@ namespace EbayClone.Application.UseCases.Orders
                 var newOrder = new Order
                 {
                     OrderNumber = "TESTORD" + DateTime.UtcNow.Ticks.ToString().Substring(8),
+                    IdempotencyKey = request.IdempotencyKey,
                     ShopId = product.ShopId,
                     BuyerId = buyerId,
                     ReceiverInfo = request.ReceiverInfo,
                     ShippingFee = 30000, // Gia lap phí ship tĩnh do test
-                    PlatformFee = 5000,  // Phí sàn tĩnh do test
+                    PlatformFee = 0      // Sẽ được tính khi chuyển sang trạng thái SHIPPED/DELIVERED
                 };
 
                 // 3. Tạo Order Item

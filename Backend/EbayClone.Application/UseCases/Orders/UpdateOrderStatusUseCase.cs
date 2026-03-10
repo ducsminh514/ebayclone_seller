@@ -66,11 +66,15 @@ namespace EbayClone.Application.UseCases.Orders
                         break;
                     case "DELIVERED":
                         order.MarkAsDelivered();
-                        // Tính năng Fulfillment: Tự động cộng PendingBalance cho Seller khi khách nhận xong.
+                        // eBay Standard Fulfillment: 
+                        // 1. Tính phí sàn 5%
+                        order.PlatformFee = order.TotalAmount * 0.05m;
+                        
+                        // 2. Chuyển số dư thực nhận (95%) vào ví Pending
                         var wallet = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
                         if (wallet != null) 
                         {
-                            decimal profit = order.TotalAmount - order.PlatformFee; // Coi như đã trừ các phí.
+                            decimal profit = order.TotalAmount - order.PlatformFee; 
                             wallet.AddPending(profit);
                             _walletRepository.Update(wallet);
 

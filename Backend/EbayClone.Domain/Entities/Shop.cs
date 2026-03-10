@@ -17,6 +17,7 @@ namespace EbayClone.Domain.Entities
         public decimal RatingAvg { get; set; } = 0;
         public int TotalShippingPolicies { get; set; } = 0;
         public int TotalReturnPolicies { get; set; } = 0;
+        public int MonthlyListingLimit { get; set; } = 50;
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation property

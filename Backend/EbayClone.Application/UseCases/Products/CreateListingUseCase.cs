@@ -19,13 +19,16 @@ namespace EbayClone.Application.UseCases.Products
     public class CreateListingUseCase : ICreateListingUseCase
     {
         private readonly IProductRepository _productRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateListingUseCase(
             IProductRepository productRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -33,6 +36,16 @@ namespace EbayClone.Application.UseCases.Products
         {
             if (request.Variants == null || request.Variants.Count == 0)
                 throw new ArgumentException("At least one variant is required");
+
+            // 1. Kiểm tra eBay Listing Limit
+            var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+            if (shop == null) throw new ArgumentException("Shop not found");
+
+            var currentMonthCount = await _productRepository.GetCountByShopInCurrentMonthAsync(shopId, cancellationToken);
+            if (currentMonthCount >= shop.MonthlyListingLimit)
+            {
+                throw new InvalidOperationException($"Shop đã đạt giới hạn niêm yết trong tháng ({shop.MonthlyListingLimit}). Vui lòng nâng cấp gói hoặc đợi tháng sau.");
+            }
 
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 

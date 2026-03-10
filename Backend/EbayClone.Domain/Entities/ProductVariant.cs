@@ -23,6 +23,12 @@ namespace EbayClone.Domain.Entities
         public string? ImageUrl { get; set; }
         public int? WeightGram { get; set; }
 
+        public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset? UpdatedAt { get; set; }
+
+        // Optimistic Concurrency Token
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
         // Navigation
         public Product? Product { get; set; }
         
