@@ -6,11 +6,22 @@
 @inject NavigationManager NavigationManager
 
 <div class="seller-hub-container">
-    <div class="seller-hub-header d-flex align-items-center gap-3">
-        <button class="btn-ebay-secondary" @onclick='() => NavigationManager.NavigateTo("/orders")'>
-            <i class="bi bi-arrow-left"></i> Back to orders
-        </button>
-        <h1 class="seller-hub-title mb-0">Order details: #@order?.OrderNumber</h1>
+    <div class="seller-hub-header mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-link p-0 text-primary text-decoration-none" @onclick='() => NavigationManager.NavigateTo("/orders")' style="font-size: 14px;">
+                <i class="bi bi-chevron-left"></i> Back to orders
+            </button>
+        </div>
+        <div class="d-flex justify-content-between align-items-end mt-2">
+            <div>
+                <h1 class="seller-hub-title mb-1">Order #@order?.OrderNumber</h1>
+                <div class="text-muted small">Placed on @order?.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn-ebay-secondary btn-sm"><i class="bi bi-printer me-1"></i> Print label</button>
+                <button class="btn-ebay-secondary btn-sm"><i class="bi bi-envelope me-1"></i> Contact buyer</button>
+            </div>
+        </div>
     </div>
 
     @if (isLoading)
@@ -101,15 +112,17 @@
 
             <div class="col-lg-4">
                 <!-- XỬ LÝ -->
-                <div class="summary-card mb-4 border-primary" style="background-color: #f7faff; border-radius: 4px;">
-                    <h2 class="order-section-title text-primary">Execute action</h2>
-                    <div class="mb-3">
-                        <span class="text-muted d-block small">Current status:</span>
-                        <span class="status-badge status-sold fs-6">@order.Status</span>
-                    </div>
-                    <div class="mb-4">
-                        <span class="text-muted d-block small">Payment:</span>
-                        <span class="status-badge @(order.PaymentStatus == "PAID" ? "status-active" : "status-draft") fs-6">@order.PaymentStatus</span>
+                <div class="summary-card mb-4" style="border-top: 3px solid var(--seller-hub-blue);">
+                    <h2 class="order-section-title">Workflow actions</h2>
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <span class="text-muted d-block small mb-1">Order status:</span>
+                            <span class="status-badge status-sold py-1 px-3">@order.Status</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted d-block small mb-1">Payment status:</span>
+                            <span class="status-badge @(order.PaymentStatus == "PAID" ? "status-active" : "status-draft") py-1 px-3">@order.PaymentStatus</span>
+                        </div>
                     </div>
                     
                     <div class="d-grid gap-2">
@@ -156,30 +169,35 @@
                 </div>
 
                 <!-- TỔNG KẾT TIỀN -->
-                <div class="summary-card mb-4" style="border-radius: 4px;">
-                    <h2 class="order-section-title">Totals</h2>
+                <div class="summary-card mb-4">
+                    <h2 class="order-section-title">Order totals</h2>
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Subtotal:</span>
+                        <span class="text-muted">Subtotal (@order.Items.Count items)</span>
                         <span>@((order.TotalAmount - order.ShippingFee).ToString("N0")) ₫</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Shipping:</span>
+                        <span class="text-muted">Shipping & handling</span>
                         <span>@order.ShippingFee.ToString("N0") ₫</span>
                     </div>
-                    <hr />
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="fw-bold">Order total:</span>
-                        <span class="price-text" style="font-size: 18px;">@order.TotalAmount.ToString("N0") ₫</span>
+                    <div class="d-flex justify-content-between mb-3 text-success">
+                        <span class="text-muted">Tax</span>
+                        <span>0 ₫</span>
                     </div>
-                    @if (order.Status == "DELIVERED")
+                    <div class="d-flex justify-content-between pt-3 border-top">
+                        <span class="fw-bold fs-5">Order total</span>
+                        <span class="price-text" style="font-size: 20px;">@order.TotalAmount.ToString("N0") ₫</span>
+                    </div>
+                    
+                    @if (order.Status == "DELIVERED" || order.Status == "COMPLETED")
                     {
-                        <div class="p-2 mt-3 rounded small bg-opacity-10 text-primary">
-                            <div class="d-flex justify-content-between">
-                                <span>Platform fee:</span>
-                                <span>@order.PlatformFee.ToString("N0") ₫</span>
+                        <div class="mt-4 p-3 bg-light rounded-3" style="border: 1px dashed #ced4da;">
+                            <div class="fw-600 mb-2 small text-uppercase" style="letter-spacing: 0.5px;">Estimated earnings</div>
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">Platform fee (eBay clone):</span>
+                                <span class="text-danger">-@order.PlatformFee.ToString("N0") ₫</span>
                             </div>
-                            <div class="d-flex justify-content-between fw-bold mt-1">
-                                <span>Net earnings:</span>
+                            <div class="d-flex justify-content-between fw-bold pt-2 mt-1 border-top text-primary">
+                                <span>Net profit:</span>
                                 <span>@((order.TotalAmount - order.PlatformFee).ToString("N0")) ₫</span>
                             </div>
                         </div>
@@ -187,18 +205,29 @@
                 </div>
 
                 <!-- NGƯỜI NHẬN -->
-                <div class="summary-card mb-4" style="border-radius: 4px;">
-                    <h2 class="order-section-title">Ship to</h2>
-                    <div class="fw-bold">@FormatReceiverInfo(order.ReceiverInfo)</div>
+                <div class="summary-card mb-4">
+                    <h2 class="order-section-title">Shipping details</h2>
+                    <div class="d-flex align-items-start gap-3 mb-3">
+                        <div class="bg-light rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <i class="bi bi-geo-alt text-primary fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold mb-1">Shipping address</div>
+                            <div class="text-muted small" style="line-height: 1.5;">@FormatReceiverInfo(order.ReceiverInfo)</div>
+                        </div>
+                    </div>
+                    
                     @if (!string.IsNullOrEmpty(order.ShippingCarrier))
                     {
-                        <div class="mt-3">
-                            <span class="text-muted d-block small">Carrier:</span>
-                            <div class="fw-bold">@order.ShippingCarrier</div>
-                        </div>
-                        <div class="mt-2">
-                            <span class="text-muted d-block small">Tracking number:</span>
-                            <div class="fw-bold text-primary">@order.TrackingCode</div>
+                        <div class="pt-3 border-top mt-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted small">Carrier:</span>
+                                <span class="fw-600 small">@order.ShippingCarrier</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted small">Tracking:</span>
+                                <span class="fw-600 small text-primary">@order.TrackingCode</span>
+                            </div>
                         </div>
                     }
                 </div>

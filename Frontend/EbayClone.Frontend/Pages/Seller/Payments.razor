@@ -5,10 +5,7 @@
 
 <div class="seller-hub-container">
     <div class="seller-hub-header">
-        <h1>Payments & Wallet</h1>
-        <div class="header-actions">
-            <button class="finance-action-btn" @onclick="RefreshData">Refresh</button>
-        </div>
+        <h1 class="seller-hub-title">Payments & Wallet</h1>
     </div>
 
     @if (isLoading)
@@ -22,22 +19,22 @@
     else if (financeData != null)
     {
         <div class="finance-overview">
-            <div class="finance-card">
+            <div class="summary-card">
                 <h3>Available Balance</h3>
-                <div class="balance-amount balance-available">
+                <div class="value balance-available">
                     @financeData.AvailableBalance.ToString("N0") <span style="font-size: 16px">@financeData.Currency</span>
                 </div>
-                <p class="text-muted small">Ready for payout</p>
-                <button class="finance-action-btn">Withdraw funds</button>
+                <div class="footer">Ready for payout</div>
+                <button class="finance-action-btn mt-3 d-block">Withdraw funds</button>
             </div>
 
-            <div class="finance-card">
+            <div class="summary-card">
                 <h3>Pending (Escrow)</h3>
-                <div class="balance-amount balance-pending">
+                <div class="value balance-pending">
                     @financeData.PendingBalance.ToString("N0") <span style="font-size: 16px">@financeData.Currency</span>
                 </div>
-                <p class="text-muted small">Funds held until order completion</p>
-                <a href="/seller/orders" class="small text-decoration-none">View pending orders</a>
+                <div class="footer">Funds held until order completion</div>
+                <a href="/orders" class="footer d-block mt-3 text-decoration-none">View pending orders →</a>
             </div>
         </div>
 

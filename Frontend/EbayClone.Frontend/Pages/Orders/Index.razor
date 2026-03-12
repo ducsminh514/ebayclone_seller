@@ -10,18 +10,49 @@
         <h1 class="seller-hub-title">Manage orders</h1>
     </div>
     
-    <div class="seller-hub-table-wrapper">
-        <div class="nav-ebay-tabs">
-            <button class="nav-link @(currentTab == "ALL" ? "active" : "")" @onclick='() => ChangeTab("ALL")'>All</button>
-            <button class="nav-link @(currentTab == "PENDING_PAYMENT" ? "active" : "")" @onclick='() => ChangeTab("PENDING_PAYMENT")'>Awaiting payment</button>
-            <button class="nav-link @(currentTab == "READY_TO_SHIP" ? "active" : "")" @onclick='() => ChangeTab("READY_TO_SHIP")'>Awaiting shipment</button>
-            <button class="nav-link @(currentTab == "SHIPPED" ? "active" : "")" @onclick='() => ChangeTab("SHIPPED")'>Paid and shipped</button>
-            <button class="nav-link @(currentTab == "DELIVERED" ? "active" : "")" @onclick='() => ChangeTab("DELIVERED")'>Completed</button>
-        </div>
+    @* Tabs for Order Status *@
+    <div class="nav-ebay-tabs">
+        <button class="nav-link @(currentTab == "ALL" ? "active" : "")" @onclick='() => ChangeTab("ALL")'>All (@(allOrders?.Count() ?? 0))</button>
+        <button class="nav-link @(currentTab == "PENDING_PAYMENT" ? "active" : "")" @onclick='() => ChangeTab("PENDING_PAYMENT")'>Awaiting payment (@(allOrders?.Count(o => o.Status == "PENDING_PAYMENT") ?? 0))</button>
+        <button class="nav-link @(currentTab == "READY_TO_SHIP" ? "active" : "")" @onclick='() => ChangeTab("READY_TO_SHIP")'>Awaiting shipment (@(allOrders?.Count(o => o.Status == "READY_TO_SHIP") ?? 0))</button>
+        <button class="nav-link @(currentTab == "SHIPPED" ? "active" : "")" @onclick='() => ChangeTab("SHIPPED")'>Paid and shipped (@(allOrders?.Count(o => o.Status == "SHIPPED") ?? 0))</button>
+        <button class="nav-link @(currentTab == "DELIVERED" ? "active" : "")" @onclick='() => ChangeTab("DELIVERED")'>Completed (@(allOrders?.Count(o => o.Status == "DELIVERED") ?? 0))</button>
+    </div>
 
+    @* Search & Filter Section *@
+    <div class="search-container">
+        <div class="search-title">
+            <i class="bi bi-search"></i> Search orders
+        </div>
+        <div class="filter-grid">
+            <div class="filter-item">
+                <label>Order number or Buyer ID</label>
+                <input type="text" class="ebay-input" placeholder="Search orders..." @bind="searchQuery" @bind:event="oninput" />
+            </div>
+            <div class="filter-item">
+                <label>Period</label>
+                <select class="ebay-select">
+                    <option>Last 90 days</option>
+                    <option>This month</option>
+                </select>
+            </div>
+        </div>
+        <div class="action-bar" style="margin-top: 20px;">
+            <button class="btn-ebay-primary" @onclick="FilterData">Search</button>
+            <a href="javascript:void(0)" style="font-size: 13px; color: var(--seller-hub-link); margin-left: 15px;">Advanced search</a>
+            <span style="border-left: 1px solid #ccc; margin: 0 10px; height: 15px;"></span>
+            <a href="javascript:void(0)" style="font-size: 13px; color: var(--seller-hub-link);" @onclick='() => { searchQuery = null; FilterData(); }'>Clear all</a>
+        </div>
+    </div>
+
+    @* Table Content *@
+    <div class="seller-hub-table-wrapper">
         @if (isLoading)
         {
-            <div class="p-5 text-center text-muted">Loading orders...</div>
+            <div class="p-5 text-center text-muted">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2">Loading orders...</div>
+            </div>
         }
         else if (!string.IsNullOrEmpty(errorMessage))
         {
@@ -30,7 +61,8 @@
         else if (!filteredOrders.Any())
         {
             <div class="p-5 text-center text-muted">
-                <p>No orders found for this filter.</p>
+                <i class="bi bi-inbox" style="font-size: 48px;"></i>
+                <p class="mt-3">No orders found matching your criteria.</p>
             </div>
         }
         else
@@ -80,6 +112,7 @@
     private bool isLoading = true;
     private string? errorMessage;
     private string currentTab = "ALL";
+    private string? searchQuery;
 
     protected override async Task OnInitializedAsync()
     {
@@ -115,14 +148,20 @@
     {
         if (allOrders == null) return;
         
-        if (currentTab == "ALL")
+        var query = allOrders.AsEnumerable();
+
+        if (currentTab != "ALL")
         {
-            filteredOrders = allOrders;
+            query = query.Where(o => o.Status == currentTab);
         }
-        else
+
+        if (!string.IsNullOrEmpty(searchQuery))
         {
-            filteredOrders = allOrders.Where(o => o.Status == currentTab);
+            query = query.Where(o => o.OrderNumber.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) || 
+                                   (o.Id.ToString().Contains(searchQuery, StringComparison.OrdinalIgnoreCase)));
         }
+
+        filteredOrders = query.ToList();
     }
 
     private string GetStatusClass(string status)

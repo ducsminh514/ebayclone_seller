@@ -5,7 +5,7 @@
 <PageTitle>Business Policies - Ebay Seller Hub</PageTitle>
 
 <div class="seller-hub-container">
-    <div class="seller-hub-header">
+    <div class="seller-hub-header mb-4">
         <h1 class="seller-hub-title">Business policies</h1>
         <p class="text-muted mt-2">Business policies are your payment, shipping, and return terms. By setting these up, you can list items faster and manage your terms across hundreds of listings at once.</p>
     </div>
@@ -24,74 +24,90 @@
         </div>
     }
 
-    <div class="policy-form-grid">
+    <div class="policy-form-grid row g-4">
         <!-- Form Shipping Policy -->
-        <div class="summary-card" style="border-radius: 4px;">
-            <h2 class="order-section-title">Create shipping policy</h2>
-            <EditForm Model="shippingModel" OnValidSubmit="HandleCreateShippingPolicy">
-                <DataAnnotationsValidator />
-                
-                <div class="policy-group">
-                    <label>Policy name <span class="text-danger">*</span></label>
-                    <InputText @bind-Value="shippingModel.Name" class="ebay-input" placeholder="e.g. Standard Shipping" />
-                    <ValidationMessage For="@(() => shippingModel.Name)" />
+        <div class="col-lg-6">
+            <div class="summary-card h-100 p-4">
+                <div class="d-flex align-items-center mb-4">
+                    <div class="summary-card-icon me-3">
+                        <i class="bi bi-truck" style="font-size: 24px; color: #0053a0;"></i>
+                    </div>
+                    <h2 class="order-section-title mb-0">Create shipping policy</h2>
                 </div>
+                <EditForm Model="shippingModel" OnValidSubmit="HandleCreateShippingPolicy">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="mb-3">
+                        <label class="fw-600 mb-1 small text-dark">Policy name <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="shippingModel.Name" class="ebay-input" placeholder="e.g. Standard Shipping" />
+                        <ValidationMessage For="@(() => shippingModel.Name)" />
+                    </div>
 
-                <div class="policy-group">
-                    <label>Handling time (Days) <span class="text-danger">*</span></label>
-                    <InputNumber @bind-Value="shippingModel.HandlingTimeDays" class="ebay-input" />
-                    <ValidationMessage For="@(() => shippingModel.HandlingTimeDays)" />
-                </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="fw-600 mb-1 small text-dark">Handling time (Days) *</label>
+                            <InputNumber @bind-Value="shippingModel.HandlingTimeDays" class="ebay-input" />
+                        </div>
+                        <div class="col-6">
+                            <label class="fw-600 mb-1 small text-dark">Shipping cost (₫) *</label>
+                            <InputNumber @bind-Value="shippingModel.Cost" class="ebay-input" />
+                        </div>
+                    </div>
 
-                <div class="policy-group">
-                    <label>Shipping cost (₫) <span class="text-danger">*</span></label>
-                    <InputNumber @bind-Value="shippingModel.Cost" class="ebay-input" />
-                    <ValidationMessage For="@(() => shippingModel.Cost)" />
-                </div>
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="shippingModel.IsDefault" id="isDefaultPolicy" class="form-check-input" />
+                            <label for="isDefaultPolicy" class="form-check-label cursor-pointer fw-500 small">Set as default shipping policy</label>
+                        </div>
+                    </div>
 
-                <div class="mb-4 d-flex align-items-center gap-2">
-                    <InputCheckbox @bind-Value="shippingModel.IsDefault" id="isDefaultPolicy" />
-                    <label for="isDefaultPolicy" class="mb-0 cursor-pointer fw-500">Set as default shipping policy</label>
-                </div>
-
-                <button type="submit" class="btn-ebay-primary w-100" disabled="@isSubmittingShipping">
-                    @(isSubmittingShipping ? "Saving..." : "Save policy")
-                </button>
-            </EditForm>
+                    <button type="submit" class="btn-ebay-primary w-100 py-2" disabled="@isSubmittingShipping">
+                        @(isSubmittingShipping ? "Saving..." : "Save shipping policy")
+                    </button>
+                </EditForm>
+            </div>
         </div>
 
         <!-- Form Return Policy -->
-        <div class="summary-card" style="border-radius: 4px;">
-            <h2 class="order-section-title">Create return policy</h2>
-            <EditForm Model="returnModel" OnValidSubmit="HandleCreateReturnPolicy">
-                <DataAnnotationsValidator />
-                
-                <div class="policy-group">
-                    <label>Policy name <span class="text-danger">*</span></label>
-                    <InputText @bind-Value="returnModel.Name" class="ebay-input" placeholder="e.g. 30-Day Returns" />
-                    <ValidationMessage For="@(() => returnModel.Name)" />
+        <div class="col-lg-6">
+            <div class="summary-card h-100 p-4">
+                <div class="d-flex align-items-center mb-4">
+                    <div class="summary-card-icon me-3">
+                        <i class="bi bi-arrow-counterclockwise" style="font-size: 24px; color: #0053a0;"></i>
+                    </div>
+                    <h2 class="order-section-title mb-0">Create return policy</h2>
                 </div>
+                <EditForm Model="returnModel" OnValidSubmit="HandleCreateReturnPolicy">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="mb-3">
+                        <label class="fw-600 mb-1 small text-dark">Policy name <span class="text-danger">*</span></label>
+                        <InputText @bind-Value="returnModel.Name" class="ebay-input" placeholder="e.g. 30-Day Returns" />
+                        <ValidationMessage For="@(() => returnModel.Name)" />
+                    </div>
 
-                <div class="policy-group">
-                    <label>Return window (Days) <span class="text-danger">*</span></label>
-                    <InputNumber @bind-Value="returnModel.ReturnDays" class="ebay-input" placeholder="0 = No returns allowed" />
-                    <ValidationMessage For="@(() => returnModel.ReturnDays)" />
-                </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="fw-600 mb-1 small text-dark">Return window (Days) *</label>
+                            <InputNumber @bind-Value="returnModel.ReturnDays" class="ebay-input" placeholder="0 = No returns" />
+                        </div>
+                        <div class="col-6">
+                            <label class="fw-600 mb-1 small text-dark">Paid by *</label>
+                            <InputSelect @bind-Value="returnModel.ShippingPaidBy" class="ebay-input bg-white">
+                                <option value="">Select option</option>
+                                <option value="BUYER">Buyer</option>
+                                <option value="SELLER">Seller (Free)</option>
+                            </InputSelect>
+                        </div>
+                    </div>
 
-                <div class="policy-group">
-                    <label>Return shipping paid by <span class="text-danger">*</span></label>
-                    <InputSelect @bind-Value="returnModel.ShippingPaidBy" class="ebay-input bg-white">
-                        <option value="">Select an option</option>
-                        <option value="BUYER">Buyer</option>
-                        <option value="SELLER">Seller (Free returns)</option>
-                    </InputSelect>
-                    <ValidationMessage For="@(() => returnModel.ShippingPaidBy)" />
-                </div>
+                    <div style="height: 42px;"></div> <!-- Spacer to match layout height -->
 
-                <button type="submit" class="btn-ebay-primary w-100" disabled="@isSubmittingReturn">
-                    @(isSubmittingReturn ? "Saving..." : "Save policy")
-                </button>
-            </EditForm>
+                    <button type="submit" class="btn-ebay-primary w-100 py-2" disabled="@isSubmittingReturn">
+                        @(isSubmittingReturn ? "Saving..." : "Save return policy")
+                    </button>
+                </EditForm>
+            </div>
         </div>
     </div>
 

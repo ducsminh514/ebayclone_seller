@@ -6,6 +6,10 @@ namespace EbayClone.Domain.Entities
     {
         public Guid ShopId { get; set; } // Primary Key
         
+        // Virtual Id to satisfy DTO mapping/logic that expects an 'Id'
+        public Guid Id => ShopId;
+        public string Currency { get; set; } = "VND";
+
         public decimal AvailableBalance { get; private set; } = 0;
         public decimal PendingBalance { get; private set; } = 0;
         public DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.UtcNow;

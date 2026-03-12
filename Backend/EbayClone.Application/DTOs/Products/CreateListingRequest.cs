@@ -7,6 +7,8 @@ namespace EbayClone.Application.DTOs.Products
 {
     public class CreateListingRequest
     {
+        public Guid Id { get; set; } // For compatibility with UI logic
+        
         [Required(ErrorMessage = "Category is required.")]
         public Guid CategoryId { get; set; }
 

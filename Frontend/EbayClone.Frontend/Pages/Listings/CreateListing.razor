@@ -10,13 +10,13 @@
 <div class="seller-hub-container">
     <div class="seller-hub-header d-flex justify-content-between align-items-center">
         <div>
-            <h1 class="seller-hub-title">@(request.Id > 0 ? "Review your listing" : "Create a listing")</h1>
+            <h1 class="seller-hub-title">@(request.Id != Guid.Empty ? "Review your listing" : "Create a listing")</h1>
             <p class="text-muted mt-1">Provide as many details as possible to help buyers find your item.</p>
         </div>
         <div class="d-flex gap-2">
             <button type="button" class="btn-ebay-secondary" @onclick='() => NavigationManager.NavigateTo("/listings")'>Cancel</button>
             <button type="submit" form="listingForm" class="btn-ebay-primary" disabled="@isSubmitting">
-                @(isSubmitting ? "Processing..." : (request.Id > 0 ? "Revise listing" : "List it"))
+                @(isSubmitting ? "Processing..." : (request.Id != Guid.Empty ? "Revise listing" : "List it"))
             </button>
         </div>
     </div>
@@ -33,22 +33,28 @@
         
         <fieldset disabled="@isSubmitting">
             <!-- Listing Details -->
-            <div class="summary-card mb-4">
-                <h2 class="order-section-title">Listing details</h2>
+            <div class="summary-card mb-4 p-4">
+                <div class="d-flex align-items-center mb-4">
+                    <div class="summary-card-icon me-3">
+                        <i class="bi bi-pencil-square" style="font-size: 24px; color: #0053a0;"></i>
+                    </div>
+                    <h2 class="order-section-title mb-0">Listing details</h2>
+                </div>
                 
                 <div class="mb-4">
-                    <label class="fw-600 mb-2">Title <span class="text-danger">*</span></label>
+                    <label class="fw-600 mb-2 text-dark">Title <span class="text-danger">*</span></label>
                     <InputText @bind-Value="request.Name" class="ebay-input" placeholder="Brand, Model, Size, Color, etc." maxlength="80" />
+                    <div class="text-muted small mt-1">Characters remaining: @(80 - (request.Name?.Length ?? 0))</div>
                     <ValidationMessage For="@(() => request.Name)" />
                 </div>
 
                 <div class="row g-4 mb-4">
                     <div class="col-md-6">
-                        <label class="fw-600 mb-2">Brand</label>
+                        <label class="fw-600 mb-2 text-dark">Brand</label>
                         <InputText @bind-Value="request.Brand" class="ebay-input" placeholder="e.g. Apple, Samsung" />
                     </div>
                     <div class="col-md-6">
-                        <label class="fw-600 mb-2">Category <span class="text-danger">*</span></label>
+                        <label class="fw-600 mb-2 text-dark">Category <span class="text-danger">*</span></label>
                         <InputSelect @bind-Value="request.CategoryId" class="ebay-input bg-white">
                             <option value="">Select a category...</option>
                             @foreach (var c in categories)
@@ -60,9 +66,9 @@
                     </div>
                 </div>
 
-                <div class="mb-0">
-                    <label class="fw-600 mb-2">Description</label>
-                    <InputTextArea @bind-Value="request.Description" class="ebay-input" style="height: 200px; padding: 15px;" placeholder="Describe your item in detail..." />
+                <div class="mb-2">
+                    <label class="fw-600 mb-2 text-dark">Description</label>
+                    <InputTextArea @bind-Value="request.Description" class="ebay-input" style="height: 180px; padding: 15px; border-radius: 8px;" placeholder="Describe your item in detail..." />
                 </div>
             </div>
 
@@ -135,69 +141,96 @@
             </div>
 
             <!-- Variants (SKUs) -->
-            <div class="summary-card mb-4">
+            <div class="summary-card mb-4 p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2 class="order-section-title mb-0">Inventory & Variations</h2>
-                    <button type="button" class="btn-ebay-secondary btn-sm" @onclick="AddVariant" disabled="@(request.Variants.Count >= 50)">+ Add variation</button>
+                    <div class="d-flex align-items-center">
+                        <div class="summary-card-icon me-3">
+                            <i class="bi bi-stack" style="font-size: 24px; color: #0053a0;"></i>
+                        </div>
+                        <h2 class="order-section-title mb-0">Inventory & Variations</h2>
+                    </div>
+                    <button type="button" class="btn-ebay-secondary" @onclick="AddVariant" disabled="@(request.Variants.Count >= 50)">
+                        <span class="fb-icon">+</span> Add variation
+                    </button>
                 </div>
 
                 @if (!request.Variants.Any())
                 {
-                    <p class="text-center py-4 text-muted border rounded">No variations added yet.</p>
+                    <div class="text-center py-5 border rounded" style="background: #fcfcfc;">
+                        <i class="bi bi-box-seam text-muted" style="font-size: 40px;"></i>
+                        <p class="mt-2 text-muted">No variations added yet.</p>
+                        <button type="button" class="btn btn-link text-primary" @onclick="AddVariant">Add your first variation</button>
+                    </div>
                 }
 
+                <div class="variants-container">
                 @foreach (var variant in request.Variants)
                 {
-                    <div class="variant-item-ebay mb-4 p-4 border rounded bg-light">
-                        <div class="row g-4 mb-4">
-                            <div class="col-md-3">
-                                <label class="fw-600 mb-2">SKU code *</label>
-                                <InputText @bind-Value="variant.SkuCode" class="ebay-input" />
-                            </div>
-                            <div class="col-md-3">
-                                <label class="fw-600 mb-2">Price (₫) *</label>
-                                <InputNumber @bind-Value="variant.Price" class="ebay-input" />
-                            </div>
-                            <div class="col-md-3">
-                                <label class="fw-600 mb-2">Quantity *</label>
-                                <InputNumber @bind-Value="variant.Quantity" class="ebay-input" />
-                            </div>
-                            <div class="col-md-3">
-                                <label class="fw-600 mb-2">Weight (g)</label>
-                                <InputNumber @bind-Value="variant.WeightGram" class="ebay-input" />
-                            </div>
+                    <div class="variant-card mb-4 overflow-hidden" style="border: 1px solid #e5e5e5; border-radius: 8px;">
+                        <div class="variant-card-header d-flex justify-content-between align-items-center px-3 py-2" style="background: #f8f9fa; border-bottom: 1px solid #e5e5e5;">
+                            <span class="fw-600 text-dark">SKU: @(string.IsNullOrEmpty(variant.SkuCode) ? "New Variation" : variant.SkuCode)</span>
+                            <button type="button" class="btn btn-sm text-danger p-0" @onclick="() => RemoveVariant(variant)">
+                                <i class="bi bi-x-circle me-1"></i> Remove
+                            </button>
                         </div>
-
-                        <div class="mb-4">
-                            <label class="fw-600 mb-2">Image URL</label>
-                            <InputText @bind-Value="variant.ImageUrl" class="ebay-input" placeholder="https://..." />
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="fw-600">Dynamic Attributes (e.g. Color, Size)</span>
-                                <button type="button" class="btn-ebay-secondary btn-sm" @onclick="() => AddAttribute(variant)" 
-                                        disabled="@(variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count >= 5)">+ Add attribute</button>
+                        <div class="p-3">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6 col-lg-3">
+                                    <label class="text-muted small fw-600 d-block mb-1">SKU code *</label>
+                                    <InputText @bind-Value="variant.SkuCode" class="ebay-input" placeholder="e.g. IPH14-RED" />
+                                </div>
+                                <div class="col-md-6 col-lg-3">
+                                    <label class="text-muted small fw-600 d-block mb-1">Price (₫) *</label>
+                                    <InputNumber @bind-Value="variant.Price" class="ebay-input" />
+                                </div>
+                                <div class="col-md-6 col-lg-3">
+                                    <label class="text-muted small fw-600 d-block mb-1">Quantity *</label>
+                                    <InputNumber @bind-Value="variant.Quantity" class="ebay-input" />
+                                </div>
+                                <div class="col-md-6 col-lg-3">
+                                    <label class="text-muted small fw-600 d-block mb-1">Weight (g)</label>
+                                    <InputNumber @bind-Value="variant.WeightGram" class="ebay-input" />
+                                </div>
                             </div>
 
-                            @if (variantAttributesMap.ContainsKey(variant))
-                            {
-                                @foreach (var attr in variantAttributesMap[variant])
+                            <div class="mb-3">
+                                <label class="text-muted small fw-600 d-block mb-1">Image URL</label>
+                                <InputText @bind-Value="variant.ImageUrl" class="ebay-input" placeholder="https://..." />
+                                @if (!string.IsNullOrEmpty(variant.ImageUrl))
                                 {
-                                    <div class="d-flex gap-2 mb-2">
-                                        <input type="text" class="ebay-input bg-white" placeholder="Name (e.g. Color)" @bind="attr.Key" />
-                                        <input type="text" class="ebay-input bg-white" placeholder="Value (e.g. Red)" @bind="attr.Value" />
-                                        <button type="button" class="btn btn-outline-danger" @onclick="() => RemoveAttribute(variant, attr)"><i class="bi bi-trash"></i></button>
+                                    <div class="mt-2">
+                                        <img src="@variant.ImageUrl" class="rounded border" style="width: 60px; height: 60px; object-fit: cover;" />
                                     </div>
                                 }
-                            }
-                        </div>
+                            </div>
 
-                        <div class="text-end">
-                            <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none" @onclick="() => RemoveVariant(variant)">Remove variation</button>
+                            <div class="attributes-section p-3 border rounded" style="background: #ffffff;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="text-dark fw-600 small">Attributes (Color, Size, etc.)</span>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" style="font-size: 11px;" @onclick="() => AddAttribute(variant)" 
+                                            disabled="@(variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count >= 5)">+ Add</button>
+                                </div>
+
+                                @if (variantAttributesMap.ContainsKey(variant))
+                                {
+                                    <div class="row g-2">
+                                    @foreach (var attr in variantAttributesMap[variant])
+                                    {
+                                        <div class="col-md-6">
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <input type="text" class="ebay-input-sm flex-fill" placeholder="Name" @bind="attr.Key" style="font-size: 13px;" />
+                                                <input type="text" class="ebay-input-sm flex-fill" placeholder="Value" @bind="attr.Value" style="font-size: 13px;" />
+                                                <button type="button" class="btn btn-sm text-danger" @onclick="() => RemoveAttribute(variant, attr)"><i class="bi bi-trash"></i></button>
+                                            </div>
+                                        </div>
+                                    }
+                                    </div>
+                                }
+                            </div>
                         </div>
                     </div>
                 }
+                </div>
             </div>
 
             <!-- Action Footer -->

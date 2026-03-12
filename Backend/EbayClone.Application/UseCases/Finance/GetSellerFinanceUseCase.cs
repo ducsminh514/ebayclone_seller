@@ -46,7 +46,7 @@ namespace EbayClone.Application.UseCases.Finance
                     Amount = t.Amount,
                     Type = t.Type.ToString(),
                     Status = t.Status.ToString(),
-                    CreatedAt = t.CreatedAt,
+                    CreatedAt = t.CreatedAt.UtcDateTime,
                     ReferenceId = t.ReferenceId.ToString(),
                     Description = t.Description
                 }).ToList()

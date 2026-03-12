@@ -16,6 +16,7 @@ namespace EbayClone.Domain.Entities
         public string? Brand { get; set; }
         public string Status { get; set; } = "DRAFT";
         public decimal? BasePrice { get; set; }
+        public string? ReferenceId { get; set; } // SKU or External Reference
         
         // Ảnh sản phẩm: 1 ảnh bìa + danh sách URL (lưu JSON)
         public string? PrimaryImageUrl { get; set; }

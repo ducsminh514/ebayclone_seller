@@ -9,6 +9,14 @@
         <h1 class="seller-hub-title">Manage active listings</h1>
     </div>
 
+    @* Tabs for Status *@
+    <div class="nav-ebay-tabs">
+        <button class="nav-link @(currentTab == "ACTIVE" ? "active" : "")" @onclick='() => ChangeTab("ACTIVE")'>Active (@(products?.Count(p => p.Status == "ACTIVE") ?? 0))</button>
+        <button class="nav-link @(currentTab == "DRAFT" ? "active" : "")" @onclick='() => ChangeTab("DRAFT")'>Draft (@(products?.Count(p => p.Status == "DRAFT") ?? 0))</button>
+        <button class="nav-link @(currentTab == "SCHEDULED" ? "active" : "")" @onclick='() => ChangeTab("SCHEDULED")'>Scheduled (@(products?.Count(p => p.Status == "SCHEDULED") ?? 0))</button>
+        <button class="nav-link @(currentTab == "HIDDEN" ? "active" : "")" @onclick='() => ChangeTab("HIDDEN")'>Hidden (@(products?.Count(p => p.Status == "HIDDEN") ?? 0))</button>
+    </div>
+
     @* Search & Filter Section *@
     <div class="search-container">
         <div class="search-title">
@@ -16,8 +24,8 @@
         </div>
         <div class="filter-grid">
             <div class="filter-item">
-                <label>Product variation ID</label>
-                <input type="text" class="ebay-select" placeholder="Enter ID" @bind="searchId" />
+                <label>Keyword or Product ID</label>
+                <input type="text" class="ebay-input" placeholder="Search your listings..." @bind="searchId" @bind:event="oninput" />
             </div>
             <div class="filter-item">
                 <label>Category</label>
@@ -25,21 +33,12 @@
                     <option>All categories</option>
                 </select>
             </div>
-            <div class="filter-item">
-                <label>Status</label>
-                <select class="ebay-select" @onchange="OnStatusChanged">
-                    <option value="ACTIVE">Active (@(products?.Count(p => p.Status == "ACTIVE") ?? 0))</option>
-                    <option value="DRAFT">Draft (@(products?.Count(p => p.Status == "DRAFT") ?? 0))</option>
-                    <option value="SCHEDULED">Scheduled (@(products?.Count(p => p.Status == "SCHEDULED") ?? 0))</option>
-                    <option value="HIDDEN">Hidden (@(products?.Count(p => p.Status == "HIDDEN") ?? 0))</option>
-                </select>
-            </div>
         </div>
         <div class="action-bar" style="margin-top: 20px;">
-            <button class="btn-ebay-primary" @onclick='() => NavigationManager.NavigateTo("/listings/create")'>Search</button>
-            <a href="#" style="font-size: 13px; color: var(--seller-hub-link); margin-left: 15px;">Advanced search</a>
+            <button class="btn-ebay-primary" @onclick="StateHasChanged">Search</button>
+            <a href="javascript:void(0)" style="font-size: 13px; color: var(--seller-hub-link); margin-left: 15px;">Advanced search</a>
             <span style="border-left: 1px solid #ccc; margin: 0 10px; height: 15px;"></span>
-            <a href="#" style="font-size: 13px; color: var(--seller-hub-link);" @onclick="() => searchId = null">Clear all</a>
+            <a href="javascript:void(0)" style="font-size: 13px; color: var(--seller-hub-link);" @onclick='() => { searchId = null; StateHasChanged(); }'>Clear all</a>
         </div>
     </div>
 
