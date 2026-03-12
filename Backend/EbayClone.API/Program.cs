@@ -6,6 +6,7 @@ using EbayClone.Application.UseCases.Policies;
 using EbayClone.Application.UseCases.Products;
 using EbayClone.Application.UseCases.Auth;
 using EbayClone.Application.UseCases.Orders;
+using EbayClone.Application.UseCases.Finance;
 using EbayClone.Infrastructure.Repositories;
 using EbayClone.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +49,7 @@ builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
 builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
 builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
+builder.Services.AddScoped<IGetSellerFinanceUseCase, GetSellerFinanceUseCase>();
 
 // Cấu hình JWT Authentication
 builder.Services.AddAuthentication(options =>

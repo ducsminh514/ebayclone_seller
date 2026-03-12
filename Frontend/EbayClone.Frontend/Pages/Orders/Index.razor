@@ -5,75 +5,72 @@
 @inject OrderService OrderService
 @inject NavigationManager NavigationManager
 
-<div class="container-fluid mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="ebay-page-title mb-0">Quản Lý Đơn Hàng (Orders)</h2>
+<div class="seller-hub-container">
+    <div class="seller-hub-header">
+        <h1 class="seller-hub-title">Manage orders</h1>
     </div>
     
-    <div class="ebay-card p-0 overflow-hidden">
-        <div class="bg-white border-bottom">
-            <ul class="nav nav-tabs card-header-tabs" style="cursor: pointer;">
-                <li class="nav-item"><a class="nav-link @GetTabClass("ALL")" @onclick='() => ChangeTab("ALL")'>TẤT CẢ</a></li>
-                <li class="nav-item"><a class="nav-link @GetTabClass("PENDING_PAYMENT")" @onclick='() => ChangeTab("PENDING_PAYMENT")'>CHỜ THANH TOÁN</a></li>
-                <li class="nav-item"><a class="nav-link @GetTabClass("READY_TO_SHIP")" @onclick='() => ChangeTab("READY_TO_SHIP")'>CHỜ LẤY HÀNG</a></li>
-                <li class="nav-item"><a class="nav-link @GetTabClass("SHIPPED")" @onclick='() => ChangeTab("SHIPPED")'>ĐANG GIAO</a></li>
-                <li class="nav-item"><a class="nav-link @GetTabClass("DELIVERED")" @onclick='() => ChangeTab("DELIVERED")'>ĐÃ GIAO</a></li>
-            </ul>
+    <div class="seller-hub-table-wrapper">
+        <div class="nav-ebay-tabs">
+            <button class="nav-link @(currentTab == "ALL" ? "active" : "")" @onclick='() => ChangeTab("ALL")'>All</button>
+            <button class="nav-link @(currentTab == "PENDING_PAYMENT" ? "active" : "")" @onclick='() => ChangeTab("PENDING_PAYMENT")'>Awaiting payment</button>
+            <button class="nav-link @(currentTab == "READY_TO_SHIP" ? "active" : "")" @onclick='() => ChangeTab("READY_TO_SHIP")'>Awaiting shipment</button>
+            <button class="nav-link @(currentTab == "SHIPPED" ? "active" : "")" @onclick='() => ChangeTab("SHIPPED")'>Paid and shipped</button>
+            <button class="nav-link @(currentTab == "DELIVERED" ? "active" : "")" @onclick='() => ChangeTab("DELIVERED")'>Completed</button>
         </div>
-        <div class="card-body p-0">
-            @if (isLoading)
-            {
-                <div class="p-4 text-center text-muted">Đang tải danh sách đơn hàng...</div>
-            }
-            else if (!string.IsNullOrEmpty(errorMessage))
-            {
-                <div class="alert alert-danger m-3">@errorMessage</div>
-            }
-            else if (!filteredOrders.Any())
-            {
-                <div class="p-5 text-center text-muted">
-                    <h5>Không tìm thấy đơn hàng nào.</h5>
-                </div>
-            }
-            else
-            {
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light text-secondary" style="font-size: 13px; text-transform: uppercase;">
+
+        @if (isLoading)
+        {
+            <div class="p-5 text-center text-muted">Loading orders...</div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger m-3">@errorMessage</div>
+        }
+        else if (!filteredOrders.Any())
+        {
+            <div class="p-5 text-center text-muted">
+                <p>No orders found for this filter.</p>
+            </div>
+        }
+        else
+        {
+            <table class="seller-hub-table">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">Order number</th>
+                        <th style="width: 150px;">Date</th>
+                        <th style="width: 120px;">Total</th>
+                        <th>Payment status</th>
+                        <th>Order status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var o in filteredOrders)
+                    {
                         <tr>
-                            <th class="py-3 px-4 border-0">Mã Đơn</th>
-                            <th class="py-3 px-4 border-0">Ngày Đặt</th>
-                            <th class="py-3 px-4 border-0">Tổng Tiền</th>
-                            <th class="py-3 px-4 border-0">Thanh Toán</th>
-                            <th class="py-3 px-4 border-0">Trạng Thái</th>
-                            <th class="py-3 px-4 border-0 text-end">Hành Động</th>
+                            <td class="fw-bold"><a href="/orders/@o.Id">#@o.OrderNumber</a></td>
+                            <td>@o.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                            <td class="price-text">@o.TotalAmount.ToString("N0") ₫</td>
+                            <td>
+                                <span class="status-badge @(o.PaymentStatus == "PAID" ? "status-active" : "status-draft")">
+                                    @o.PaymentStatus
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge @GetStatusClass(o.Status)">@o.Status</span>
+                            </td>
+                            <td class="text-end">
+                                <button class="btn-ebay-secondary btn-sm" @onclick='() => NavigationManager.NavigateTo($"/orders/{o.Id}")'>
+                                    View details
+                                </button>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var o in filteredOrders)
-                        {
-                            <tr class="border-bottom">
-                                <td class="py-3 px-4 fw-bold" style="color: var(--primary-color);">#@o.OrderNumber</td>
-                                <td class="py-3 px-4">@o.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
-                                <td class="py-3 px-4 fw-bold">@o.TotalAmount.ToString("N0") ₫</td>
-                                <td class="py-3 px-4">
-                                    <span class="badge rounded-pill @(o.PaymentStatus == "PAID" ? "bg-success" : "bg-warning text-dark")">
-                                        @o.PaymentStatus
-                                    </span>
-                                </td>
-                                <td class="py-3 px-4">
-                                    <span class="badge bg-primary rounded-pill">@o.Status</span>
-                                </td>
-                                <td class="py-3 px-4 text-end">
-                                    <button class="btn btn-sm btn-outline-primary px-3" @onclick='() => NavigationManager.NavigateTo($"/orders/{o.Id}")'>
-                                        Xem Chi Tiết & Xử Lý
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-        </div>
+                    }
+                </tbody>
+            </table>
+        }
     </div>
 </div>
 
@@ -128,8 +125,14 @@
         }
     }
 
-    private string GetTabClass(string tab)
+    private string GetStatusClass(string status)
     {
-        return currentTab == tab ? "active fw-bold" : "text-muted";
+        return status switch
+        {
+            "DELIVERED" => "status-active",
+            "SHIPPED" => "status-sold",
+            "CANCELLED" => "status-draft",
+            _ => "status-sold"
+        };
     }
 }

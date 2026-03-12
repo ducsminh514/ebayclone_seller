@@ -20,6 +20,7 @@ builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<BuyerService>();
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<SellerService>();
 builder.Services.AddBlazoredLocalStorage();
 
 builder.Services.AddAuthorizationCore();

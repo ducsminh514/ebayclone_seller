@@ -19,5 +19,14 @@ namespace EbayClone.Infrastructure.Repositories
         {
             await _context.WalletTransactions.AddAsync(transaction, cancellationToken);
         }
+
+        public async Task<List<WalletTransaction>> GetByWalletIdAsync(Guid walletId, CancellationToken cancellationToken = default)
+        {
+            return await _context.WalletTransactions
+                .Where(t => t.WalletId == walletId)
+                .OrderByDescending(t => t.CreatedAt)
+                .Take(20)
+                .ToListAsync(cancellationToken);
+        }
     }
 }
