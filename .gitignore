@@ -52,3 +52,4 @@ Thumbs.db
 # Other
 *.log
 appsettings.Development.json
+Backend/EbayClone.API/appsettings.json
