@@ -4,168 +4,173 @@
 
 <PageTitle>Business Policies - Ebay Seller Hub</PageTitle>
 
-<div class="ebay-page-title" style="display: flex; justify-content: space-between; align-items: center;">
-    <span>Business Policies</span>
-</div>
-
-<p style="color: var(--text-secondary); margin-bottom: 24px;">Business policies are your payment, pricing, and return terms. By setting these up, you can list items faster and manage your terms across hundreds of listings at once.</p>
-
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div style="background-color: #fee; color: var(--danger-color); padding: 12px 16px; border-radius: 4px; border: 1px solid var(--danger-color); margin-bottom: 24px; font-weight: 500;">
-        <i class="oi oi-circle-x" style="margin-right: 8px;"></i> @errorMessage
-    </div>
-}
-
-@if (!string.IsNullOrEmpty(successMessage))
-{
-    <div style="background-color: #e6ffed; color: var(--success-color); padding: 12px 16px; border-radius: 4px; border: 1px solid var(--success-color); margin-bottom: 24px; font-weight: 500;">
-        <i class="oi oi-circle-check" style="margin-right: 8px;"></i> @successMessage
-    </div>
-}
-
-<div style="display: flex; gap: 32px;">
-    <!-- Form Shipping Policy -->
-    <div class="ebay-card" style="flex: 1;">
-        <h3 style="margin-top: 0; margin-bottom: 16px;">Create Shipping Policy</h3>
-        <EditForm Model="shippingModel" OnValidSubmit="HandleCreateShippingPolicy">
-            <DataAnnotationsValidator />
-            
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px;">Policy Name <span style="color: var(--danger-color);">*</span></label>
-                <InputText @bind-Value="shippingModel.Name" placeholder="e.g. Standard Shipping" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); outline: none;" />
-                <ValidationMessage For="@(() => shippingModel.Name)" />
-            </div>
-
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px;">Handling Time (Days) <span style="color: var(--danger-color);">*</span></label>
-                <InputNumber @bind-Value="shippingModel.HandlingTimeDays" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); outline: none;" />
-                <ValidationMessage For="@(() => shippingModel.HandlingTimeDays)" />
-            </div>
-
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px;">Shipping Cost ($) <span style="color: var(--danger-color);">*</span></label>
-                <InputNumber @bind-Value="shippingModel.Cost" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); outline: none;" />
-                <ValidationMessage For="@(() => shippingModel.Cost)" />
-            </div>
-
-            <div style="margin-bottom: 24px; display: flex; align-items: center;">
-                <InputCheckbox @bind-Value="shippingModel.IsDefault" id="isDefaultPolicy" style="margin-right: 8px;" />
-                <label for="isDefaultPolicy" style="font-weight: 500; cursor: pointer;">Set as default shipping policy</label>
-            </div>
-
-            <button type="submit" disabled="@isSubmittingShipping" style="width: 100%; padding: 10px; background-color: var(--primary-color); color: white; border: none; border-radius: 20px; font-weight: 600; cursor: pointer; opacity: @(isSubmittingShipping ? 0.7 : 1);">
-                @(isSubmittingShipping ? "Creating..." : "Save Policy")
-            </button>
-        </EditForm>
+<div class="seller-hub-container">
+    <div class="seller-hub-header">
+        <h1 class="seller-hub-title">Business policies</h1>
+        <p class="text-muted mt-2">Business policies are your payment, shipping, and return terms. By setting these up, you can list items faster and manage your terms across hundreds of listings at once.</p>
     </div>
 
-    <!-- Form Return Policy -->
-    <div class="ebay-card" style="flex: 1;">
-        <h3 style="margin-top: 0; margin-bottom: 16px;">Create Return Policy</h3>
-        <EditForm Model="returnModel" OnValidSubmit="HandleCreateReturnPolicy">
-            <DataAnnotationsValidator />
-            
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px;">Policy Name <span style="color: var(--danger-color);">*</span></label>
-                <InputText @bind-Value="returnModel.Name" placeholder="e.g. 30-Day Returns" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); outline: none;" />
-                <ValidationMessage For="@(() => returnModel.Name)" />
-            </div>
-
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px;">Return Window (Days) <span style="color: var(--danger-color);">*</span></label>
-                <InputNumber @bind-Value="returnModel.ReturnDays" placeholder="0 = No Returns allowed" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); outline: none;" />
-                <ValidationMessage For="@(() => returnModel.ReturnDays)" />
-            </div>
-
-            <div style="margin-bottom: 24px;">
-                <label style="display: block; font-weight: 600; margin-bottom: 8px;">Return shipping paid by <span style="color: var(--danger-color);">*</span></label>
-                <InputSelect @bind-Value="returnModel.ShippingPaidBy" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); outline: none; background-color: white;">
-                    <option value="">Select an option</option>
-                    <option value="BUYER">Buyer</option>
-                    <option value="SELLER">Seller (Free Returns)</option>
-                </InputSelect>
-                <ValidationMessage For="@(() => returnModel.ShippingPaidBy)" />
-            </div>
-
-            <button type="submit" disabled="@isSubmittingReturn" style="width: 100%; padding: 10px; background-color: var(--primary-color); color: white; border: none; border-radius: 20px; font-weight: 600; cursor: pointer; opacity: @(isSubmittingReturn ? 0.7 : 1);">
-                @(isSubmittingReturn ? "Creating..." : "Save Policy")
-            </button>
-        </EditForm>
-    </div>
-</div>
-
-<div style="margin-top: 40px;">
-    <h3 style="margin-bottom: 16px;">Your Shipping Policies</h3>
-    @if (shippingPolicies == null)
+    @if (!string.IsNullOrEmpty(errorMessage))
     {
-        <p>Loading...</p>
+        <div class="alert alert-danger mb-4">
+            <i class="bi bi-x-circle-fill me-2"></i> @errorMessage
+        </div>
     }
-    else if (!shippingPolicies.Any())
+
+    @if (!string.IsNullOrEmpty(successMessage))
     {
-        <p style="color: var(--text-secondary);">No shipping policies found.</p>
+        <div class="alert alert-success mb-4">
+            <i class="bi bi-check-circle-fill me-2"></i> @successMessage
+        </div>
     }
-    else
-    {
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 32px; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
-            <thead>
-                <tr style="background-color: #f7f7f7; border-bottom: 2px solid var(--border-color);">
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Name</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Handling Time (Days)</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Cost ($)</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Default</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var policy in shippingPolicies)
-                {
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 12px;">@policy.Name</td>
-                        <td style="padding: 12px;">@policy.HandlingTimeDays</td>
-                        <td style="padding: 12px;">@policy.Cost</td>
-                        <td style="padding: 12px;">
-                            @if (policy.IsDefault)
-                            {
-                                <span style="background-color: #e6ffed; color: var(--success-color); padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;">Default</span>
-                            }
-                        </td>
+
+    <div class="policy-form-grid">
+        <!-- Form Shipping Policy -->
+        <div class="summary-card" style="border-radius: 4px;">
+            <h2 class="order-section-title">Create shipping policy</h2>
+            <EditForm Model="shippingModel" OnValidSubmit="HandleCreateShippingPolicy">
+                <DataAnnotationsValidator />
+                
+                <div class="policy-group">
+                    <label>Policy name <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="shippingModel.Name" class="ebay-input" placeholder="e.g. Standard Shipping" />
+                    <ValidationMessage For="@(() => shippingModel.Name)" />
+                </div>
+
+                <div class="policy-group">
+                    <label>Handling time (Days) <span class="text-danger">*</span></label>
+                    <InputNumber @bind-Value="shippingModel.HandlingTimeDays" class="ebay-input" />
+                    <ValidationMessage For="@(() => shippingModel.HandlingTimeDays)" />
+                </div>
+
+                <div class="policy-group">
+                    <label>Shipping cost (₫) <span class="text-danger">*</span></label>
+                    <InputNumber @bind-Value="shippingModel.Cost" class="ebay-input" />
+                    <ValidationMessage For="@(() => shippingModel.Cost)" />
+                </div>
+
+                <div class="mb-4 d-flex align-items-center gap-2">
+                    <InputCheckbox @bind-Value="shippingModel.IsDefault" id="isDefaultPolicy" />
+                    <label for="isDefaultPolicy" class="mb-0 cursor-pointer fw-500">Set as default shipping policy</label>
+                </div>
+
+                <button type="submit" class="btn-ebay-primary w-100" disabled="@isSubmittingShipping">
+                    @(isSubmittingShipping ? "Saving..." : "Save policy")
+                </button>
+            </EditForm>
+        </div>
+
+        <!-- Form Return Policy -->
+        <div class="summary-card" style="border-radius: 4px;">
+            <h2 class="order-section-title">Create return policy</h2>
+            <EditForm Model="returnModel" OnValidSubmit="HandleCreateReturnPolicy">
+                <DataAnnotationsValidator />
+                
+                <div class="policy-group">
+                    <label>Policy name <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="returnModel.Name" class="ebay-input" placeholder="e.g. 30-Day Returns" />
+                    <ValidationMessage For="@(() => returnModel.Name)" />
+                </div>
+
+                <div class="policy-group">
+                    <label>Return window (Days) <span class="text-danger">*</span></label>
+                    <InputNumber @bind-Value="returnModel.ReturnDays" class="ebay-input" placeholder="0 = No returns allowed" />
+                    <ValidationMessage For="@(() => returnModel.ReturnDays)" />
+                </div>
+
+                <div class="policy-group">
+                    <label>Return shipping paid by <span class="text-danger">*</span></label>
+                    <InputSelect @bind-Value="returnModel.ShippingPaidBy" class="ebay-input bg-white">
+                        <option value="">Select an option</option>
+                        <option value="BUYER">Buyer</option>
+                        <option value="SELLER">Seller (Free returns)</option>
+                    </InputSelect>
+                    <ValidationMessage For="@(() => returnModel.ShippingPaidBy)" />
+                </div>
+
+                <button type="submit" class="btn-ebay-primary w-100" disabled="@isSubmittingReturn">
+                    @(isSubmittingReturn ? "Saving..." : "Save policy")
+                </button>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <h2 class="order-section-title">Shipping policies</h2>
+        <div class="seller-hub-table-wrapper mb-5">
+            <table class="seller-hub-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Handling time</th>
+                        <th>Cost</th>
+                        <th style="width: 100px;">Default</th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    }
+                </thead>
+                <tbody>
+                    @if (shippingPolicies == null)
+                    {
+                        <tr><td colspan="4" class="text-center p-4">Loading...</td></tr>
+                    }
+                    else if (!shippingPolicies.Any())
+                    {
+                        <tr><td colspan="4" class="text-center p-4 text-muted">No shipping policies found.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var policy in shippingPolicies)
+                        {
+                            <tr>
+                                <td class="fw-500">@policy.Name</td>
+                                <td>@policy.HandlingTimeDays days</td>
+                                <td class="price-text">@policy.Cost.ToString("N0") ₫</td>
+                                <td>
+                                    @if (policy.IsDefault)
+                                    {
+                                        <span class="status-badge status-active">Default</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
 
-    <h3 style="margin-bottom: 16px;">Your Return Policies</h3>
-    @if (returnPolicies == null)
-    {
-        <p>Loading...</p>
-    }
-    else if (!returnPolicies.Any())
-    {
-        <p style="color: var(--text-secondary);">No return policies found.</p>
-    }
-    else
-    {
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 32px; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
-            <thead>
-                <tr style="background-color: #f7f7f7; border-bottom: 2px solid var(--border-color);">
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Name</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Return Window (Days)</th>
-                    <th style="padding: 12px; text-align: left; font-weight: 600;">Shipping Paid By</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var policy in returnPolicies)
-                {
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 12px;">@policy.Name</td>
-                        <td style="padding: 12px;">@(policy.ReturnDays == 0 ? "No Returns" : $"{policy.ReturnDays} Days")</td>
-                        <td style="padding: 12px;">@policy.ShippingPaidBy</td>
+        <h2 class="order-section-title">Return policies</h2>
+        <div class="seller-hub-table-wrapper">
+            <table class="seller-hub-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Return window</th>
+                        <th>Shipping paid by</th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    }
+                </thead>
+                <tbody>
+                    @if (returnPolicies == null)
+                    {
+                        <tr><td colspan="3" class="text-center p-4">Loading...</td></tr>
+                    }
+                    else if (!returnPolicies.Any())
+                    {
+                        <tr><td colspan="3" class="text-center p-4 text-muted">No return policies found.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var policy in returnPolicies)
+                        {
+                            <tr>
+                                <td class="fw-500">@policy.Name</td>
+                                <td>@(policy.ReturnDays == 0 ? "No returns" : $"{policy.ReturnDays} days")</td>
+                                <td><span class="status-badge @(policy.ShippingPaidBy == "SELLER" ? "status-active" : "status-draft")">@policy.ShippingPaidBy</span></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 @code {
