@@ -1,0 +1,171 @@
+@page "/bp/pmt/create"
+@layout PolicyCreationLayout
+@using EbayClone.Frontend.Services
+@using MudBlazor
+@using System.ComponentModel.DataAnnotations
+@using EbayClone.Shared.DTOs.Policies
+@inject PolicyService PolicyService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<EditForm Model="@_model" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    
+    <!-- Top Section -->
+    <MudGrid Justify="Justify.SpaceBetween" Class="mb-6 align-center">
+        <MudItem>
+            <MudText Typo="Typo.h4" Style="font-family: 'Times New Roman', serif; font-weight: bold;">Create payment policy</MudText>
+        </MudItem>
+        <MudItem>
+            <MudLink Href="#" Underline="Underline.Hover" Style="color: #111820; text-decoration: underline; font-size: 13px;">How to set up payment policy?</MudLink>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.body2" Class="mb-1 fw-bold" Style="font-weight: 600;">Policy name</MudText>
+    <MudTextField @bind-Value="_model.Name" Immediate="true" Variant="Variant.Filled" Underline="false" MaxLength="64" Style="border-radius: 8px; border: 1px solid #ccc; background-color: #F7F7F7;" Class="mb-1" />
+    <MudGrid Justify="Justify.SpaceBetween" Class="mt-n1 mb-4">
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">Example: Standard Payment - Immediate</MudText>
+        </MudItem>
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">@(_model.Name?.Length ?? 0)/64</MudText>
+        </MudItem>
+    </MudGrid>
+    <ValidationMessage For="@(() => _model.Name)" />
+
+    <MudText Typo="Typo.body2" Class="mb-1 mt-6 fw-bold" Style="font-weight: 600; color: #111820;">Policy description (optional)</MudText>
+    <MudTextField @bind-Value="_model.Description" Immediate="true" Variant="Variant.Filled" Underline="false" Lines="3" MaxLength="250" Style="border-radius: 8px; border: 1px solid #c7c7c7; background-color: #F7F7F7;" Class="mb-1" />
+    <MudGrid Justify="Justify.SpaceBetween" Class="mt-n1 mb-8">
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">Additional text to help you identify the content of this policy</MudText>
+        </MudItem>
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">@(_model.Description?.Length ?? 0)/250</MudText>
+        </MudItem>
+    </MudGrid>
+
+    <MudCheckBox @bind-Value="_model.IsDefault" Label="Set as default payment policy" Color="Color.Primary" Class="mb-8" />
+
+    <!-- Info Card -->
+    <MudAlert Severity="Severity.Normal" NoIcon="true" Class="mt-4 mb-10 pa-4" Style="background-color: #F8F8F8; color: #111820; border-radius: 8px;">
+        <MudGrid Justify="Justify.SpaceBetween" Spacing="0" Class="align-center">
+            <MudItem>With eBay managed payments, your buyers can pay with credit cards, Apple Pay, Google Pay, and PayPal. You control whether to require immediate payment.</MudItem>
+            <MudItem><MudLink Href="#" Typo="Typo.body2" Style="font-weight: bold; color: #111820; text-decoration: underline;">Learn more</MudLink></MudItem>
+        </MudGrid>
+    </MudAlert>
+
+    <!-- Payment Method -->
+    <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mb-4">Payment method</MudText>
+    
+    <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-8" Style="border-color: #E5E5E5; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <MudSelect @bind-Value="_model.PaymentMethod" Label="Payment method" Variant="Variant.Outlined">
+            <MudSelectItem Value="@("ManagedPayments")">eBay Managed Payments (Recommended)</MudSelectItem>
+            <MudSelectItem Value="@("PayPal")">PayPal</MudSelectItem>
+            <MudSelectItem Value="@("CreditCard")">Credit/Debit Card only</MudSelectItem>
+            <MudSelectItem Value="@("BankTransfer")">Bank Transfer</MudSelectItem>
+        </MudSelect>
+    </MudPaper>
+
+    <!-- Immediate Payment -->
+    <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mb-4">Immediate payment</MudText>
+    
+    <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-8" Style="border-color: #E5E5E5; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <MudGrid Justify="Justify.SpaceBetween" Class="align-center">
+            <MudItem>
+                <MudText Typo="Typo.body1" Style="font-weight: bold; color: #111820;">Require immediate payment</MudText>
+                <MudText Typo="Typo.body2" Style="color: #707070;">When buyers use "Buy It Now", they must pay right away. This helps prevent unpaid items.</MudText>
+            </MudItem>
+            <MudItem>
+                <MudSwitch @bind-Value="_model.ImmediatePaymentRequired" Color="Color.Primary" Size="Size.Large" />
+            </MudItem>
+        </MudGrid>
+
+        @if (!_model.ImmediatePaymentRequired)
+        {
+            <MudDivider Class="my-6" />
+            <MudSelect @bind-Value="_model.DaysToPayment" Label="Days to pay (for Auction)" Variant="Variant.Outlined">
+                <MudSelectItem Value="2">2 days</MudSelectItem>
+                <MudSelectItem Value="3">3 days</MudSelectItem>
+                <MudSelectItem Value="4">4 days (default)</MudSelectItem>
+                <MudSelectItem Value="5">5 days</MudSelectItem>
+                <MudSelectItem Value="7">7 days</MudSelectItem>
+                <MudSelectItem Value="10">10 days</MudSelectItem>
+            </MudSelect>
+        }
+    </MudPaper>
+
+    <!-- Payment Instructions -->
+    <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mb-4">Payment instructions (optional)</MudText>
+    
+    <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-16" Style="border-color: #E5E5E5; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <MudTextField @bind-Value="_model.PaymentInstructions" Immediate="true" Variant="Variant.Filled" Underline="false" Lines="3" MaxLength="500" Placeholder="e.g. Please complete payment within 48 hours of purchase." Style="border-radius: 8px; border: 1px solid #c7c7c7; background-color: #F7F7F7;" />
+        <MudText Typo="Typo.caption" Style="color: #707070;" Class="mt-2">@(_model.PaymentInstructions?.Length ?? 0)/500 characters</MudText>
+    </MudPaper>
+
+    <!-- Spacer -->
+    <div style="height: 100px;"></div>
+
+    <!-- Sticky Footer -->
+    <div style="position: fixed; bottom: 0; left: 0; right: 0; background-color: white; border-top: 1px solid #E5E5E5; padding: 16px 24px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="px-0">
+            <MudStack Row="true" Spacing="4">
+                <MudButton Href="/bp/manage" Variant="Variant.Outlined" Color="Color.Primary" Style="border-radius: 999px; text-transform: none; font-weight: bold;" Class="px-8 py-2">Cancel</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Disabled="@(!_isValid)" Variant="Variant.Filled" Color="Color.Primary" Style="border-radius: 999px; text-transform: none; font-weight: bold;" Class="px-8 py-2">Save</MudButton>
+            </MudStack>
+            <MudText Typo="Typo.caption" Style="color: #707070; display: block; margin-top: 16px; font-size: 11px;">
+                Copyright © 1995-2026 eBay Inc. All Rights Reserved. <MudLink Href="#" Style="font-size: 11px;">Accessibility</MudLink>, <MudLink Href="#" Style="font-size: 11px;">User Agreement</MudLink>, <MudLink Href="#" Style="font-size: 11px;">Privacy</MudLink>
+            </MudText>
+        </MudContainer>
+    </div>
+</EditForm>
+
+@code {
+    private PaymentPolicyViewModel _model = new PaymentPolicyViewModel();
+    
+    private bool _isValid => !string.IsNullOrWhiteSpace(_model.Name) 
+                             && _model.Name.Length <= 64 
+                             && (_model.Description == null || _model.Description.Length <= 250);
+
+    private async Task HandleValidSubmit()
+    {
+        try 
+        {
+            var request = new CreatePaymentPolicyRequest
+            {
+                Name = _model.Name,
+                Description = _model.Description,
+                IsDefault = _model.IsDefault,
+                ImmediatePaymentRequired = _model.ImmediatePaymentRequired,
+                DaysToPayment = _model.DaysToPayment,
+                PaymentMethod = _model.PaymentMethod,
+                PaymentInstructions = _model.PaymentInstructions
+            };
+
+            var message = await PolicyService.CreatePaymentPolicyAsync(request);
+            Snackbar.Add(message, Severity.Success);
+            NavigationManager.NavigateTo("/bp/manage");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public class PaymentPolicyViewModel
+    {
+        [Required]
+        [StringLength(64)]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(250)]
+        public string Description { get; set; } = string.Empty;
+
+        public bool IsDefault { get; set; } = false;
+        public bool ImmediatePaymentRequired { get; set; } = true;
+        public int DaysToPayment { get; set; } = 4;
+        public string PaymentMethod { get; set; } = "ManagedPayments";
+
+        [StringLength(500)]
+        public string? PaymentInstructions { get; set; }
+    }
+}

@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Products;
+using EbayClone.Shared.DTOs.Products;
 
 namespace EbayClone.Frontend.Services
 {
@@ -41,12 +37,12 @@ namespace EbayClone.Frontend.Services
             }
         }
 
-        public async Task<EbayClone.Domain.Entities.Product?> GetProductByIdAsync(Guid id)
+        public async Task<ProductDto?> GetProductByIdAsync(Guid id)
         {
             var response = await _httpClient.GetAsync($"api/products/{id}");
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadFromJsonAsync<EbayClone.Domain.Entities.Product>();
+                return await response.Content.ReadFromJsonAsync<ProductDto>();
             }
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
             
@@ -64,9 +60,9 @@ namespace EbayClone.Frontend.Services
             }
         }
 
-        public async Task UpdateProductStatusAsync(Guid id, string status)
+        public async Task UpdateProductStatusAsync(Guid id, string status, DateTimeOffset? scheduledAt = null)
         {
-            var request = new UpdateProductStatusRequest { Status = status };
+            var request = new UpdateProductStatusRequest { Status = status, ScheduledAt = scheduledAt };
             var response = await _httpClient.PatchAsJsonAsync($"api/products/{id}/status", request);
             if (!response.IsSuccessStatusCode)
             {
@@ -75,13 +71,13 @@ namespace EbayClone.Frontend.Services
             }
         }
 
-        public async Task<IEnumerable<EbayClone.Domain.Entities.Product>> GetMyProductsAsync()
+        public async Task<IEnumerable<ProductDto>> GetMyProductsAsync()
         {
             var response = await _httpClient.GetAsync("api/products");
             if (response.IsSuccessStatusCode)
             {
-                var products = await response.Content.ReadFromJsonAsync<IEnumerable<EbayClone.Domain.Entities.Product>>();
-                return products ?? Array.Empty<EbayClone.Domain.Entities.Product>();
+                var products = await response.Content.ReadFromJsonAsync<IEnumerable<ProductDto>>();
+                return products ?? Array.Empty<ProductDto>();
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
@@ -106,11 +102,25 @@ namespace EbayClone.Frontend.Services
                 throw new Exception($"Lỗi xóa sản phẩm: {error}");
             }
         }
-    }
 
-    public class CreateProductResponse
-    {
-        public Guid Id { get; set; }
-        public string Message { get; set; } = string.Empty;
+        public async Task UpdateProductVariantsAsync(Guid id, UpdateProductVariantsRequest request)
+        {
+            var response = await _httpClient.PatchAsJsonAsync($"api/products/{id}/variants", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                throw new Exception($"Lỗi cập nhật biến thể: {error}");
+            }
+        }
+
+        public async Task UpdateFullProductAsync(Guid id, UpdateFullProductRequest request)
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/products/{id}/full", request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                throw new Exception($"Lỗi cập nhật toàn diện: {error}");
+            }
+        }
     }
 }

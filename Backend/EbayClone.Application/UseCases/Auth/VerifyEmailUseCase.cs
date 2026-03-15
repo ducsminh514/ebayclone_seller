@@ -1,4 +1,4 @@
-using EbayClone.Application.DTOs.Auth;
+﻿using EbayClone.Shared.DTOs.Auth;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using System;

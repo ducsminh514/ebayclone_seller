@@ -55,5 +55,34 @@ namespace EbayClone.Infrastructure.Repositories
                 .Where(s => s.Id == id)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalReturnPolicies, x => x.TotalReturnPolicies + 1), cancellationToken);
         }
+
+        public async Task IncrementTotalPaymentPoliciesAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            await _context.Shops
+                .Where(s => s.Id == id)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalPaymentPolicies, x => x.TotalPaymentPolicies + 1), cancellationToken);
+        }
+
+        // Atomic Decrement (đảm bảo >= 0)
+        public async Task DecrementTotalShippingPoliciesAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            await _context.Shops
+                .Where(s => s.Id == id && s.TotalShippingPolicies > 0)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalShippingPolicies, x => x.TotalShippingPolicies - 1), cancellationToken);
+        }
+
+        public async Task DecrementTotalReturnPoliciesAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            await _context.Shops
+                .Where(s => s.Id == id && s.TotalReturnPolicies > 0)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalReturnPolicies, x => x.TotalReturnPolicies - 1), cancellationToken);
+        }
+
+        public async Task DecrementTotalPaymentPoliciesAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            await _context.Shops
+                .Where(s => s.Id == id && s.TotalPaymentPolicies > 0)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalPaymentPolicies, x => x.TotalPaymentPolicies - 1), cancellationToken);
+        }
     }
 }

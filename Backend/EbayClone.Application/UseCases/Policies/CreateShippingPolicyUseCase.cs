@@ -1,10 +1,11 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Policies;
+using EbayClone.Shared.DTOs.Policies;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Domain.Entities;
+using System.Text.Json;
 
 namespace EbayClone.Application.UseCases.Policies
 {
@@ -37,11 +38,16 @@ namespace EbayClone.Application.UseCases.Policies
 
             try
             {
-                // Dùng hàm đếm Count trực tiếp thay vì Select nguyên object Shop khổng lồ (giảm IOPS)
                 var currentPolicyCount = await _policyRepository.CountShippingPoliciesAsync(shopId, cancellationToken);
                 if (currentPolicyCount >= 100)
                 {
                     throw new InvalidOperationException("You have reached the maximum limit of 100 shipping policies.");
+                }
+
+                // Business Validation: Phải có ít nhất 1 dịch vụ vận chuyển nếu không phải là Local Pickup
+                if (request.DomesticCostType != "NoShipping" && (request.DomesticServices == null || request.DomesticServices.Count == 0))
+                {
+                    throw new ArgumentException("At least one domestic shipping service must be provided.");
                 }
                 // Dập cờ IsDefault cũ để bảo vệ mảng Data Integrity
                 if (request.IsDefault)
@@ -53,9 +59,20 @@ namespace EbayClone.Application.UseCases.Policies
                 {
                     ShopId = shopId,
                     Name = request.Name,
+                    Description = request.Description,
                     HandlingTimeDays = request.HandlingTimeDays,
-                    Cost = request.Cost,
-                    IsDefault = request.IsDefault
+                    IsDefault = request.IsDefault,
+
+                    DomesticCostType = request.DomesticCostType,
+                    DomesticServicesJson = JsonSerializer.Serialize(request.DomesticServices),
+
+                    IsInternationalShippingAllowed = request.IsInternationalShippingAllowed,
+                    InternationalCostType = request.InternationalCostType,
+                    InternationalServicesJson = JsonSerializer.Serialize(request.InternationalServices),
+
+                    ExcludedLocationsJson = JsonSerializer.Serialize(request.ExcludedLocations),
+
+                    IsArchived = false
                 };
 
                 await _policyRepository.AddShippingPolicyAsync(policy, cancellationToken);

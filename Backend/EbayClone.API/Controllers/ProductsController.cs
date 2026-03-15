@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Products;
+using EbayClone.Shared.DTOs.Products;
 using EbayClone.Application.UseCases.Products;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EbayClone.API.Controllers
 {
@@ -19,24 +20,30 @@ namespace EbayClone.API.Controllers
         private readonly IGetProductByIdUseCase _getProductByIdUseCase;
         private readonly IUpdateProductBasicUseCase _updateProductBasicUseCase;
         private readonly IUpdateProductStatusUseCase _updateProductStatusUseCase;
+        private readonly IUpdateProductVariantsUseCase _updateProductVariantsUseCase;
+        private readonly IUpdateFullProductUseCase _updateFullProductUseCase;
         private readonly ISoftDeleteProductUseCase _softDeleteProductUseCase;
 
         public ProductsController(
-            ICreateListingUseCase createListingUseCase,
-            IRestockVariantUseCase restockVariantUseCase,
             IGetProductsUseCase getProductsUseCase,
             IGetProductByIdUseCase getProductByIdUseCase,
+            ICreateListingUseCase createListingUseCase,
+            IRestockVariantUseCase restockVariantUseCase,
+            ISoftDeleteProductUseCase softDeleteProductUseCase,
             IUpdateProductBasicUseCase updateProductBasicUseCase,
             IUpdateProductStatusUseCase updateProductStatusUseCase,
-            ISoftDeleteProductUseCase softDeleteProductUseCase)
+            IUpdateProductVariantsUseCase updateProductVariantsUseCase,
+            IUpdateFullProductUseCase updateFullProductUseCase)
         {
-            _createListingUseCase = createListingUseCase;
-            _restockVariantUseCase = restockVariantUseCase;
             _getProductsUseCase = getProductsUseCase;
             _getProductByIdUseCase = getProductByIdUseCase;
+            _createListingUseCase = createListingUseCase;
+            _restockVariantUseCase = restockVariantUseCase;
+            _softDeleteProductUseCase = softDeleteProductUseCase;
             _updateProductBasicUseCase = updateProductBasicUseCase;
             _updateProductStatusUseCase = updateProductStatusUseCase;
-            _softDeleteProductUseCase = softDeleteProductUseCase;
+            _updateProductVariantsUseCase = updateProductVariantsUseCase;
+            _updateFullProductUseCase = updateFullProductUseCase;
         }
 
         [HttpGet]
@@ -114,6 +121,7 @@ namespace EbayClone.API.Controllers
         }
 
         [HttpPost]
+        [EnableRateLimiting("create_listing")]
         public async Task<IActionResult> CreateListing([FromBody] CreateListingRequest request)
         {
             // Bảo mật: Lấy ID Shop từ Token Claim, không tin tưởng body request để tránh IDOR
@@ -129,19 +137,25 @@ namespace EbayClone.API.Controllers
                 return CreatedAtAction(nameof(CreateListing), new { id = productId }, new { Message = "Sản phẩm mới đã được đưa lên kệ thành công." });
             }
             catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (InvalidOperationException ex) { return UnprocessableEntity(new { Error = ex.Message }); } // 422 = Business rule violation (MonthlyLimit)
             catch (Exception ex) { return StatusCode(500, new { Error = ex.Message }); }
         }
 
         [HttpPut("variants/{variantId:guid}/restock")]
         public async Task<IActionResult> RestockVariant(Guid variantId, [FromBody] RestockVariantRequest request)
         {
+            // Lấy ShopId từ JWT claim để verify quyền sở hữu (chống IDOR)
+            var shopIdClaim = User.FindFirst("ShopId")?.Value;
+            if (string.IsNullOrEmpty(shopIdClaim) || !Guid.TryParse(shopIdClaim, out Guid shopId))
+                return StatusCode(403, new { Error = "You do not have a registered Shop." });
+
             try
             {
-                // Hành động Update Atomic dưới SQL 
-                await _restockVariantUseCase.ExecuteAsync(variantId, request);
+                await _restockVariantUseCase.ExecuteAsync(shopId, variantId, request);
                 return Ok(new { Message = $"Nhập kho thành công (+{request.AddedQuantity} SP)." });
             }
             catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (UnauthorizedAccessException ex) { return StatusCode(403, new { Error = ex.Message }); }
             catch (Exception ex) { return StatusCode(500, new { Error = ex.Message }); }
         }
 

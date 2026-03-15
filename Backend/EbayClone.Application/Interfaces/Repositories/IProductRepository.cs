@@ -11,7 +11,9 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task AddAsync(Product product, CancellationToken cancellationToken = default);
         Task UpdateAsync(Product product, CancellationToken cancellationToken = default);
         Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<IEnumerable<Product>> GetProductsByShopIdAsync(Guid shopId, CancellationToken cancellationToken = default);
+        Task<int> GetCountByShopInCurrentMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
         
         Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default);
         Task<ProductVariant?> GetVariantByIdAsync(Guid variantId, CancellationToken cancellationToken = default);
@@ -23,5 +25,11 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task<int> DeductStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
         Task<int> ReleaseReservationAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
         Task<int> ReserveStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
+        
+        // Kiểm tra giới hạn MonthlyListingLimit
+        Task<int> CountProductsThisMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
+        
+        // Dashboard Stats
+        Task<int> CountByStatusAsync(Guid shopId, string status, CancellationToken cancellationToken = default);
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Policies;
+using EbayClone.Shared.DTOs.Policies;
 using EbayClone.Application.Interfaces.Repositories;
 
 namespace EbayClone.Application.UseCases.Policies
@@ -29,9 +29,16 @@ namespace EbayClone.Application.UseCases.Policies
             {
                 Id = p.Id,
                 Name = p.Name,
-                ReturnDays = p.ReturnDays,
-                ShippingPaidBy = p.ShippingPaidBy
-            }).OrderBy(p => p.Name).ToList();
+                Description = p.Description ?? string.Empty,
+                IsDomesticAccepted = p.IsDomesticAccepted,
+                DomesticReturnDays = p.DomesticReturnDays,
+                DomesticShippingPaidBy = p.DomesticShippingPaidBy ?? string.Empty,
+                IsInternationalAccepted = p.IsInternationalAccepted,
+                InternationalReturnDays = p.InternationalReturnDays,
+                InternationalShippingPaidBy = p.InternationalShippingPaidBy,
+                IsDefault = p.IsDefault,
+                RowVersion = p.RowVersion
+            }).OrderByDescending(p => p.IsDefault).ThenBy(p => p.Name).ToList();
         }
     }
 }

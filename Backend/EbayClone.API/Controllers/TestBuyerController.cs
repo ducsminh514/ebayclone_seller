@@ -1,5 +1,5 @@
-using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Orders;
+﻿using System.Threading.Tasks;
+using EbayClone.Shared.DTOs.Orders;
 using EbayClone.Application.UseCases.Orders;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

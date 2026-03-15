@@ -1,8 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
+using EbayClone.Shared.DTOs.Categories;
 
 namespace EbayClone.Frontend.Services
 {
@@ -59,12 +56,5 @@ namespace EbayClone.Frontend.Services
                 throw new Exception($"Lỗi xóa danh mục: {error}");
             }
         }
-    }
-
-    public class CategoryDto
-    {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Slug { get; set; } = string.Empty;
     }
 }

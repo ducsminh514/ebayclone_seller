@@ -31,17 +31,25 @@ namespace EbayClone.API.Controllers
                 {
                     categories = new System.Collections.Generic.List<Category>
                     {
-                        new Category { Id = Guid.NewGuid(), Name = "Điện Thoại & Phụ Kiện", Slug = "dien-thoai-phu-kien" },
-                        new Category { Id = Guid.NewGuid(), Name = "Thời Trang Nam", Slug = "thoi-trang-nam" },
-                        new Category { Id = Guid.NewGuid(), Name = "Thời Trang Nữ", Slug = "thoi-trang-nu" },
-                        new Category { Id = Guid.NewGuid(), Name = "Nhà Cửa & Đời Sống", Slug = "nha-cua-doi-song" }
+                        new Category { Id = Guid.NewGuid(), Name = "Điện Thoại & Phụ Kiện", Slug = "dien-thoai-phu-kien",
+                            AttributeHints = "[\"Màu sắc\",\"Dung lượng RAM\",\"Bộ nhớ\",\"Phần mềm\"]" },
+                        new Category { Id = Guid.NewGuid(), Name = "Thời Trang Nam", Slug = "thoi-trang-nam",
+                            AttributeHints = "[\"Màu sắc\",\"Chuội Size\",\"Chất liệu\"]" },
+                        new Category { Id = Guid.NewGuid(), Name = "Thời Trang Nữ", Slug = "thoi-trang-nu",
+                            AttributeHints = "[\"Màu sắc\",\"Chuội Size\",\"Kiểu dáng\"]" },
+                        new Category { Id = Guid.NewGuid(), Name = "Nhà Cửa & Đời Sống", Slug = "nha-cua-doi-song",
+                            AttributeHints = "[\"Màu sắc\",\"Chất liệu\",\"Kích thước\"]" },
+                        new Category { Id = Guid.NewGuid(), Name = "Máy Tính & Laptop", Slug = "may-tinh-laptop",
+                            AttributeHints = "[\"CPU\",\"RAM\",\"Ố đĩa\",\"Màu sắc\",\"Màn hình\"]" },
+                        new Category { Id = Guid.NewGuid(), Name = "Thể Thao & Dã Ngoại", Slug = "the-thao-da-ngoai",
+                            AttributeHints = "[\"Màu sắc\",\"Size\",\"Chất liệu\"]" },
                     };
                     
                     await _context.Categories.AddRangeAsync(categories);
                     await _context.SaveChangesAsync();
                 }
 
-                return Ok(categories.Where(c => c.IsActive).Select(c => new { c.Id, c.Name, c.Slug }));
+                return Ok(categories.Where(c => c.IsActive).Select(c => new { c.Id, c.Name, c.Slug, c.AttributeHints }));
             }
             catch (Exception ex)
             {
@@ -83,9 +91,11 @@ namespace EbayClone.API.Controllers
 
                 category.Name = request.Name;
                 category.Slug = request.Slug;
+                if (request.AttributeHints != null)
+                    category.AttributeHints = request.AttributeHints;
 
                 await _context.SaveChangesAsync();
-                return Ok(new { category.Id, category.Name, category.Slug });
+                return Ok(new { category.Id, category.Name, category.Slug, category.AttributeHints });
             }
             catch (Exception ex)
             {
@@ -118,6 +128,7 @@ namespace EbayClone.API.Controllers
     {
         public string Name { get; set; } = string.Empty;
         public string Slug { get; set; } = string.Empty;
+        public string? AttributeHints { get; set; }
     }
 
     public class UpdateCategoryDto : CreateCategoryDto

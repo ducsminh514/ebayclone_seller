@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Orders;
+using EbayClone.Shared.DTOs.Orders;
 using EbayClone.Application.UseCases.Orders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,7 +40,11 @@ namespace EbayClone.API.Controllers
 
         [HttpGet]
         [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-        public async Task<IActionResult> GetShopOrders()
+        public async Task<IActionResult> GetShopOrders(
+            [FromQuery] int pageNumber = 1, 
+            [FromQuery] int pageSize = 10, 
+            [FromQuery] string? status = null, 
+            [FromQuery] string? searchQuery = null)
         {
             var shopId = GetShopId();
             if (!shopId.HasValue)
@@ -48,8 +52,9 @@ namespace EbayClone.API.Controllers
                 return StatusCode(403, new { Error = "Account not authorized. HasShop claim missing. Please relogin to refresh claims." });
             }
 
-            var orders = await _getOrdersUseCase.ExecuteAsync(shopId.Value);
-            return Ok(orders);
+            var result = await _getOrdersUseCase.ExecutePagedAsync(
+                shopId.Value, pageNumber, pageSize, status, searchQuery);
+            return Ok(result);
         }
 
         [HttpGet("{id}")]
@@ -93,6 +98,20 @@ namespace EbayClone.API.Controllers
             catch (UnauthorizedAccessException ex)
             {
                 return StatusCode(403, new { Error = ex.Message }); // Cố tình đổi Order của Shop khác
+            }
+        }
+
+        [HttpPost("release-funds")]
+        public async Task<IActionResult> ReleaseFunds([FromServices] IReleaseFundsUseCase releaseFundsUseCase)
+        {
+            try
+            {
+                var count = await releaseFundsUseCase.ExecuteAsync();
+                return Ok(new { ReleasedOrdersCount = count, Message = $"Successfully released funds for {count} orders." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Error = "Error during fund release process.", Details = ex.Message });
             }
         }
     }

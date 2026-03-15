@@ -1,21 +1,31 @@
 @page "/orders/{OrderId:guid}"
-@using EbayClone.Domain.Entities
 @using EbayClone.Frontend.Services
-@using EbayClone.Application.DTOs.Orders
+@using EbayClone.Shared.DTOs.Orders
 @inject OrderService OrderService
 @inject NavigationManager NavigationManager
 
-<div class="container-fluid mt-4">
-    <div class="d-flex align-items-center mb-3">
-        <button class="btn btn-outline-secondary me-3" @onclick='() => NavigationManager.NavigateTo("/orders")'>
-            <i class="bi bi-arrow-left"></i> Trở về
-        </button>
-        <h2 class="ebay-page-title mb-0">Chi Tiết Đơn Hàng</h2>
+<div class="seller-hub-container">
+    <div class="seller-hub-header mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <button class="btn btn-link p-0 text-primary text-decoration-none" @onclick='() => NavigationManager.NavigateTo("/orders")' style="font-size: 14px;">
+                <i class="bi bi-chevron-left"></i> Back to orders
+            </button>
+        </div>
+        <div class="d-flex justify-content-between align-items-end mt-2">
+            <div>
+                <h1 class="seller-hub-title mb-1">Order #@order?.OrderNumber</h1>
+                <div class="text-muted small">Placed on @order?.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn-ebay-secondary btn-sm"><i class="bi bi-printer me-1"></i> Print label</button>
+                <button class="btn-ebay-secondary btn-sm"><i class="bi bi-envelope me-1"></i> Contact buyer</button>
+            </div>
+        </div>
     </div>
 
     @if (isLoading)
     {
-        <div class="text-center p-5"><span class="spinner-border"></span> Đang tải...</div>
+        <div class="text-center p-5 text-muted">Loading order details...</div>
     }
     else if (!string.IsNullOrEmpty(errorMessage))
     {
@@ -25,128 +35,130 @@
     {
         <div class="row">
             <div class="col-lg-8">
-                <!-- THÔNG TIN SẢN PHẨM -->
-                <div class="ebay-card mb-4">
-                    <h5 class="fw-bold mb-3 border-bottom pb-2">Danh sách Sản phẩm</h5>
-                    <table class="table table-borderless align-middle">
-                        <thead class="text-secondary small">
+                <!-- SẢN PHẨM -->
+                <div class="summary-card mb-4" style="border-radius: 4px;">
+                    <h2 class="order-section-title">Order items</h2>
+                    <table class="seller-hub-table">
+                        <thead>
                             <tr>
-                                <th>SẢN PHẨM</th>
-                                <th>ĐƠN GIÁ</th>
-                                <th>SỐ LƯỢNG</th>
-                                <th class="text-end">THÀNH TIỀN</th>
+                                <th>Item</th>
+                                <th style="width: 120px;">Price</th>
+                                <th style="width: 100px;">Quantity</th>
+                                <th style="width: 120px; text-align: right;">Total</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach(var item in order.Items)
                             {
-                                <tr class="border-top">
-                                    <td class="py-3">
-                                        <div class="d-flex align-items-center gap-3">
+                                <tr>
+                                    <td>
+                                        <div class="product-cell">
                                             @if (!string.IsNullOrEmpty(item.Variant?.ImageUrl))
                                             {
-                                                <img src="@item.Variant.ImageUrl" alt="Product" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;" />
+                                                <img src="@item.Variant.ImageUrl" class="product-img" alt="Product" />
                                             }
                                             else
                                             {
-                                                <div class="bg-light d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px; border-radius: 4px;">Img</div>
+                                                <div class="product-img bg-light"></div>
                                             }
-                                            <div>
-                                                <strong class="d-block text-dark opacity-100">@item.ProductNameSnapshot</strong>
-                                                <small class="text-muted">SKU: @item.Variant?.SkuCode</small>
+                                            <div class="product-info">
+                                                <h4>@item.ProductNameSnapshot</h4>
+                                                <span class="sku">SKU: @item.Variant?.SkuCode</span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="py-3">@item.PriceAtPurchase.ToString("N0") đ</td>
-                                    <td class="py-3 text-center">x @item.Quantity</td>
-                                    <td class="py-3 text-end fw-bold">@order.TotalAmount đ</td>
+                                    <td class="price-text">@item.PriceAtPurchase.ToString("N0") ₫</td>
+                                    <td>x @item.Quantity</td>
+                                    <td class="price-text text-end">@((item.PriceAtPurchase * item.Quantity).ToString("N0")) ₫</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
 
-                <!-- LỊCH SỬ ĐƠN HÀNG (TIMELINE) -->
-                <div class="ebay-card mb-4">
-                    <h5 class="fw-bold mb-3 border-bottom pb-2">Lịch sử trạng thái</h5>
-                    <ul class="timeline list-unstyled ps-2 pt-2" style="border-left: 2px solid #0064d2; margin-left:10px;">
-                        <li class="mb-3 ps-3 position-relative">
-                            <span class="position-absolute bg-primary rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
-                            <div><strong>Đặt hàng</strong></div>
-                            <small class="text-muted">@order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                <!-- LỊCH SỬ (TIMELINE) -->
+                <div class="summary-card mb-4" style="border-radius: 4px;">
+                    <h2 class="order-section-title">Order history</h2>
+                    <ul class="timeline-ebay">
+                        <li class="timeline-item-ebay active">
+                            <div><strong>Order placed</strong></div>
+                            <div class="transaction-date">@order.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div>
                         </li>
                         @if (order.PaidAt.HasValue)
                         {
-                        <li class="mb-3 ps-3 position-relative">
-                            <span class="position-absolute bg-success rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
-                            <div><strong>Đã Thanh Toán</strong> & Khoá kho thực tế</div>
-                            <small class="text-muted">@order.PaidAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                        <li class="timeline-item-ebay active">
+                            <div><strong>Payment received</strong></div>
+                            <div class="transaction-date">@order.PaidAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
                         </li>
                         }
                         @if (order.ShippedAt.HasValue)
                         {
-                        <li class="mb-3 ps-3 position-relative">
-                            <span class="position-absolute bg-warning rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
-                            <div><strong>Đã Giao Hàng</strong> (Vận chuyển: @order.ShippingCarrier - @order.TrackingCode)</div>
-                            <small class="text-muted">@order.ShippedAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                        <li class="timeline-item-ebay active">
+                            <div><strong>Order shipped</strong> (@order.ShippingCarrier - @order.TrackingCode)</div>
+                            <div class="transaction-date">@order.ShippedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
                         </li>
                         }
                         @if (order.CompletedAt.HasValue)
                         {
-                        <li class="mb-3 ps-3 position-relative">
-                            <span class="position-absolute bg-secondary rounded-circle" style="width: 12px; height: 12px; left: -22px; top: 4px;"></span>
-                            <div><strong>Giao Thành Công (Hoàn Tất)</strong></div>
-                            <small class="text-muted">@order.CompletedAt.Value.ToString("dd/MM/yyyy HH:mm")</small>
+                        <li class="timeline-item-ebay active">
+                            <div><strong>Order completed</strong></div>
+                            <div class="transaction-date">@order.CompletedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
                         </li>
                         }
                     </ul>
                 </div>
-
             </div>
+
             <div class="col-lg-4">
-                <!-- HÀNH ĐỘNG CẬP NHẬT TRẠNG THÁI (MÁY TRẠNG THÁI) -->
-                <div class="ebay-card mb-4 bg-light border-primary">
-                    <h5 class="fw-bold text-primary mb-3">Xử Lý Đơn Hàng</h5>
-                    <div class="mb-2">
-                        Trạng thái hiện tại: <span class="badge bg-primary fs-6">@order.Status</span>
+                <!-- XỬ LÝ -->
+                <div class="summary-card mb-4" style="border-top: 3px solid var(--seller-hub-blue);">
+                    <h2 class="order-section-title">Workflow actions</h2>
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <span class="text-muted d-block small mb-1">Order status:</span>
+                            <span class="status-badge status-sold py-1 px-3">@order.Status</span>
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted d-block small mb-1">Payment status:</span>
+                            <span class="status-badge @(order.PaymentStatus == "PAID" ? "status-active" : "status-draft") py-1 px-3">@order.PaymentStatus</span>
+                        </div>
                     </div>
-                    <div class="badge bg-warning text-dark mb-4 fs-6">Thanh Toán: @order.PaymentStatus</div>
                     
                     <div class="d-grid gap-2">
                         @if (order.Status == "PENDING_PAYMENT")
                         {
-                            <button class="btn btn-success" @onclick='() => UpdateStatus("READY_TO_SHIP")' disabled="@isUpdating">
-                                Mô phỏng Khách đã Thanh toán
+                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("READY_TO_SHIP")' disabled="@isUpdating">
+                                Mark as paid
                             </button>
-                            <button class="btn btn-danger" @onclick='() => UpdateStatus("CANCELLED")' disabled="@isUpdating">
-                                Huỷ & Xả kho dự trữ
+                            <button class="btn-ebay-secondary" @onclick='() => UpdateStatus("CANCELLED")' disabled="@isUpdating">
+                                Cancel order
                             </button>
                         }
                         else if (order.Status == "READY_TO_SHIP")
                         {
-                            <button class="btn btn-primary" @onclick='() => UpdateStatus("PROCESSING")' disabled="@isUpdating">
-                                Xác nhận đã In Mã Vận Đơn
+                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("PROCESSING")' disabled="@isUpdating">
+                                Print shipping label
                             </button>
                         }
                         else if (order.Status == "PROCESSING")
                         {
-                            <button class="btn btn-warning text-dark" @onclick='() => UpdateStatus("SHIPPED")' disabled="@isUpdating">
-                                Giao cho Vận Chuyển
+                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("SHIPPED")' disabled="@isUpdating">
+                                Dispatch order
                             </button>
                         }
                         else if (order.Status == "SHIPPED")
                         {
-                            <button class="btn btn-secondary" @onclick='() => UpdateStatus("DELIVERED")' disabled="@isUpdating">
-                                Khách nhận thành công (Giải ngân)
+                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("DELIVERED")' disabled="@isUpdating">
+                                Confirm delivery
                             </button>
                         }
                         else if (order.Status == "DELIVERED")
                         {
-                            <div class="alert alert-success mt-2 py-2 text-center">Đơn hàng đã hoàn tất! Tiền đã được cộng vào PendingBalance.</div>
+                            <div class="alert alert-success mt-2 py-2 text-center small">Order completed!</div>
                         }
                         else if (order.Status == "CANCELLED")
                         {
-                            <div class="alert alert-danger mt-2 py-2 text-center">Đơn hàng đã bị huỷ.</div>
+                            <div class="alert alert-secondary mt-2 py-2 text-center small">Order cancelled.</div>
                         }
                     </div>
                     @if (!string.IsNullOrEmpty(statusErrorMessage))
@@ -155,57 +167,69 @@
                     }
                 </div>
 
-                <!-- THÔNG TIN ĐƠN HÀNG -->
-                <div class="ebay-card mb-4">
-                    <h5 class="fw-bold mb-3 border-bottom pb-2">Tổng quan</h5>
+                <!-- TỔNG KẾT TIỀN -->
+                <div class="summary-card mb-4">
+                    <h2 class="order-section-title">Order totals</h2>
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Mã đơn:</span>
-                        <strong>#@order.OrderNumber</strong>
-                    </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Ngày đặt:</span>
-                        <strong>@order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</strong>
-                    </div>
-                    <hr />
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Tổng tiền hàng:</span>
-                        <strong>@((order.TotalAmount - order.ShippingFee).ToString("N0")) đ</strong>
+                        <span class="text-muted">Subtotal (@order.Items.Count items)</span>
+                        <span>@((order.TotalAmount - order.ShippingFee).ToString("N0")) ₫</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Phí vận chuyển:</span>
-                        <strong>@order.ShippingFee.ToString("N0") đ</strong>
+                        <span class="text-muted">Shipping & handling</span>
+                        <span>@order.ShippingFee.ToString("N0") ₫</span>
                     </div>
-                    <div class="d-flex justify-content-between fs-5 mt-3 pt-2 border-top">
-                        <span class="fw-bold">Thanh Toán:</span>
-                        <strong class="text-primary">@order.TotalAmount.ToString("N0") đ</strong>
+                    <div class="d-flex justify-content-between mb-3 text-success">
+                        <span class="text-muted">Tax</span>
+                        <span>0 ₫</span>
                     </div>
-                    @if (order.Status == "DELIVERED")
+                    <div class="d-flex justify-content-between pt-3 border-top">
+                        <span class="fw-bold fs-5">Order total</span>
+                        <span class="price-text" style="font-size: 20px;">@order.TotalAmount.ToString("N0") ₫</span>
+                    </div>
+                    
+                    @if (order.Status == "DELIVERED" || order.Status == "COMPLETED")
                     {
-                        <div class="d-flex justify-content-between bg-success text-white px-2 py-1 mt-3 rounded small">
-                            <span>Phí Sàn thu (Platform Fee):</span>
-                            <span>@order.PlatformFee.ToString("N0") đ</span>
-                        </div>
-                        <div class="d-flex justify-content-between bg-info text-dark px-2 py-1 mt-1 rounded small">
-                            <span>Thực nhận (Vào Pending Balance):</span>
-                            <strong>@((order.TotalAmount - order.PlatformFee).ToString("N0")) đ</strong>
+                        <div class="mt-4 p-3 bg-light rounded-3" style="border: 1px dashed #ced4da;">
+                            <div class="fw-600 mb-2 small text-uppercase" style="letter-spacing: 0.5px;">Estimated earnings</div>
+                            <div class="d-flex justify-content-between mb-1 small">
+                                <span class="text-muted">Platform fee (eBay clone):</span>
+                                <span class="text-danger">-@order.PlatformFee.ToString("N0") ₫</span>
+                            </div>
+                            <div class="d-flex justify-content-between fw-bold pt-2 mt-1 border-top text-primary">
+                                <span>Net profit:</span>
+                                <span>@((order.TotalAmount - order.PlatformFee).ToString("N0")) ₫</span>
+                            </div>
                         </div>
                     }
                 </div>
 
-                <!-- THÔNG TIN NGƯỜI MUA -->
-                <div class="ebay-card mb-4">
-                    <h5 class="fw-bold mb-3 border-bottom pb-2">Khách hàng & Giao hàng</h5>
-                    <p class="mb-1 text-muted">Thông tin nhận hàng:</p>
-                    <p class="fw-bold mb-3">@FormatReceiverInfo(order.ReceiverInfo)</p>
+                <!-- NGƯỜI NHẬN -->
+                <div class="summary-card mb-4">
+                    <h2 class="order-section-title">Shipping details</h2>
+                    <div class="d-flex align-items-start gap-3 mb-3">
+                        <div class="bg-light rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                            <i class="bi bi-geo-alt text-primary fs-5"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold mb-1">Shipping address</div>
+                            <div class="text-muted small" style="line-height: 1.5;">@FormatReceiverInfo(order.ReceiverInfo)</div>
+                        </div>
+                    </div>
+                    
                     @if (!string.IsNullOrEmpty(order.ShippingCarrier))
                     {
-                        <p class="mb-1 text-muted">Đơn vị vận chuyển:</p>
-                        <p class="fw-bold mb-1">@order.ShippingCarrier</p>
-                        <p class="mb-1 text-muted">Mã vận đơn:</p>
-                        <p class="fw-bold text-primary">@order.TrackingCode</p>
+                        <div class="pt-3 border-top mt-3">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted small">Carrier:</span>
+                                <span class="fw-600 small">@order.ShippingCarrier</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted small">Tracking:</span>
+                                <span class="fw-600 small text-primary">@order.TrackingCode</span>
+                            </div>
+                        </div>
                     }
                 </div>
-
             </div>
         </div>
     }

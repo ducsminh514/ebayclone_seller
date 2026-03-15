@@ -7,6 +7,7 @@ namespace EbayClone.Domain.Entities
     {
         public Guid Id { get; set; } = Guid.NewGuid();
         public string OrderNumber { get; set; } = string.Empty;
+        public string IdempotencyKey { get; set; } = string.Empty;
         public Guid ShopId { get; set; }
         public Guid BuyerId { get; set; }
         
@@ -27,6 +28,8 @@ namespace EbayClone.Domain.Entities
         public DateTimeOffset? PaidAt { get; private set; }
         public DateTimeOffset? ShippedAt { get; private set; }
         public DateTimeOffset? CompletedAt { get; private set; }
+
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         // Navigation
         public Shop? Shop { get; set; }
@@ -83,6 +86,17 @@ namespace EbayClone.Domain.Entities
 
             Status = "CANCELLED";
         }
+
+        public void MarkAsCompleted()
+        {
+            if (Status != "DELIVERED")
+                throw new InvalidOperationException("Chỉ đơn hàng đã giao (DELIVERED) mới có thể đánh dấu hoàn tất.");
+            
+            Status = "COMPLETED";
+            IsEscrowReleased = true;
+        }
+
+        public bool IsEscrowReleased { get; private set; }
     }
     
     public class OrderItem

@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Policies;
+using EbayClone.Shared.DTOs.Policies;
 using EbayClone.Application.Interfaces.Repositories;
+using System.Text.Json;
 
 namespace EbayClone.Application.UseCases.Policies
 {
@@ -29,9 +30,16 @@ namespace EbayClone.Application.UseCases.Policies
             {
                 Id = p.Id,
                 Name = p.Name,
+                Description = p.Description ?? string.Empty,
                 HandlingTimeDays = p.HandlingTimeDays,
-                Cost = p.Cost,
-                IsDefault = p.IsDefault
+                DomesticCostType = p.DomesticCostType,
+                DomesticServices = JsonSerializer.Deserialize<List<ShippingServiceDto>>(p.DomesticServicesJson) ?? new(),
+                IsInternationalShippingAllowed = p.IsInternationalShippingAllowed,
+                InternationalCostType = p.InternationalCostType,
+                InternationalServices = JsonSerializer.Deserialize<List<InternationalShippingServiceDto>>(p.InternationalServicesJson) ?? new(),
+                ExcludedLocations = JsonSerializer.Deserialize<List<string>>(p.ExcludedLocationsJson) ?? new(),
+                IsDefault = p.IsDefault,
+                RowVersion = p.RowVersion
             }).OrderByDescending(p => p.IsDefault).ThenBy(p => p.Name).ToList();
         }
     }

@@ -1,52 +1,240 @@
-﻿@page "/"
+@page "/"
+@using EbayClone.Frontend.Services
+@using EbayClone.Shared.DTOs.Dashboard
+@inject DashboardService DashboardService
+@inject NavigationManager Navigation
 
 <PageTitle>Overview - Ebay Seller Hub</PageTitle>
 
-<h1 class="ebay-page-title">Overview</h1>
+<MudText Typo="Typo.h4" Class="mb-4" Style="font-weight: 700; color: #111820; font-size: 28px;">My eBay Selling Overview</MudText>
 
-@using Microsoft.AspNetCore.Components.Authorization
-<AuthorizeView>
-    <Authorized>
-        @{
-            var hasShopStr = context.User.FindFirst("HasShop")?.Value;
-            bool.TryParse(hasShopStr, out bool hasShop);
-        }
+<MudTabs Elevation="0" Rounded="false" Class="mb-6 ebay-custom-tabs" SliderColor="Color.Primary" ApplyEffectsToContainer="true">
+    <MudTabPanel Text="Activity" />
+    <MudTabPanel Text="Messages" />
+    <MudTabPanel Text="Account" />
+</MudTabs>
 
-        @if (!hasShop)
+@if (_loading)
+{
+    <MudPaper Elevation="0" Class="pa-12 d-flex justify-center align-center" Style="height: 400px;">
+        <MudStack AlignItems="AlignItems.Center">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-4">Loading your seller dashboard...</MudText>
+        </MudStack>
+    </MudPaper>
+}
+else if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-6">@_errorMessage</MudAlert>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12">
+            <!-- TOP METRICS DASHBOARD -->
+            <MudPaper Elevation="0" Class="pa-6 mb-8" Style="background-color: #F7F7F7; border-radius: 8px;">
+                <MudGrid Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                    <MudItem xs="6" md="4">
+                        <MudStack Row="true" Spacing="8">
+                            <MudStack Spacing="1" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h4" Style="color: #111820;">@_stats.ActiveCount</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Primary">Active</MudText>
+                            </MudStack>
+                            <MudStack Spacing="1" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h4" Style="color: #111820;">@_stats.OrderCount</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Primary">Orders</MudText>
+                            </MudStack>
+                            <MudStack Spacing="1" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h4" Style="color: #111820;">@_stats.UnsoldCount</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Primary">Unsold</MudText>
+                            </MudStack>
+                        </MudStack>
+                    </MudItem>
+                    <MudItem xs="6" md="4" Class="d-flex flex-column align-center">
+                        <MudText Typo="Typo.h4" Style="font-weight: 700; color: #111820;">@_stats.TotalSales90Days.ToString("C")</MudText>
+                        <MudText Typo="Typo.caption" Style="color: #707070;">90-day total <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" /></MudText>
+                    </MudItem>
+                    <MudItem xs="12" md="4" Class="d-flex justify-end">
+                        <MudButton Href="/listings/create" Color="Color.Primary" Variant="Variant.Filled" Style="border-radius: 999px; text-transform: none; font-weight: 600;" Size="Size.Large" Class="px-8">
+                            List an item
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- EDUCATIONAL BANNER -->
+            <MudPaper Elevation="0" Class="pa-6 mb-10" Style="border: 1px solid #E5E5E5; border-radius: 8px;">
+                <MudText Typo="Typo.h6" Style="font-weight: 700; color: #111820;" Class="mb-1">You have something to sell. We have millions of buyers.</MudText>
+                <MudText Typo="Typo.body1" Style="color: #363636;" Class="mb-6">From listing to getting paid, look at these guides to help you sell and get paid. <MudLink Href="#" Style="color: #111820; text-decoration: underline;">Learn more</MudLink></MudText>
+            
+                <MudGrid>
+                    <MudItem xs="12" md="4">
+                        <MudPaper Elevation="0" Class="pa-4 bg-light bg-opacity-50 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Start" Class="mb-2">
+                                <MudIcon Icon="@Icons.Material.Outlined.LocalOffer" Class="me-2" />
+                                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">Listing best practices</MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.body2" Style="color: #707070;" Class="mb-4">See our guide on best practices for creating listings that sell.</MudText>
+                            <MudLink Href="#" Typo="Typo.body2" Color="Color.Primary" Underline="Underline.Hover">See best practices</MudLink>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudPaper Elevation="0" Class="pa-4 bg-light bg-opacity-50 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Start" Class="mb-2">
+                                <MudIcon Icon="@Icons.Material.Outlined.LocalShipping" Class="me-2" />
+                                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">Shipping an item</MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.body2" Style="color: #707070;" Class="mb-4">Learn about how you can save on shipping with discounted eBay shipping labels and more.</MudText>
+                            <MudLink Href="#" Typo="Typo.body2" Color="Color.Primary" Underline="Underline.Hover">Learn about shipping options</MudLink>
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <MudPaper Elevation="0" Class="pa-4 bg-light bg-opacity-50 h-100">
+                            <MudStack Row="true" AlignItems="AlignItems.Start" Class="mb-2">
+                                <MudIcon Icon="@Icons.Material.Outlined.AccountBalanceWallet" Class="me-2" />
+                                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">How fees work</MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.body2" Style="color: #707070;" Class="mb-4">Learn about the fees for selling on eBay.</MudText>
+                            <MudLink Href="#" Typo="Typo.body2" Color="Color.Primary" Underline="Underline.Hover">Learn about fees</MudLink>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- SELLING SHORTCUTS -->
+            <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight: 700; color: #111820;">Selling shortcuts</MudText>
+            <MudGrid Class="mb-10">
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-6 d-flex align-center" Style="border: 1px solid #E5E5E5; border-radius: 8px; cursor: pointer;" @onclick="@(() => Navigation.NavigateTo("/bp/manage"))">
+                        <MudIcon Icon="@Icons.Material.Outlined.Gavel" Color="Color.Primary" Class="me-4" Size="Size.Large" />
+                        <div>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #0654BA;">Business Policies</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #707070;">Manage shipping, payment, and returns</MudText>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-6 d-flex align-center" Style="border: 1px solid #E5E5E5; border-radius: 8px; cursor: pointer;">
+                        <MudIcon Icon="@Icons.Material.Outlined.Store" Color="Color.Primary" Class="me-4" Size="Size.Large" />
+                        <div>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #0654BA;">Store Categories</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #707070;">Organize your items in your store</MudText>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Elevation="0" Class="pa-6 d-flex align-center" Style="border: 1px solid #E5E5E5; border-radius: 8px; cursor: pointer;">
+                        <MudIcon Icon="@Icons.Material.Outlined.Settings" Color="Color.Primary" Class="me-4" Size="Size.Large" />
+                        <div>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #0654BA;">Account Settings</MudText>
+                            <MudText Typo="Typo.caption" Style="color: #707070;">Manage addresses and feedback</MudText>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- DRAFTS (FINISH IT) -->
+            <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight: 700; color: #111820;">Finish it</MudText>
+            
+            <MudList T="object" Class="mb-10 px-0">
+                @foreach (var draft in mockDrafts)
+                {
+                    <MudListItem Class="px-0 py-4" Style="border-bottom: 1px solid #E5E5E5;">
+                        <ChildContent>
+                            <MudGrid Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudItem xs="8">
+                                    <MudStack Row="true" Spacing="4">
+                                        <MudImage Src="@draft.ImageUrl" Width="64" Height="64" ObjectFit="ObjectFit.Cover" Style="border: 1px solid #E5E5E5;" />
+                                        <MudStack Spacing="0" Justify="Justify.Center">
+                                            <MudLink Href="#" Typo="Typo.body1" Style="color: #2A1278; text-decoration: underline;" Class="mb-1">@draft.Title</MudLink>
+                                            <MudText Typo="Typo.caption" Style="color: #707070;">Last updated on @draft.UpdatedAt.ToString("MMM dd")</MudText>
+                                        </MudStack>
+                                    </MudStack>
+                                </MudItem>
+                                <MudItem xs="4" Class="d-flex justify-end">
+                                    <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" Style="border-radius: 999px;">
+                                        <MudButton Style="text-transform: none; padding-left: 20px; padding-right: 20px; border-color: #0654BA; color: #0654BA;">Resume draft</MudButton>
+                                        <MudMenu Icon="@Icons.Material.Filled.KeyboardArrowDown" Style="border-color: #0654BA; color: #0654BA;" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                            <MudMenuItem>Delete draft</MudMenuItem>
+                                            <MudMenuItem>Copy draft</MudMenuItem>
+                                        </MudMenu>
+                                    </MudButtonGroup>
+                                </MudItem>
+                            </MudGrid>
+                        </ChildContent>
+                    </MudListItem>
+                }
+            </MudList>
+
+            <!-- SELLING PROMOTIONS -->
+            <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight: 700; color: #111820;">Selling promotions</MudText>
+            <MudPaper Elevation="0" Class="pa-6" Style="background-color: #F7F7F7; max-width: 500px;">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="6">
+                    <div style="position: relative; width: 100px; height: 100px; border-radius: 50%; border: 4px solid #137A20; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: white;">
+                        <span style="font-size: 24px; font-weight: 700; color: #111820; line-height: 1;">@_stats.RemainingListingLimit</span>
+                        <span style="font-size: 10px; color: #707070; margin-top: 4px;">Remaining</span>
+                    </div>
+                    <div>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 700; color: #111820;" Class="mb-2">List up to @_stats.MonthlyListingLimit Items for FREE Every Month!</MudText>
+                        <MudText Typo="Typo.caption" Style="color: #707070;">
+                            Pay no insertion fees on @_stats.MonthlyListingLimit auction-style or fixed price listings. <MudLink Href="#" Color="Color.Primary" Underline="Underline.Hover">Learn More - opens in new window or tab</MudLink>
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+        </MudItem>
+    </MudGrid>
+}
+
+<style>
+    /* Custom style để tab giống với eBay */
+    .ebay-custom-tabs .mud-tabs-tab {
+        text-transform: none;
+        font-weight: 600;
+        font-size: 16px;
+        color: #111820 !important;
+        padding-left: 0;
+        padding-right: 0;
+        margin-right: 32px;
+        min-width: auto;
+    }
+    .ebay-custom-tabs .mud-tabs-tab.mud-tab-active {
+        color: #0654BA !important;
+    }
+    .ebay-custom-tabs .mud-tabs-toolbar {
+        border-bottom: 1px solid #E5E5E5;
+    }
+</style>
+
+@code {
+    private DashboardStatsDto _stats = new DashboardStatsDto();
+    private bool _loading = true;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try 
         {
-            <div class="ebay-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Tasks</h2>
-                    <a href="javascript:void(0)" style="font-size: 14px;">View all</a>
-                </div>
-                
-                <div class="p-3 bg-light rounded border">
-                    <h3 style="margin: 0 0 8px 0; font-size: 16px;">Complete your seller registration</h3>
-                    <p style="margin: 0; color: var(--text-secondary);">We need a few more details before you can start selling. It only takes a few minutes.</p>
-                    <a href="/onboarding" class="btn text-white mt-3 px-4 py-2 rounded-pill fw-bold" style="background-color: var(--primary-color);">Complete registration</a>
-                </div>
-            </div>
+            _loading = true;
+            _stats = await DashboardService.GetStatsAsync();
         }
-        else
+        catch (Exception ex)
         {
-            <div class="ebay-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Cửa hàng của bạn đã sẵn sàng</h2>
-                </div>
-                <div class="p-3 rounded border" style="background-color: #e6f4ea; border-color: #ceead6;">
-                    <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #137333;"><i class="bi bi-check-circle-fill me-2"></i>You are ready to sell!</h3>
-                    <p style="margin: 0; color: #1e8e3e;">Cửa hàng đã được khởi tạo thành công. Bạn đã có quyền đăng bán các mặt hàng đầu tiên vào kho.</p>
-                </div>
-            </div>
+            _errorMessage = "Unable to load dashboard data. Please try again later.";
+            Console.WriteLine($"Dashboard Error: {ex.Message}");
         }
-    </Authorized>
-</AuthorizeView>
+        finally
+        {
+            _loading = false;
+        }
+    }
 
-<div class="ebay-card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Sales (last 31 days)</h2>
-        <a href="#" style="font-size: 14px;">View reports</a>
-    </div>
-    <div style="font-size: 32px; font-weight: 700;">$0.00</div>
-    <div style="color: var(--text-secondary); font-size: 12px; margin-top: 4px;">0 orders</div>
-</div>
+    // Mock Data for Drafts
+    private List<dynamic> mockDrafts = new()
+    {
+        new { Title = "phone charger type c", ImageUrl = "https://i.ebayimg.com/images/g/D~sAAOSwg~VlEpxk/s-l1600.webp", UpdatedAt = new DateTime(2026, 3, 10) },
+        new { Title = "tech21 AK-B8173011 6 ft Usb C To Usb A", ImageUrl = "https://i.ebayimg.com/images/g/D~sAAOSwg~VlEpxk/s-l1600.webp", UpdatedAt = new DateTime(2026, 3, 10) },
+        new { Title = "shoes men nike air max 11.5", ImageUrl = "https://i.ebayimg.com/images/g/D~sAAOSwg~VlEpxk/s-l1600.webp", UpdatedAt = new DateTime(2026, 3, 10) }
+    };
+}

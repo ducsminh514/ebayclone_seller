@@ -26,9 +26,38 @@
                 <Authorized>
                     @if (context.User.FindFirst("HasShop")?.Value == "True")
                     {
-                        <a href="/dashboard">Sell</a>
+                        @if (_isSellerMode)
+                        {
+                            <!-- Đang ở Seller Hub → cho Switch về Buyer mode -->
+                            <a href="javascript:void(0)" @onclick="SwitchToBuying" 
+                               style="font-weight: 600; color: var(--primary-color); cursor: pointer;">
+                                ← Switch to Buying
+                            </a>
+                        }
+                        else
+                        {
+                            <!-- Đang ở Buyer mode → cho Switch sang Seller Hub -->
+                            <a href="javascript:void(0)" @onclick="SwitchToSelling" 
+                               style="font-weight: 600; color: var(--primary-color); cursor: pointer;">
+                                Switch to Selling →
+                            </a>
+                        }
                         <a href="#">Watchlist</a>
-                        <a href="#">My eBay</a>
+                        <!-- My eBay Dropdown -->
+                        <div style="position: relative; display: inline-block;" @onmouseenter="() => _showMyEbayMenu = true" @onmouseleave="() => _showMyEbayMenu = false">
+                            <a href="#" style="cursor: pointer;">My eBay ▾</a>
+                            @if (_showMyEbayMenu)
+                            {
+                                <div style="position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e5e5e5; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 180px; z-index: 1000; padding: 8px 0;">
+                                    <a href="/" style="display: block; padding: 10px 16px; color: #111820; text-decoration: none; font-size: 14px;" class="my-ebay-item">Summary</a>
+                                    <a href="/dashboard" style="display: block; padding: 10px 16px; color: #111820; text-decoration: none; font-size: 14px; font-weight: 600;" class="my-ebay-item">Selling</a>
+                                    <hr style="margin: 4px 16px; border-color: #e5e5e5;" />
+                                    <a href="/store/edit" style="display: block; padding: 10px 16px; color: #111820; text-decoration: none; font-size: 14px;" class="my-ebay-item">Store</a>
+                                    <a href="/bp/manage" style="display: block; padding: 10px 16px; color: #111820; text-decoration: none; font-size: 14px;" class="my-ebay-item">Business Policies</a>
+                                    <a href="/finance" style="display: block; padding: 10px 16px; color: #111820; text-decoration: none; font-size: 14px;" class="my-ebay-item">Payments</a>
+                                </div>
+                            }
+                        </div>
                         <a href="#"><i class="oi oi-bell"></i></a>
                         <a href="#"><i class="oi oi-cart"></i></a>
                     }
@@ -46,7 +75,7 @@
 
     <!-- Main Header (Logo, Search, User Actions) -->
     <div class="ebay-header">
-        <a href="/" class="ebay-header-logo">ebay<span style="color: var(--text-secondary); font-size: 16px; font-weight: normal; margin-left: 8px;">Seller Hub</span></a>
+        <a href="/" class="ebay-header-logo">ebay<span style="color: var(--text-secondary); font-size: 16px; font-weight: normal; margin-left: 8px;">@(_isSellerMode ? "Seller Hub" : "")</span></a>
         
         <div class="ebay-header-search">
             <input type="text" placeholder="Search for anything" />
@@ -56,9 +85,9 @@
         <div class="ebay-header-actions">
             <AuthorizeView>
                 <Authorized>
-                    @if (context.User.FindFirst("HasShop")?.Value == "True")
+                    @if (context.User.FindFirst("HasShop")?.Value == "True" && _isSellerMode)
                     {
-                        <span style="font-weight: 600; color: var(--text-secondary); font-size: 14px;">Selling</span>
+                        <span style="font-weight: 600; color: #137A20; font-size: 13px; background: #e8f5e9; padding: 4px 12px; border-radius: 999px;">● Selling</span>
                     }
                 </Authorized>
             </AuthorizeView>
@@ -67,6 +96,30 @@
 </header>
 
 @code {
+    private bool _isSellerMode = true; // Default seller mode for this Seller Hub clone
+    private bool _showMyEbayMenu = false;
+
+    protected override void OnInitialized()
+    {
+        // Detect current mode based on URL
+        var uri = NavigationManager.Uri;
+        _isSellerMode = !uri.Contains("/buyer"); // Seller mode by default
+    }
+
+    private void SwitchToSelling()
+    {
+        _isSellerMode = true;
+        NavigationManager.NavigateTo("/", true);
+    }
+
+    private void SwitchToBuying()
+    {
+        _isSellerMode = false;
+        // In real eBay, this goes to ebay.com (buyer homepage)
+        // For clone: just toggle UI mode
+        NavigationManager.NavigateTo("/", true);
+    }
+
     private async Task Logout()
     {
         await LocalStorage.RemoveItemAsync("authToken");
@@ -75,3 +128,4 @@
         NavigationManager.NavigateTo("/", true);
     }
 }
+

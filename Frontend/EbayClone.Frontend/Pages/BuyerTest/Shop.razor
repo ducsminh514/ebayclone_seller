@@ -1,5 +1,5 @@
 @page "/buyer-test/shop"
-@using EbayClone.Domain.Entities
+@using EbayClone.Shared.DTOs.Products
 @using EbayClone.Frontend.Services
 @inject BuyerService BuyerService
 
@@ -91,7 +91,7 @@
 </div>
 
 @code {
-    private IEnumerable<Product> products = Array.Empty<Product>();
+    private IEnumerable<ProductDto> products = Array.Empty<ProductDto>();
     private bool isLoading = true;
     private bool isProcessing = false;
     private Guid? processingVariantId = null;

@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using System.Net.Http.Json;
 using Blazored.LocalStorage;
-using EbayClone.Application.DTOs.Auth;
+using EbayClone.Shared.DTOs.Auth;
+using EbayClone.Shared.DTOs.Common;
 
 namespace EbayClone.Frontend.Services
 {
@@ -118,16 +119,5 @@ namespace EbayClone.Frontend.Services
             await _localStorage.RemoveItemAsync("authToken");
             ((CustomAuthenticationStateProvider)_authenticationStateProvider).NotifyUserLogout();
         }
-    }
-
-    public class AuthResponse
-    {
-        public string Message { get; set; } = string.Empty;
-    }
-
-    public class LoginResponse
-    {
-        public string Token { get; set; } = string.Empty;
-        public DateTime Expiration { get; set; }
     }
 }

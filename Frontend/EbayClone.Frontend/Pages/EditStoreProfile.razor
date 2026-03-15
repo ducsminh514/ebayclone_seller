@@ -1,0 +1,178 @@
+@page "/store/edit"
+@inject EbayClone.Frontend.Services.ShopService ShopService
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+@using EbayClone.Shared.DTOs.Shops
+@using MudBlazor
+
+<PageTitle>Edit Store - eBay Clone</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="py-8">
+    @if (_loading)
+    {
+        <div class="d-flex justify-center" style="height: 400px; align-items: center;">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+        </div>
+    }
+    else
+    {
+        <!-- Header -->
+        <MudGrid Justify="Justify.SpaceBetween" Class="mb-6 align-center">
+            <MudItem>
+                <MudText Typo="Typo.h4" Style="font-family: 'Times New Roman', serif; font-weight: bold;">Edit store</MudText>
+                <MudText Typo="Typo.body2" Style="color: #707070;">Customize your store branding to attract more buyers</MudText>
+            </MudItem>
+            <MudItem>
+                <MudLink Href="#" Underline="Underline.Hover" Style="color: #111820; text-decoration: underline; font-size: 13px;">eBay store tips</MudLink>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Banner Preview -->
+        <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mb-3">Store billboard</MudText>
+        <MudPaper Elevation="0" Outlined="true" Class="pa-0 mb-4" Style="border-color: #E5E5E5; border-radius: 12px; overflow: hidden; position: relative;">
+            @if (!string.IsNullOrEmpty(_model.BannerUrl))
+            {
+                <img src="@_model.BannerUrl" alt="Store Banner" style="width: 100%; height: 200px; object-fit: cover;" />
+            }
+            else
+            {
+                <div style="width: 100%; height: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
+                    <MudIcon Icon="@Icons.Material.Filled.Panorama" Size="Size.Large" Style="color: rgba(255,255,255,0.5);" />
+                </div>
+            }
+            <!-- Logo overlay -->
+            <div style="position: absolute; bottom: -30px; left: 24px;">
+                <MudAvatar Size="Size.Large" Style="width: 80px; height: 80px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                    @if (!string.IsNullOrEmpty(_model.AvatarUrl))
+                    {
+                        <MudImage Src="@_model.AvatarUrl" Alt="Store Logo" />
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Store" Size="Size.Large" />
+                    }
+                </MudAvatar>
+            </div>
+        </MudPaper>
+
+        <div style="height: 40px;"></div>
+
+        <!-- Banner upload -->
+        <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-6" Style="border-color: #E5E5E5; border-radius: 12px;">
+            <MudText Typo="Typo.body1" Style="font-weight: bold;" Class="mb-2">Billboard image</MudText>
+            <MudText Typo="Typo.caption" Style="color: #707070;" Class="mb-3">Recommended: 1280 × 290 pixels, max 12MB. JPG or PNG.</MudText>
+            <MudTextField @bind-Value="_model.BannerUrl" Label="Banner image URL" Variant="Variant.Outlined" Placeholder="Upload via Files > paste URL here" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Link" />
+        </MudPaper>
+
+        <!-- Logo upload -->
+        <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-6" Style="border-color: #E5E5E5; border-radius: 12px;">
+            <MudText Typo="Typo.body1" Style="font-weight: bold;" Class="mb-2">Store logo</MudText>
+            <MudText Typo="Typo.caption" Style="color: #707070;" Class="mb-3">Recommended: 300 × 300 pixels, max 12MB. JPG or PNG.</MudText>
+            <MudTextField @bind-Value="_model.AvatarUrl" Label="Logo image URL" Variant="Variant.Outlined" Placeholder="Upload via Files > paste URL here" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Link" />
+        </MudPaper>
+
+        <!-- Store Name -->
+        <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mb-3">Store details</MudText>
+        <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-6" Style="border-color: #E5E5E5; border-radius: 12px;">
+            <MudTextField @bind-Value="_model.Name" Label="Store name" Variant="Variant.Outlined" MaxLength="255" Immediate="true" Class="mb-4" />
+            <MudGrid Justify="Justify.FlexEnd" Class="mt-n2 mb-4">
+                <MudItem>
+                    <MudText Typo="Typo.caption" Style="color: #707070;">@(_model.Name?.Length ?? 0)/255</MudText>
+                </MudItem>
+            </MudGrid>
+
+            <!-- Description -->
+            <MudTextField @bind-Value="_model.Description" Label="Store description" Variant="Variant.Outlined" Lines="5" MaxLength="1000" Immediate="true" Placeholder="Tell buyers about your store, what you sell, and why they should shop with you." />
+            <MudGrid Justify="Justify.SpaceBetween" Class="mt-1">
+                <MudItem>
+                    <MudText Typo="Typo.caption" Style="color: #707070;">This will be automatically translated for international buyers</MudText>
+                </MudItem>
+                <MudItem>
+                    <MudText Typo="Typo.caption" Style="color: #707070;">@(_model.Description?.Length ?? 0)/1000</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- Spacer for footer -->
+        <div style="height: 100px;"></div>
+
+        <!-- Sticky Footer -->
+        <div style="position: fixed; bottom: 0; left: 0; right: 0; background-color: white; border-top: 1px solid #E5E5E5; padding: 16px 24px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
+            <MudContainer MaxWidth="MaxWidth.Medium" Class="px-0">
+                <MudStack Row="true" Spacing="4">
+                    <MudButton Href="/" Variant="Variant.Outlined" Color="Color.Primary" Style="border-radius: 999px; text-transform: none; font-weight: bold;" Class="px-8 py-2">Cancel</MudButton>
+                    <MudButton OnClick="HandleSave" Disabled="@_saving" Variant="Variant.Filled" Color="Color.Primary" Style="border-radius: 999px; text-transform: none; font-weight: bold;" Class="px-8 py-2">
+                        @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                        Publish
+                    </MudButton>
+                </MudStack>
+                <MudText Typo="Typo.caption" Style="color: #707070; display: block; margin-top: 16px; font-size: 11px;">
+                    Copyright © 1995-2026 eBay Inc. All Rights Reserved. <MudLink Href="#" Style="font-size: 11px;">Accessibility</MudLink>, <MudLink Href="#" Style="font-size: 11px;">User Agreement</MudLink>, <MudLink Href="#" Style="font-size: 11px;">Privacy</MudLink>
+                </MudText>
+            </MudContainer>
+        </div>
+    }
+</MudContainer>
+
+@code {
+    private StoreProfileViewModel _model = new();
+    private bool _loading = true;
+    private bool _saving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var profile = await ShopService.GetShopProfileAsync();
+            _model = new StoreProfileViewModel
+            {
+                Name = profile.Name,
+                Description = profile.Description ?? string.Empty,
+                AvatarUrl = profile.AvatarUrl ?? string.Empty,
+                BannerUrl = profile.BannerUrl ?? string.Empty
+            };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load profile: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        _saving = true;
+        try
+        {
+            var request = new UpdateShopProfileRequest
+            {
+                Name = _model.Name,
+                Description = _model.Description,
+                AvatarUrl = string.IsNullOrWhiteSpace(_model.AvatarUrl) ? null : _model.AvatarUrl,
+                BannerUrl = string.IsNullOrWhiteSpace(_model.BannerUrl) ? null : _model.BannerUrl
+            };
+            var message = await ShopService.UpdateShopProfileAsync(request);
+            Snackbar.Add(message, Severity.Success);
+            NavigationManager.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    public class StoreProfileViewModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string AvatarUrl { get; set; } = string.Empty;
+        public string BannerUrl { get; set; } = string.Empty;
+    }
+}

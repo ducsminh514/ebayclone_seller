@@ -1,5 +1,5 @@
 @page "/inventory/{Id:guid}"
-@using EbayClone.Domain.Entities
+@using EbayClone.Shared.DTOs.Products
 @using EbayClone.Frontend.Services
 @inject ProductService ProductService
 @inject NavigationManager NavigationManager
@@ -191,7 +191,7 @@
     [Parameter]
     public Guid Id { get; set; }
 
-    private Product? product;
+    private ProductDto? product;
     private bool isLoading = true;
     private string? errorMessage;
     private string? successMessage;

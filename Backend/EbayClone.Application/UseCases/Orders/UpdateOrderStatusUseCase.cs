@@ -1,7 +1,8 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Orders;
+using EbayClone.Shared.DTOs.Orders;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Domain.Entities;
@@ -48,57 +49,97 @@ namespace EbayClone.Application.UseCases.Orders
                 if (order.ShopId != shopId)
                     throw new UnauthorizedAccessException("You are not authorized to update this order."); // Blocking IDOR
 
+                // --- OPTIMISTIC CONCURRENCY CHECK ---
+                if (request.RowVersion == null || !request.RowVersion.SequenceEqual(order.RowVersion))
+                {
+                    throw new InvalidOperationException("Đơn hàng đã được cập nhật bởi một phiên làm việc khác. Vui lòng tải lại trang.");
+                }
+
                 switch (request.NewStatus)
                 {
                     case "READY_TO_SHIP":
                         order.MarkAsPaid();
-                        // Trừ kho thật sự và xả khoá
+                        // 1. Trừ kho thật sự và xả khoá Reserved (ATOMIC)
                         foreach(var item in order.Items)
                         {
                             await _productRepository.DeductStockAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
                         }
-                        break;
-                    case "PROCESSING":
-                        order.MarkAsPrintedLabel();
-                        break;
-                    case "SHIPPED":
-                        order.MarkAsShipped(request.ShippingCarrier ?? "Unknown", request.TrackingCode ?? "");
-                        break;
-                    case "DELIVERED":
-                        order.MarkAsDelivered();
-                        // Tính năng Fulfillment: Tự động cộng PendingBalance cho Seller khi khách nhận xong.
-                        var wallet = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
-                        if (wallet != null) 
-                        {
-                            decimal profit = order.TotalAmount - order.PlatformFee; // Coi như đã trừ các phí.
-                            wallet.AddPending(profit);
-                            _walletRepository.Update(wallet);
 
-                            // Add Wallet Transaction Log
-                            var wt = new WalletTransaction
+                        // 2. NGHIỆP VỤ 2024: Ghi nhận doanh thu treo (Escrow) ngay khi khách TRẢ TIỀN
+                        var walletPaid = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
+                        if (walletPaid != null)
+                        {
+                            walletPaid.AddPending(order.TotalAmount);
+                            _walletRepository.Update(walletPaid);
+
+                            await _walletTransactionRepository.AddAsync(new WalletTransaction
                             {
                                 ShopId = shopId,
-                                Amount = profit,
+                                Amount = order.TotalAmount,
                                 Type = "ORDER_INCOME",
                                 ReferenceId = order.Id,
                                 ReferenceType = "ORDER",
-                                Description = $"Cộng {profit} đ vào ví Pending từ đơn hàng #{order.OrderNumber}",
-                                BalanceAfter = wallet.PendingBalance
-                            };
-                            await _walletTransactionRepository.AddAsync(wt, cancellationToken);
+                                Description = $"Tạm giữ {order.TotalAmount:N0} đ (Escrow) từ đơn hàng #{order.OrderNumber}",
+                                BalanceAfter = walletPaid.PendingBalance
+                            }, cancellationToken);
                         }
                         break;
+
+                    case "PROCESSING":
+                        order.MarkAsPrintedLabel();
+                        break;
+
+                    case "SHIPPED":
+                        order.MarkAsShipped(request.ShippingCarrier ?? "Unknown", request.TrackingCode ?? "");
+                        break;
+
+                    case "DELIVERED":
+                        order.MarkAsDelivered();
+                        // Tính phí sàn 5% (Ghi nhận để chuẩn bị cho bước Giải ngân ReleaseFunds sau này)
+                        order.PlatformFee = order.TotalAmount * 0.05m;
+                        break;
+
                     case "CANCELLED":
-                        // Nếu chưa trừ kho thật (chưa PAID), thì xả khoá Reserved
-                        if (order.PaymentStatus == "UNPAID")
+                        // Nếu đã thanh toán (PAID), tiền đã vào PendingBalance -> Cần HOÀN TIỀN (Deduct Pending)
+                        if (order.PaymentStatus == "PAID")
                         {
+                            // 1. Hoàn trả ví Pending
+                            var walletRefund = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
+                            if (walletRefund != null)
+                            {
+                                walletRefund.DeductPending(order.TotalAmount);
+                                _walletRepository.Update(walletRefund);
+
+                                await _walletTransactionRepository.AddAsync(new WalletTransaction
+                                {
+                                    ShopId = shopId,
+                                    Amount = -order.TotalAmount,
+                                    Type = "REFUND",
+                                    ReferenceId = order.Id,
+                                    ReferenceType = "ORDER",
+                                    Description = $"Hoàn tiền tạm giữ {order.TotalAmount:N0} đ cho Buyer (Hủy đơn #{order.OrderNumber})",
+                                    BalanceAfter = walletRefund.PendingBalance
+                                }, cancellationToken);
+                            }
+
+                            // 2. Hoàn kho (Restock) vì PAID đã trừ kho thật
+                            foreach(var item in order.Items)
+                            {
+                                await _productRepository.RestockVariantAsync(item.VariantId, item.Quantity, cancellationToken);
+                            }
+                        }
+                        else if (order.PaymentStatus == "UNPAID")
+                        {
+                            // Nếu chưa thanh toán, chỉ xả khoá Reserved
                             foreach(var item in order.Items)
                             {
                                 await _productRepository.ReleaseReservationAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
                             }
                         }
+                        
                         order.CancelOrder();
                         break;
+
                     default:
                         throw new ArgumentException($"Unsupported status update: {request.NewStatus}");
                 }
