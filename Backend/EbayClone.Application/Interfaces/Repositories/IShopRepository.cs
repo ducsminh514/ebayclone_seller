@@ -14,5 +14,9 @@ namespace EbayClone.Application.Interfaces.Repositories
         void Update(Shop shop);
         Task IncrementTotalShippingPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
         Task IncrementTotalReturnPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
+        Task IncrementTotalPaymentPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
+        Task DecrementTotalShippingPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
+        Task DecrementTotalReturnPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
+        Task DecrementTotalPaymentPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

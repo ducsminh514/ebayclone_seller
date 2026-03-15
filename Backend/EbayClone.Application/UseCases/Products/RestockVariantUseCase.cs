@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Products;
+using EbayClone.Shared.DTOs.Products;
 using EbayClone.Application.Interfaces.Repositories;
 
 namespace EbayClone.Application.UseCases.Products

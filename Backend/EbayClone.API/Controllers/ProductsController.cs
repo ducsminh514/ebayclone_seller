@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Products;
+using EbayClone.Shared.DTOs.Products;
 using EbayClone.Application.UseCases.Products;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +21,7 @@ namespace EbayClone.API.Controllers
         private readonly IUpdateProductBasicUseCase _updateProductBasicUseCase;
         private readonly IUpdateProductStatusUseCase _updateProductStatusUseCase;
         private readonly IUpdateProductVariantsUseCase _updateProductVariantsUseCase;
+        private readonly IUpdateFullProductUseCase _updateFullProductUseCase;
         private readonly ISoftDeleteProductUseCase _softDeleteProductUseCase;
 
         public ProductsController(
@@ -31,7 +32,8 @@ namespace EbayClone.API.Controllers
             ISoftDeleteProductUseCase softDeleteProductUseCase,
             IUpdateProductBasicUseCase updateProductBasicUseCase,
             IUpdateProductStatusUseCase updateProductStatusUseCase,
-            IUpdateProductVariantsUseCase updateProductVariantsUseCase)
+            IUpdateProductVariantsUseCase updateProductVariantsUseCase,
+            IUpdateFullProductUseCase updateFullProductUseCase)
         {
             _getProductsUseCase = getProductsUseCase;
             _getProductByIdUseCase = getProductByIdUseCase;
@@ -41,6 +43,7 @@ namespace EbayClone.API.Controllers
             _updateProductBasicUseCase = updateProductBasicUseCase;
             _updateProductStatusUseCase = updateProductStatusUseCase;
             _updateProductVariantsUseCase = updateProductVariantsUseCase;
+            _updateFullProductUseCase = updateFullProductUseCase;
         }
 
         [HttpGet]

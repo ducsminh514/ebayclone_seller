@@ -1,37 +1,55 @@
-﻿TÀI LIỆU ĐẶC TẢ LUỒNG NGHIỆP VỤ - PHÂN HỆ NGƯỜI BÁN (SELLER HUB)
+TÀI LIỆU ĐẶC TẢ LUỒNG NGHIỆP VỤ - PHÂN HỆ NGƯỜI BÁN (SELLER HUB)
 Dự án: eBay Clone Đối tượng: Team Phát triển (Backend, Frontend, QA)
 ________________
 
 
-PHẦN 1: LUỒNG KHỞI TẠO & CẤU HÌNH CỬA HÀNG (ONBOARDING & SETTINGS)
-Đây là bước đầu tiên khi một User bình thường muốn trở thành Người bán chuyên nghiệp trên sàn.
-1. Luồng Xác minh (KYC) & Mở Shop:
-* Bước 1: User gửi yêu cầu mở Shop (nhập tên Shop, mô tả).
-* Bước 2: Hệ thống tạo bản ghi trong bảng Shops với trạng thái IsVerified = False.
-* Bước 3 (Admin): Admin duyệt thông tin xác minh. Đổi IsVerified = True. (Yêu cầu: Chỉ seller đã xác minh mới được đăng sản phẩm).
-* Bước 4 (Hệ thống): Khởi tạo ngay 1 ví rỗng trong bảng SellerWallets cho Shop này. Set MonthlyListingLimit (Giới hạn đăng bài) mặc định cho lính mới (ví dụ: 10 sản phẩm/tháng).
+PHẦN 1: LUỒNG KHỞI TẠO & CẤU HÌNH CỬA HÀNG (ONBOARDING & SETTINGS - CHUẨN EBAY 2024 MVP)
+Đây là bước đầu tiên khi một User bình thường muốn trở thành Người bán chuyên nghiệp trên sàn. (Rút gọn luồng xác minh KYC để tập trung vào vòng đời Seller thực tế).
+1. Luồng Xác minh nhanh & Mở Shop (MVP):
+* Bước 1: User gửi yêu cầu mở Shop (Mặc định chọn tài khoản loại Personal). Không làm phức tạp luồng Doanh nghiệp ở scope hiện tại.
+* Bước 2: Hệ thống tạo bản ghi trong bảng Shops với trạng thái IsVerified = False, IsIdentityVerified = False.
+* Bước 3 (Xác minh định danh): Gọi SMS gửi OTP số điện thoại. (MVP: chỉ cần nhập mã OTP ảo 123456).
+  - Khi OTP đúng: set IsIdentityVerified = True + Khởi tạo ví rỗng SellerWallet atomic.
+  - LƯU Ý: IsVerified vẫn = False! User chưa được tạo Policy hay List item.
+* Bước 4 (Financial Info - Link Bank Account):
+  - User nhập Routing Number + Account Number. Hệ thống sinh 2 micro-deposit ngẫu nhiên (0.01-0.99$).
+  - BankVerificationStatus = "Pending". User chờ 1-4 ngày.
+* Bước 5 (Verify Micro-Deposits):
+  - User nhập lại 2 số tiền micro-deposit. So khớp thành công → BankVerificationStatus = "Verified".
+  - NẾU IsIdentityVerified = True → set IsVerified = True + Seed Default Policies (Shipping, Return, Payment).
+  - Giới hạn 3 lần thử, sai quá → khóa.
+* Bước 6 (Go Live): Shop đã IsVerified = True. User có thể:
+  - Truy cập Business Policies (đã có 3 default policies được seed).
+  - Bắt đầu tạo Listing.
+  - MonthlyListingLimit mặc định = 250 sản phẩm/tháng cho free tier.
 2. Luồng Quản lý Hồ sơ & Trạng thái hoạt động (Store Profile & Context):
 * Chuyển đổi tài khoản (Switch Mode): Nút "Switch to Selling" cho phép User đang ở chế độ Buyer chuyển sang giao diện Dashboard của Seller (load lại UI kèm quyền Seller).
-* Cập nhật Hồ sơ Shop: Seller tải lên Banner, Avatar, sửa Tên Shop và Mô tả. (Ảnh được upload lên Cloud/S3, chỉ lưu URL vào DB).
-3. Luồng Thiết lập Chính sách (Policies):
-* Hành động: Seller tạo các chính sách dùng chung như ShippingPolicy (Chính sách giao hàng: phí ship, thời gian chuẩn bị) và ReturnPolicy (Chính sách trả hàng).
-* Mục đích: Khi đăng 100 sản phẩm, Seller chỉ cần chọn Policy thay vì nhập tay lại phí ship cho từng món.
+* Cập nhật Hồ sơ Shop: Seller tải lên Banner, Avatar, sửa Tên Shop và Mô tả.
+3. Luồng Thiết lập Chính sách Bắt buộc (Business Policies):
+Hàng hóa không được phép tự do nhập giá ship lẻ tẻ. Bắt buộc tạo kho Policy tập trung.
+* Payment Policy: Tạo policy yêu cầu thanh toán (vd: "Require immediate payment" để chống ngâm đơn).
+* Return Policy: Tạo policy cho phép trả hàng (14/30/60 ngày), ai chịu phí ship trả (Buyer/Free returns), tự động đồng ý trả hàng.
+* Shipping Policy: Tạo policy cài đặt Handling Time (vd: 1-3 ngày), loại hình ship (Flat, Calculated, Freight), Dịch vụ ship (USPS, UPS, FedEx). Gồm cả tuỳ chọn bật eBay International Shipping (EIS).
 ________________
 
 
-PHẦN 2: LUỒNG QUẢN LÝ NGUỒN CUNG (LISTING & INVENTORY FLOW)
-Nơi Seller quản lý hàng hóa hiển thị trên sàn.
+PHẦN 2: LUỒNG QUẢN LÝ NGUỒN CUNG (LISTING & INVENTORY FLOW - CHUẨN EBAY 2024)
+Nơi Seller quản lý hàng hóa hiển thị trên sàn. Quá trình chia làm 6 bước cực đoan.
 1. Luồng Đăng bán Sản phẩm (Create Listing):
-* Bước 1: Chọn Danh mục (CategoryId). Hệ thống load các thuộc tính gợi ý (ví dụ: Điện thoại -> RAM, Bộ nhớ).
-* Bước 2: Nhập thông tin chung (Tên, Mô tả, Hãng) -> Lưu vào bảng Products.
-* Bước 3 (Upload Ảnh): Kéo thả upload nhiều ảnh. Hệ thống lưu mảng URL ảnh, cho phép Seller chọn 1 ảnh làm ảnh bìa (Primary Image).
-* Bước 4 (Tạo Biến thể SKU): Seller tạo các phân loại (Màu Đỏ Size M, Màu Đỏ Size L). Nhập Giá (Price) và Số lượng tồn kho (Quantity) cho từng loại. Backend lưu dưới dạng JSON Attributes.
-* Bước 5: Gắn ShippingPolicyId và ReturnPolicyId. Bấm "Publish". Trạng thái chuyển thành ACTIVE.
+* Bước 1 (Find Match): Nhập từ khoá tìm sản phẩm mẫu trong Product Library. Nếu có, chọn "Sell one like this". Nếu không, chọn "Continue without match".
+* Bước 2 (Condition): Bắt buộc chọn Condition (New, Open box, Used, For parts...) qua Modal. Lưu vào biến thể sản phẩm.
+* Bước 3 (Complete Form): 
+   * Upload tối đa 24 ảnh và 1 video (Hỗ trợ kéo thả).
+   * Điền Title (80 ký tự), Subtitle.
+   * Cực kỳ quan trọng: Điền "Item Specifics" (Danh mục thuộc tính như Brand, Model, Color). Càng điền kỹ càng dễ lên top filter.
+   * Viết Description chân thực.
+* Bước 4 (Pricing & Format): Chọn Fixed Price (Mua ngay) hoặc Auction (Đấu giá 3-10 ngày). Cho phép bật "Allow Offers".
+* Bước 5 (Shipping & Policies): Chọn thả xuống 3 cái Policy (Payment, Return, Shipping) đã cài ở Phần 1. Nhập Package weight & dimensions.
+* Bước 6 (Publish): Bấm "List it". Trạng thái sản phẩm chuyển thành ACTIVE (hoặc SCHEDULED).
 2. Luồng Quản lý Danh sách Sản phẩm (Listing Maintenance):
-* Cập nhật Tồn kho (Restock): Seller vào sửa Quantity = Quantity + 50. (Tuyệt đối không đụng vào ReservedQuantity).
-* Chỉnh sửa (Edit): Cập nhật lại giá, mô tả. Lưu ý: Không làm ảnh hưởng đến giá của các đơn hàng cũ đã bán.
-* Tạm ẩn (Deactivate/Hide): Đổi Status = HIDDEN. Sản phẩm biến mất khỏi trang Buyer nhưng vẫn giữ trong hệ thống kho của Seller.
-* Xóa (Soft Delete): Đổi IsDeleted = True. Không dùng lệnh DELETE SQL để bảo toàn hóa đơn cũ.
+* Cập nhật Tồn kho (Restock): Seller vào sửa Quantity. (Hệ thống tuyệt đối không bù trừ vào ReservedQuantity của đơn hàng đang treo).
+* Tạo Biến thể (Variants): Từ danh mục cha, tạo các SKU con (Ví dụ: Áo có Size S/M/L) với giá, ảnh và số lượng riêng. Lưu dưới DB dạng JSON/List.
+* Tạm ẩn/Xóa (Hide/Delete): Đổi Status = HIDDEN, IsDeleted = True. Hệ thống cấm dùng Hard Delete bằng lệnh SQL DELETE để không phá vỡ Lịch sử Đơn hàng.
 ________________
 
 

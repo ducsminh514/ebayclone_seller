@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Products;
+using EbayClone.Shared.DTOs.Products;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Domain.Entities;
@@ -20,15 +20,18 @@ namespace EbayClone.Application.UseCases.Products
     {
         private readonly IProductRepository _productRepository;
         private readonly IShopRepository _shopRepository;
+        private readonly IPolicyRepository _policyRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateListingUseCase(
             IProductRepository productRepository,
             IShopRepository shopRepository,
+            IPolicyRepository policyRepository,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
             _shopRepository = shopRepository;
+            _policyRepository = policyRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -47,6 +50,28 @@ namespace EbayClone.Application.UseCases.Products
                         $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
             }
 
+            // Fallback to defaults if not provided
+            var shippingPolicyId = request.ShippingPolicyId;
+            if (shippingPolicyId == null)
+            {
+                var def = await _policyRepository.GetDefaultShippingPolicyAsync(shopId, cancellationToken);
+                shippingPolicyId = def?.Id;
+            }
+
+            var returnPolicyId = request.ReturnPolicyId;
+            if (returnPolicyId == null)
+            {
+                var def = await _policyRepository.GetDefaultReturnPolicyAsync(shopId, cancellationToken);
+                returnPolicyId = def?.Id;
+            }
+
+            var paymentPolicyId = request.PaymentPolicyId;
+            if (paymentPolicyId == null)
+            {
+                var def = await _policyRepository.GetDefaultPaymentPolicyAsync(shopId, cancellationToken);
+                paymentPolicyId = def?.Id;
+            }
+
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
             try
@@ -60,13 +85,14 @@ namespace EbayClone.Application.UseCases.Products
                 string? imageUrlsJson = request.ImageUrls != null && request.ImageUrls.Any()
                     ? JsonSerializer.Serialize(request.ImageUrls)
                     : null;
-
+ 
                 var product = new Product
                 {
                     ShopId = shopId,
                     CategoryId = request.CategoryId,
-                    ShippingPolicyId = request.ShippingPolicyId,
-                    ReturnPolicyId = request.ReturnPolicyId,
+                    ShippingPolicyId = shippingPolicyId,
+                    ReturnPolicyId = returnPolicyId,
+                    PaymentPolicyId = paymentPolicyId, // Added missing PaymentPolicyId mapping
                     Name = request.Name,
                     Description = request.Description,
                     Brand = request.Brand,

@@ -1,5 +1,5 @@
 @page "/inventory"
-@using EbayClone.Domain.Entities
+@using EbayClone.Shared.DTOs.Products
 @using EbayClone.Frontend.Services
 @inject ProductService ProductService
 @inject NavigationManager NavigationManager
@@ -212,7 +212,7 @@
 </div>
 
 @code {
-    private IEnumerable<Product>? products;
+    private IEnumerable<ProductDto>? products;
     private bool isLoading = true;
     private string? errorMessage;
 

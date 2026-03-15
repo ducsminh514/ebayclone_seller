@@ -24,6 +24,13 @@ namespace EbayClone.Infrastructure.Repositories
             await _context.Orders.AddAsync(order, cancellationToken);
         }
 
+        public async Task<Order?> GetByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrEmpty(idempotencyKey)) return null;
+            return await _context.Orders
+                .FirstOrDefaultAsync(o => o.IdempotencyKey == idempotencyKey, cancellationToken);
+        }
+
         public async Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Orders
@@ -42,9 +49,76 @@ namespace EbayClone.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<(IEnumerable<Order> Items, int TotalCount)> GetPagedOrdersByShopIdAsync(
+            Guid shopId, 
+            int pageNumber, 
+            int pageSize, 
+            string? status = null, 
+            string? searchQuery = null, 
+            CancellationToken cancellationToken = default)
+        {
+            var query = _context.Orders
+                .AsNoTracking()
+                .Where(o => o.ShopId == shopId);
+
+            if (!string.IsNullOrEmpty(status) && status != "ALL")
+            {
+                query = query.Where(o => o.Status == status);
+            }
+
+            if (!string.IsNullOrEmpty(searchQuery))
+            {
+                query = query.Where(o => o.OrderNumber.Contains(searchQuery) || o.Id.ToString().Contains(searchQuery));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+            
+            var items = await query
+                .Include(o => o.Items)
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
         public void Update(Order order)
         {
             _context.Orders.Update(order);
+        }
+
+        public async Task<int> CountByStatusAsync(Guid shopId, string status, CancellationToken cancellationToken = default)
+        {
+            return await _context.Orders
+                .Where(o => o.ShopId == shopId && o.Status == status)
+                .CountAsync(cancellationToken);
+        }
+
+        public async Task<int> CountTotalOrdersAsync(Guid shopId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Orders
+                .Where(o => o.ShopId == shopId && o.Status != "CANCELLED")
+                .CountAsync(cancellationToken);
+        }
+
+        public async Task<decimal> SumSalesAsync(Guid shopId, int days, CancellationToken cancellationToken = default)
+        {
+            var cutoffDate = DateTimeOffset.UtcNow.AddDays(-days);
+            return await _context.Orders
+                .Where(o => o.ShopId == shopId && (o.Status == "READY_TO_SHIP" || o.Status == "SHIPPED" || o.Status == "DELIVERED") && o.CreatedAt >= cutoffDate)
+                .SumAsync(o => o.TotalAmount, cancellationToken);
+        }
+        
+        public async Task<IEnumerable<Order>> GetOrdersEligibleForFundReleaseAsync(CancellationToken cancellationToken = default)
+        {
+            // eBay Policy: Release after 3-7 days. 
+            // For Demo/Dev: Release after 1 minute of DELIVERED status.
+            var cutoff = DateTimeOffset.UtcNow.AddMinutes(-1); 
+            
+            return await _context.Orders
+                .Where(o => o.Status == "DELIVERED" && o.CompletedAt <= cutoff && !o.IsEscrowReleased) 
+                .ToListAsync(cancellationToken);
         }
     }
 }

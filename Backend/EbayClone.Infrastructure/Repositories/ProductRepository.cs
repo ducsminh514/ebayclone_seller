@@ -37,6 +37,12 @@ namespace EbayClone.Infrastructure.Repositories
                                  .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
+        public async Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return await _context.Products
+                                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        }
+
         public async Task<IEnumerable<Product>> GetProductsByShopIdAsync(Guid shopId, CancellationToken cancellationToken = default)
         {
             // Fix N+1 Query Using AsSplitQuery
@@ -46,6 +52,14 @@ namespace EbayClone.Infrastructure.Repositories
                                  .Include(p => p.Variants)
                                  .AsSplitQuery()
                                  .ToListAsync(cancellationToken);
+        }
+
+        public async Task<int> GetCountByShopInCurrentMonthAsync(Guid shopId, CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var firstDayOfMonth = new DateTime(now.Year, now.Month, 1);
+            return await _context.Products
+                .CountAsync(p => p.ShopId == shopId && p.CreatedAt >= firstDayOfMonth, cancellationToken);
         }
 
         public async Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default)
@@ -109,6 +123,13 @@ namespace EbayClone.Infrastructure.Repositories
 
             return await _context.Products
                 .Where(p => p.ShopId == shopId && !p.IsDeleted && p.CreatedAt >= startOfMonthUtc)
+                .CountAsync(cancellationToken);
+        }
+
+        public async Task<int> CountByStatusAsync(Guid shopId, string status, CancellationToken cancellationToken = default)
+        {
+            return await _context.Products
+                .Where(p => p.ShopId == shopId && !p.IsDeleted && p.Status == status)
                 .CountAsync(cancellationToken);
         }
     }

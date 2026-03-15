@@ -1,19 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
+using EbayClone.Shared.DTOs.Orders;
+using EbayClone.Shared.DTOs.Products;
 
-// DTO from API side
 namespace EbayClone.Frontend.Services
 {
-    public class CreateBuyerTestOrderRequest
-    {
-        public Guid VariantId { get; set; }
-        public int Quantity { get; set; }
-        public string ReceiverInfo { get; set; } = string.Empty;
-    }
-
     public class BuyerService
     {
         private readonly HttpClient _httpClient;
@@ -23,15 +13,15 @@ namespace EbayClone.Frontend.Services
             _httpClient = httpClient;
         }
 
-        public async Task<IEnumerable<EbayClone.Domain.Entities.Product>> GetPublicProductsAsync()
+        public async Task<IEnumerable<ProductDto>> GetPublicProductsAsync()
         {
             var response = await _httpClient.GetAsync("api/testbuyer/products");
             if (response.IsSuccessStatusCode)
             {
-                var products = await response.Content.ReadFromJsonAsync<IEnumerable<EbayClone.Domain.Entities.Product>>();
-                return products ?? Array.Empty<EbayClone.Domain.Entities.Product>();
+                var products = await response.Content.ReadFromJsonAsync<IEnumerable<ProductDto>>();
+                return products ?? Array.Empty<ProductDto>();
             }
-            return Array.Empty<EbayClone.Domain.Entities.Product>();
+            return Array.Empty<ProductDto>();
         }
 
         public async Task<string> CheckoutAsync(CreateBuyerTestOrderRequest request)

@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Shops;
+using EbayClone.Shared.DTOs.Shops;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Domain.Entities;
@@ -38,7 +38,6 @@ namespace EbayClone.Application.UseCases.Shops
                 throw new InvalidOperationException("User already owns a shop.");
             }
 
-            // Bắt đầu THỰC THI ATOMIC TRANSACTION
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
             try
@@ -51,7 +50,7 @@ namespace EbayClone.Application.UseCases.Shops
                     Description = request.Description,
                     TaxCode = request.TaxCode,
                     Address = request.Address,
-                    IsVerified = true, // Tự động duyệt vì không có luồng Admin
+                    IsVerified = false, // Tự động duyệt vì không có luồng Admin
                     RatingAvg = 0.0m
                 };
 

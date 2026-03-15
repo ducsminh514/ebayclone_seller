@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Policies;
+using EbayClone.Shared.DTOs.Policies;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Domain.Entities;
@@ -46,9 +46,24 @@ namespace EbayClone.Application.UseCases.Policies
                 {
                     ShopId = shopId,
                     Name = request.Name,
-                    ReturnDays = request.ReturnDays,
-                    ShippingPaidBy = request.ShippingPaidBy
+                    Description = request.Description,
+                    
+                    IsDomesticAccepted = request.IsDomesticAccepted,
+                    DomesticReturnDays = request.DomesticReturnDays,
+                    DomesticShippingPaidBy = request.DomesticShippingPaidBy,
+
+                    IsInternationalAccepted = request.IsInternationalAccepted,
+                    InternationalReturnDays = request.InternationalReturnDays,
+                    InternationalShippingPaidBy = request.InternationalShippingPaidBy,
+                    
+                    IsDefault = request.IsDefault,
+                    IsArchived = false
                 };
+
+                if (policy.IsDefault)
+                {
+                    await _policyRepository.ClearDefaultReturnPolicyAsync(shopId, cancellationToken);
+                }
 
                 await _policyRepository.AddReturnPolicyAsync(policy, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);

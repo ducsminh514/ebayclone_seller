@@ -1,6 +1,6 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Auth;
+using EbayClone.Shared.DTOs.Auth;
 using EbayClone.Application.Interfaces.Repositories;
 
 namespace EbayClone.Application.UseCases.Auth

@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EbayClone.Application.DTOs.Products;
+using EbayClone.Shared.DTOs.Products;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 

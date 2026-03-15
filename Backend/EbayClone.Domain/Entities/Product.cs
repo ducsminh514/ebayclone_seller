@@ -10,6 +10,7 @@ namespace EbayClone.Domain.Entities
         public Guid CategoryId { get; set; }
         public Guid? ShippingPolicyId { get; set; }
         public Guid? ReturnPolicyId { get; set; }
+        public Guid? PaymentPolicyId { get; set; }
         
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
@@ -18,6 +19,7 @@ namespace EbayClone.Domain.Entities
         // Thời điểm hẹn giờ đăng bán (chỉ dùng khi Status = SCHEDULED)
         public DateTimeOffset? ScheduledAt { get; set; }
         public decimal? BasePrice { get; set; }
+        public string? ReferenceId { get; set; } // SKU or External Reference
         
         // Ảnh sản phẩm: 1 ảnh bìa + danh sách URL (lưu JSON)
         public string? PrimaryImageUrl { get; set; }
@@ -28,12 +30,17 @@ namespace EbayClone.Domain.Entities
         
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset? UpdatedAt { get; set; }
+        public string? LastModifiedBy { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Timestamp]
+        public byte[]? RowVersion { get; set; }
 
         // Navigation properties
         public Shop? Shop { get; set; }
         public Category? Category { get; set; }
         public ShippingPolicy? ShippingPolicy { get; set; }
         public ReturnPolicy? ReturnPolicy { get; set; }
+        public PaymentPolicy? PaymentPolicy { get; set; }
         public ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();
     }
 }

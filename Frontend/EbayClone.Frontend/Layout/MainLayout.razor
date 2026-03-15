@@ -1,4 +1,9 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="ebayTheme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
 
 <ShopGuard>
     <div class="ebay-layout">
@@ -13,3 +18,22 @@
         </div>
     </div>
 </ShopGuard>
+
+@code {
+    MudTheme ebayTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#0654BA",
+            Secondary = "#E5E5E5",
+            AppbarBackground = "#FFFFFF",
+            Background = "#FFFFFF",
+            DrawerBackground = "#FFFFFF",
+            DrawerText = "#111820",
+            TextPrimary = "#111820",
+            TextSecondary = "#707070",
+            Warning = "#E53238",
+            Success = "#137A20"
+        }
+    };
+}

@@ -25,6 +25,10 @@ namespace EbayClone.Domain.Entities
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset? UpdatedAt { get; set; }
+        public string? LastModifiedBy { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Timestamp]
+        public byte[]? RowVersion { get; set; }
 
         // Navigation
         public Product? Product { get; set; }

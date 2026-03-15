@@ -6,8 +6,12 @@ using EbayClone.Application.UseCases.Policies;
 using EbayClone.Application.UseCases.Products;
 using EbayClone.Application.UseCases.Auth;
 using EbayClone.Application.UseCases.Orders;
+using EbayClone.Application.UseCases.Dashboard;
+using EbayClone.Application.UseCases.Finance;
+
 using EbayClone.Infrastructure.Repositories;
 using EbayClone.Infrastructure.Services;
+using EbayClone.Application.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
@@ -31,33 +35,46 @@ builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IDefaultPolicySeeder, DefaultPolicySeeder>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<ICreateShopUseCase, CreateShopUseCase>();
+builder.Services.AddScoped<IVerifyShopOtpUseCase, VerifyShopOtpUseCase>();
+builder.Services.AddScoped<ILinkBankAccountUseCase, LinkBankAccountUseCase>();
+builder.Services.AddScoped<IVerifyMicroDepositUseCase, VerifyMicroDepositUseCase>();
 builder.Services.AddScoped<IApproveShopUseCase, ApproveShopUseCase>();
+builder.Services.AddScoped<IUpdateShopProfileUseCase, UpdateShopProfileUseCase>();
 builder.Services.AddScoped<ICreateShippingPolicyUseCase, CreateShippingPolicyUseCase>();
 builder.Services.AddScoped<ICreateReturnPolicyUseCase, CreateReturnPolicyUseCase>();
+builder.Services.AddScoped<ICreatePaymentPolicyUseCase, CreatePaymentPolicyUseCase>();
 builder.Services.AddScoped<ICreateListingUseCase, CreateListingUseCase>();
 builder.Services.AddScoped<IRestockVariantUseCase, RestockVariantUseCase>();
 builder.Services.AddScoped<IGetProductsUseCase, GetProductsUseCase>();
 builder.Services.AddScoped<IGetProductByIdUseCase, GetProductByIdUseCase>();
 builder.Services.AddScoped<IUpdateProductBasicUseCase, UpdateProductBasicUseCase>();
 builder.Services.AddScoped<IUpdateProductVariantsUseCase, UpdateProductVariantsUseCase>();
+builder.Services.AddScoped<IUpdateFullProductUseCase, UpdateFullProductUseCase>();
 builder.Services.AddScoped<IUpdateProductStatusUseCase, UpdateProductStatusUseCase>();
 builder.Services.AddScoped<ISoftDeleteProductUseCase, SoftDeleteProductUseCase>();
 builder.Services.AddScoped<IGetShippingPoliciesUseCase, GetShippingPoliciesUseCase>();
 builder.Services.AddScoped<IGetReturnPoliciesUseCase, GetReturnPoliciesUseCase>();
+builder.Services.AddScoped<IGetPaymentPoliciesUseCase, GetPaymentPoliciesUseCase>();
+builder.Services.AddScoped<IDeletePolicyUseCase, DeletePolicyUseCase>();
+builder.Services.AddScoped<ISetDefaultPolicyUseCase, SetDefaultPolicyUseCase>();
 builder.Services.AddScoped<IUpdateOrderStatusUseCase, UpdateOrderStatusUseCase>();
 builder.Services.AddScoped<IGetOrdersUseCase, GetOrdersUseCase>();
 builder.Services.AddScoped<IGetOrderByIdUseCase, GetOrderByIdUseCase>();
 builder.Services.AddScoped<ICreateTestOrderUseCase, CreateTestOrderUseCase>();
+builder.Services.AddScoped<IReleaseFundsUseCase, ReleaseFundsUseCase>();
 builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
 builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
+builder.Services.AddScoped<IGetDashboardStatsUseCase, GetDashboardStatsUseCase>();
 
 // Background Service: tự động kích hoạt sản phẩm SCHEDULED → ACTIVE khi đến giờ
 builder.Services.AddHostedService<EbayClone.API.BackgroundServices.ScheduledListingActivatorService>();
 builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
+builder.Services.AddScoped<IGetSellerFinanceUseCase, GetSellerFinanceUseCase>();
 
 // Cấu hình JWT Authentication
 builder.Services.AddAuthentication(options =>
@@ -73,8 +90,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "http://localhost:7094",
-        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "http://localhost:7011",
+        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "https://localhost:5072",
+        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "https://localhost:5071",
         IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "superSecretKey@345EbayClone@Authentication123!")),
         RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
@@ -130,6 +147,14 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
+    // Policy cho Business Policies: 5 request/phút (Chống spam tạo/sửa)
+    options.AddFixedWindowLimiter("strict_policy", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
     // HTTP 429 khi vượt giới hạn
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
@@ -144,7 +169,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll",
         policy =>
         {
-            policy.WithOrigins("https://localhost:7011", "http://localhost:5070") // Port của Frontend
+            policy.WithOrigins("https://localhost:5071", "http://localhost:5070") // Port của Frontend
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });

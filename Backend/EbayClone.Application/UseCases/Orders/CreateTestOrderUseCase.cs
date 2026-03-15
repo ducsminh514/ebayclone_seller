@@ -3,19 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EbayClone.Shared.DTOs.Orders;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Domain.Entities;
 
 namespace EbayClone.Application.UseCases.Orders
 {
-    // DTO cho Test Buyer Order
-    public class CreateBuyerTestOrderRequest
-    {
-        public Guid VariantId { get; set; }
-        public int Quantity { get; set; }
-        public string ReceiverInfo { get; set; } = string.Empty;
-    }
 
     public interface ICreateTestOrderUseCase
     {
@@ -43,6 +37,14 @@ namespace EbayClone.Application.UseCases.Orders
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
             try
             {
+                // 0. Check Idempotency (eBay Standard) - INSIDE Transaction to prevent Race Condition
+                var existingOrder = await _orderRepository.GetByIdempotencyKeyAsync(request.IdempotencyKey, cancellationToken);
+                if (existingOrder != null) 
+                {
+                    await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+                    return existingOrder.Id;
+                }
+
                 var variant = await _productRepository.GetVariantByIdAsync(request.VariantId, cancellationToken);
                 if (variant == null)
                     throw new ArgumentException("Variant not found");
@@ -59,14 +61,19 @@ namespace EbayClone.Application.UseCases.Orders
                 }
 
                 // 2. Tạo đối tượng Order
+                // FIX Lỗi 3: Sử dụng Guid Part + Timestamp để đảm bảo duy nhất tuyệt đối
+                var shortGuid = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
+                var timestamp = DateTime.UtcNow.ToString("yyMMddHHmm");
+
                 var newOrder = new Order
                 {
-                    OrderNumber = "TESTORD" + DateTime.UtcNow.Ticks.ToString().Substring(8),
+                    OrderNumber = $"ORD-{timestamp}-{shortGuid}",
+                    IdempotencyKey = request.IdempotencyKey,
                     ShopId = product.ShopId,
                     BuyerId = buyerId,
                     ReceiverInfo = request.ReceiverInfo,
-                    ShippingFee = 30000, // Gia lap phí ship tĩnh do test
-                    PlatformFee = 5000,  // Phí sàn tĩnh do test
+                    ShippingFee = 30000, 
+                    PlatformFee = 0      
                 };
 
                 // 3. Tạo Order Item

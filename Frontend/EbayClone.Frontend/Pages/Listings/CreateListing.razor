@@ -1,6 +1,6 @@
-@page "/listings/create"
-@using EbayClone.Application.DTOs.Products
-@using EbayClone.Application.DTOs.Policies
+﻿@page "/listings/create"
+@using EbayClone.Shared.DTOs.Products
+@using EbayClone.Shared.DTOs.Policies
 @using EbayClone.Frontend.Services
 @using Microsoft.AspNetCore.Components.Forms
 @inject ProductService ProductService
@@ -93,25 +93,24 @@
                         </div>
                         <div class="mt-2 text-muted" style="font-size: 12px;">✅ Đã có ảnh bìa. Bấm ✕ để xóa và chọn ảnh khác.</div>
                     }
-                    else if (isUploadingPrimary)
+                    @if (isUploadingPrimary)
                     {
-                        <div class="my-3">
+                        <div class="upload-loading-overlay" style="position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 3;">
                             <div class="spinner-border text-primary" role="status"></div>
                             <div class="text-muted mt-2">Đang tải ảnh lên...</div>
                         </div>
                     }
-                    else
+
+                    <InputFile OnChange="UploadPrimaryImage" accept="image/*" 
+                               style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; z-index: 2; display: {(isUploadingPrimary ? "none" : "block")}")" />
+                    
+                    @if (string.IsNullOrEmpty(request.PrimaryImageUrl))
                     {
-                        <div class="my-2">
+                        <div class="my-2" style="display: @(isUploadingPrimary ? "none" : "block")">
                             <span style="font-size: 36px;">📷</span>
                             <div class="mt-2 fw-bold">Kéo thả ảnh vào đây hoặc</div>
                             <div class="text-muted" style="font-size: 12px;">JPG, PNG, WEBP — Tối đa 10MB</div>
                         </div>
-                    }
-
-                    @if (!isUploadingPrimary && string.IsNullOrEmpty(request.PrimaryImageUrl))
-                    {
-                        <InputFile OnChange="UploadPrimaryImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
                     }
                 </div>
             </div>
@@ -139,11 +138,11 @@
                             {
                                 <div class="spinner-border spinner-border-sm text-primary"></div>
                             }
-                            else
-                            {
-                                <span style="font-size: 24px; color: #aaa;">+</span>
-                                <InputFile OnChange="UploadExtraImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
-                            }
+
+                            @* Luôn giữ InputFile *@
+                            <span style="font-size: 24px; color: #aaa; display: @(isUploadingExtra ? "none" : "block")">+</span>
+                            <InputFile OnChange="UploadExtraImage" accept="image/*" 
+                                       style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; display: {(isUploadingExtra ? "none" : "block")}")" />
                         </div>
                     }
                 </div>
@@ -204,16 +203,17 @@
                                     <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.4); text-align: center; cursor: pointer; font-size: 10px; color: white; padding: 2px;"
                                          @onclick="() => variant.ImageUrl = null">Xóa</div>
                                 }
-                                else if (uploadingVariants.Contains(variant))
+                                @if (uploadingVariants.Contains(variant))
                                 {
                                     <div class="spinner-border spinner-border-sm text-primary"></div>
                                 }
-                                else
-                                {
+                                
+                                @* Luôn giữ InputFile *@
+                                <div style="display: @(uploadingVariants.Contains(variant) ? "none" : "flex"); align-items: center; justify-content: center; width: 100%; height: 100%;">
                                     <span style="font-size: 20px; color: #aaa;">📷</span>
                                     <InputFile OnChange="(e) => UploadVariantImage(e, variant)" accept="image/*"
                                                style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
-                                }
+                                </div>
                             </div>
                         </div>
 

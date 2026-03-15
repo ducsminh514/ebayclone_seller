@@ -1,5 +1,5 @@
 @page "/listings"
-@using EbayClone.Domain.Entities
+@using EbayClone.Shared.DTOs.Products
 @using EbayClone.Frontend.Services
 @inject ProductService ProductService
 @inject NavigationManager NavigationManager
@@ -209,7 +209,7 @@
 }
 
 @code {
-    private IEnumerable<Product>? products;
+    private IEnumerable<ProductDto>? products;
     private bool isLoading = true;
     private string? errorMessage;
     private string? successMessage;
@@ -217,11 +217,11 @@
     private Guid? updatingStatusProductId = null;
     private Guid? deletingProductId = null;
 
-    private IEnumerable<Product> FilteredProducts
+    private IEnumerable<ProductDto> FilteredProducts
     {
         get
         {
-            if (products == null) return new List<Product>();
+            if (products == null) return new List<ProductDto>();
 
             return products.Where(p =>
             {
@@ -241,7 +241,7 @@
     }
 
     // ─── State hẹn giờ modal ───
-    private Product? scheduleModalProduct = null;
+    private ProductDto? scheduleModalProduct = null;
     private string scheduledAtInput = string.Empty;
     private string minScheduleTime => DateTime.Now.AddMinutes(5).ToString("yyyy-MM-ddTHH:mm");
     private bool isConfirmingSchedule = false;
@@ -250,7 +250,7 @@
     private void OnScheduleInputChanged(ChangeEventArgs e)
         => scheduledAtInput = e.Value?.ToString() ?? string.Empty;
 
-    private void OpenScheduleModal(Product product)
+    private void OpenScheduleModal(ProductDto product)
     {
         scheduleModalProduct = product;
         scheduledAtInput = DateTime.Now.AddHours(1).ToString("yyyy-MM-ddTHH:mm"); // Mặc định 1 giờ sau
@@ -299,7 +299,7 @@
         }
     }
 
-    private async Task ChangeProductStatus(Product product, string newStatus)
+    private async Task ChangeProductStatus(ProductDto product, string newStatus)
     {
         updatingStatusProductId = product.Id;
         errorMessage = null;
@@ -321,7 +321,7 @@
         }
     }
 
-    private async Task SoftDeleteProduct(Product product)
+    private async Task SoftDeleteProduct(ProductDto product)
     {
         // Confirm trước khi xóa để tránh bấm nhầm
         var confirmed = await JS.InvokeAsync<bool>("confirm",
