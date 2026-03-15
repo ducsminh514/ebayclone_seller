@@ -24,6 +24,9 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<ShopAnalyticsDaily> ShopAnalyticsDaily { get; set; }
         public DbSet<Review> Reviews { get; set; }
         public DbSet<ProductViewLog> ProductViewLogs { get; set; }
+        public DbSet<VariantAttributeValue> VariantAttributeValues { get; set; }
+        public DbSet<CategoryItemSpecific> CategoryItemSpecifics { get; set; }
+        public DbSet<ProductItemSpecific> ProductItemSpecifics { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -66,6 +69,8 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.TotalShippingPolicies).HasDefaultValue(0);
                 entity.Property(e => e.TotalReturnPolicies).HasDefaultValue(0);
                 entity.Property(e => e.TotalPaymentPolicies).HasDefaultValue(0);
+                entity.Property(e => e.MicroDepositAmount1).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.MicroDepositAmount2).HasColumnType("decimal(18, 2)");
             });
 
             // ShippingPolicies
@@ -73,6 +78,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.HasIndex(e => e.ShopId);
                 entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.Description).HasMaxLength(250);
+                entity.Property(e => e.PackageWeightOz).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
 
@@ -83,6 +89,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Description).HasMaxLength(250);
                 entity.Property(e => e.DomesticShippingPaidBy).HasMaxLength(20);
                 entity.Property(e => e.InternationalShippingPaidBy).HasMaxLength(20);
+                entity.Property(e => e.RestockingFeePercent).HasColumnType("decimal(5, 2)");
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
 
@@ -97,7 +104,13 @@ namespace EbayClone.Infrastructure.Data
             // Products
             modelBuilder.Entity<Product>(entity => {
                 entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
+                entity.Property(e => e.Subtitle).HasMaxLength(80);
                 entity.Property(e => e.Brand).HasMaxLength(100);
+                entity.Property(e => e.Condition).HasMaxLength(50).HasDefaultValue("New");
+                entity.Property(e => e.ConditionDescription).HasMaxLength(500);
+                entity.Property(e => e.ListingFormat).HasMaxLength(20).HasDefaultValue("FIXED_PRICE");
+                entity.Property(e => e.AutoAcceptPrice).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.AutoDeclinePrice).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("DRAFT");
                 entity.Property(e => e.BasePrice).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.PrimaryImageUrl).HasMaxLength(500);
@@ -109,6 +122,7 @@ namespace EbayClone.Infrastructure.Data
                 // Indexes cho Performance & Scalability
                 entity.HasIndex(e => e.ShopId);
                 entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => new { e.ShopId, e.Status }); // [A6] Composite index cho filter by shop + status
                 entity.HasIndex(e => e.ScheduledAt);
 
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
@@ -117,12 +131,44 @@ namespace EbayClone.Infrastructure.Data
             // ProductVariants
             modelBuilder.Entity<ProductVariant>(entity => {
                 entity.HasIndex(e => e.SkuCode);
+                entity.HasOne(e => e.Product).WithMany(p => p.Variants).HasForeignKey(e => e.ProductId).IsRequired(false);
                 entity.Property(e => e.SkuCode).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.Price).HasColumnType("decimal(18, 2)");
                 // Computed Column mapping
                 entity.Property(e => e.AvailableStock).HasComputedColumnSql("[Quantity] - [ReservedQuantity]", stored: false);
 
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
+            });
+
+            // [A1] VariantAttributeValues — relational cho query/filter
+            modelBuilder.Entity<VariantAttributeValue>(entity => {
+                entity.HasOne(e => e.Variant)
+                      .WithMany(v => v.AttributeValues)
+                      .HasForeignKey(e => e.VariantId);
+                entity.Property(e => e.AttributeName).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.AttributeValue).HasMaxLength(200).IsRequired();
+                entity.HasIndex(e => new { e.VariantId, e.AttributeName }).IsUnique();
+                entity.HasIndex(e => e.AttributeName); // Index cho filter queries
+            });
+
+            // [A5] CategoryItemSpecifics — Required/Recommended per category
+            modelBuilder.Entity<CategoryItemSpecific>(entity => {
+                entity.HasOne(e => e.Category)
+                      .WithMany(c => c.ItemSpecifics)
+                      .HasForeignKey(e => e.CategoryId);
+                entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.Requirement).HasMaxLength(20).HasDefaultValue("RECOMMENDED");
+                entity.HasIndex(e => new { e.CategoryId, e.Name }).IsUnique();
+            });
+
+            // [A5] ProductItemSpecifics — giá trị seller nhập cho sản phẩm
+            modelBuilder.Entity<ProductItemSpecific>(entity => {
+                entity.HasOne(e => e.Product)
+                      .WithMany(p => p.ItemSpecifics)
+                      .HasForeignKey(e => e.ProductId);
+                entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+                entity.Property(e => e.Value).HasMaxLength(500).IsRequired();
+                entity.HasIndex(e => new { e.ProductId, e.Name }).IsUnique();
             });
 
             // Orders
@@ -149,6 +195,7 @@ namespace EbayClone.Infrastructure.Data
 
             // OrderItems
             modelBuilder.Entity<OrderItem>(entity => {
+                entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).IsRequired(false);
                 entity.Property(e => e.ProductNameSnapshot).HasMaxLength(255);
                 entity.Property(e => e.PriceAtPurchase).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.TotalLineAmount).HasColumnType("decimal(18, 2)")
@@ -189,7 +236,13 @@ namespace EbayClone.Infrastructure.Data
 
             // ProductViewLogs
             modelBuilder.Entity<ProductViewLog>(entity => {
+                entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).IsRequired(false);
                 entity.Property(e => e.ViewerIP).HasMaxLength(50);
+            });
+
+            // Reviews
+            modelBuilder.Entity<Review>(entity => {
+                entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).IsRequired(false);
             });
 
             // Prevent SQL Server multiple cascade path errors

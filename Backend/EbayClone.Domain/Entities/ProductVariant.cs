@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace EbayClone.Domain.Entities
 {
@@ -10,7 +11,8 @@ namespace EbayClone.Domain.Entities
         public string SkuCode { get; set; } = string.Empty;
         public decimal Price { get; set; }
         
-        // Attributes JSON string
+        // [A1] Giữ JSON snapshot cho quick read (denormalized)
+        // Query/filter dùng AttributeValues relational collection bên dưới
         public string? Attributes { get; set; }
         
         // Inventory
@@ -32,6 +34,7 @@ namespace EbayClone.Domain.Entities
 
         // Navigation
         public Product? Product { get; set; }
+        public ICollection<VariantAttributeValue> AttributeValues { get; set; } = new List<VariantAttributeValue>();
         
         /// <summary>
         /// Domain Logic: Chống bán lố (Overselling)

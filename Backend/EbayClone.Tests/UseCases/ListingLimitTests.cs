@@ -14,12 +14,14 @@ namespace EbayClone.Tests.UseCases
     {
         private readonly Mock<IProductRepository> _productRepositoryMock;
         private readonly Mock<IShopRepository> _shopRepositoryMock;
+        private readonly Mock<IPolicyRepository> _policyRepositoryMock;
         private readonly Mock<IUnitOfWork> _unitOfWorkMock;
 
         public ListingLimitTests()
         {
             _productRepositoryMock = new Mock<IProductRepository>();
             _shopRepositoryMock = new Mock<IShopRepository>();
+            _policyRepositoryMock = new Mock<IPolicyRepository>();
             _unitOfWorkMock = new Mock<IUnitOfWork>();
         }
 
@@ -37,6 +39,7 @@ namespace EbayClone.Tests.UseCases
             var useCase = new CreateListingUseCase(
                 _productRepositoryMock.Object,
                 _shopRepositoryMock.Object,
+                _policyRepositoryMock.Object,
                 _unitOfWorkMock.Object);
 
             var request = new CreateListingRequest 
