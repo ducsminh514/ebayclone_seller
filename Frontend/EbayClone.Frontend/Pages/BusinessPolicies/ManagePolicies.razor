@@ -1,0 +1,218 @@
+@page "/bp/manage"
+@using EbayClone.Shared.DTOs.Policies
+@using EbayClone.Frontend.Services
+@using MudBlazor
+@inject PolicyService PolicyService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Business Policies - Ebay Seller Hub</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-6 mb-16">
+    <MudGrid Justify="Justify.SpaceBetween" Class="mb-6 align-center">
+        <MudItem>
+            <MudText Typo="Typo.h4" Style="font-weight: 900; color: #111820; font-family: 'Times New Roman', serif;">Business policies</MudText>
+            <MudText Typo="Typo.body2" Class="mt-1" Style="color: #707070;">
+                Review and manage your shipping, return, and payment terms across your listings.
+            </MudText>
+        </MudItem>
+        <MudItem>
+            <MudMenu Label="Create policy" Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.KeyboardArrowDown" Style="border-radius: 999px; font-weight: bold; text-transform: none; background-color: #3665F3; color: white;" Class="px-6 py-2">
+                <MudMenuItem OnClick="@(() => Navigation.NavigateTo("/bp/rtn/create"))">Return</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Navigation.NavigateTo("/bp/shp/create"))">Shipping</MudMenuItem>
+                <MudMenuItem OnClick="@(() => Navigation.NavigateTo("/bp/pmt/create"))">Payment</MudMenuItem>
+            </MudMenu>
+        </MudItem>
+    </MudGrid>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-6" />
+    }
+
+    @* Delete Confirmation Banner *@
+    @if (_pendingDelete != null)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="() => _pendingDelete = null">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudText>Delete "@_pendingDeleteName"? This cannot be undone.</MudText>
+                <MudButton OnClick="ConfirmDelete" Variant="Variant.Filled" Color="Color.Error" Size="Size.Small" Style="border-radius: 999px;">Confirm Delete</MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pt-6 px-0" Centered="false" SliderColor="Color.Primary">
+        <MudTabPanel Text="Shipping" Style="text-transform: none; font-weight: bold;">
+            <MudDataGrid T="ShippingPolicyDto" Items="@_shippingPolicies" Virtualize="true" FixedHeader="true" Height="500px" Bordered="false" Striped="false" Hover="true" Elevation="0" Class="rounded-lg border">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Policy name" />
+                    <PropertyColumn Property="x => x.HandlingTimeDays" Title="Handling time" />
+                    <PropertyColumn Property="x => x.DomesticCostType" Title="Type" />
+                    <TemplateColumn Title="Status">
+                        <CellTemplate>
+                            @if (context.Item.IsDefault)
+                            {
+                                <MudChip Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Style="font-weight: bold; font-size: 11px;">DEFAULT</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Actions" HeaderStyle="width: 120px;">
+                        <CellTemplate>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
+                                @if (!context.Item.IsDefault)
+                                {
+                                    <MudMenuItem OnClick="@(() => SetDefault("shipping", context.Item.Id))">Set as default</MudMenuItem>
+                                }
+                                <MudMenuItem OnClick="@(() => RequestDelete("shipping", context.Item.Id, context.Item.Name))">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Return" Style="text-transform: none; font-weight: bold;">
+            <MudDataGrid T="ReturnPolicyDto" Items="@_returnPolicies" Virtualize="true" FixedHeader="true" Height="500px" Bordered="false" Striped="false" Hover="true" Elevation="0" Class="rounded-lg border">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Policy name" />
+                    <PropertyColumn Property="x => x.DomesticReturnDays" Title="Window" />
+                    <PropertyColumn Property="x => x.DomesticShippingPaidBy" Title="Paid by" />
+                    <TemplateColumn Title="Status">
+                        <CellTemplate>
+                            @if (context.Item.IsDefault)
+                            {
+                                <MudChip Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Style="font-weight: bold; font-size: 11px;">DEFAULT</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Actions" HeaderStyle="width: 120px;">
+                        <CellTemplate>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
+                                @if (!context.Item.IsDefault)
+                                {
+                                    <MudMenuItem OnClick="@(() => SetDefault("return", context.Item.Id))">Set as default</MudMenuItem>
+                                }
+                                <MudMenuItem OnClick="@(() => RequestDelete("return", context.Item.Id, context.Item.Name))">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Payment" Style="text-transform: none; font-weight: bold;">
+            <MudDataGrid T="PaymentPolicyDto" Items="@_paymentPolicies" Virtualize="true" FixedHeader="true" Height="500px" Bordered="false" Striped="false" Hover="true" Elevation="0" Class="rounded-lg border">
+                <Columns>
+                    <PropertyColumn Property="x => x.Name" Title="Policy name" />
+                    <PropertyColumn Property="x => x.PaymentMethod" Title="Method" />
+                    <TemplateColumn Title="Immediate pay">
+                        <CellTemplate>
+                            @if (context.Item.ImmediatePaymentRequired)
+                            {
+                                <MudChip Size="Size.Small" Color="Color.Info" Variant="Variant.Filled" Style="font-weight: bold; font-size: 11px;">REQUIRED</MudChip>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2">@context.Item.DaysToPayment days</MudText>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Status">
+                        <CellTemplate>
+                            @if (context.Item.IsDefault)
+                            {
+                                <MudChip Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Style="font-weight: bold; font-size: 11px;">DEFAULT</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn Title="Actions" HeaderStyle="width: 120px;">
+                        <CellTemplate>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" AnchorOrigin="Origin.BottomRight">
+                                @if (!context.Item.IsDefault)
+                                {
+                                    <MudMenuItem OnClick="@(() => SetDefault("payment", context.Item.Id))">Set as default</MudMenuItem>
+                                }
+                                <MudMenuItem OnClick="@(() => RequestDelete("payment", context.Item.Id, context.Item.Name))">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        </MudTabPanel>
+    </MudTabs>
+</MudContainer>
+
+@code {
+    private IEnumerable<ShippingPolicyDto>? _shippingPolicies;
+    private IEnumerable<ReturnPolicyDto>? _returnPolicies;
+    private IEnumerable<PaymentPolicyDto>? _paymentPolicies;
+    private bool _loading = true;
+
+    private (string type, Guid id)? _pendingDelete;
+    private string _pendingDeleteName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            _loading = true;
+            _shippingPolicies = await PolicyService.GetShippingPoliciesAsync();
+            _returnPolicies = await PolicyService.GetReturnPoliciesAsync();
+            _paymentPolicies = await PolicyService.GetPaymentPoliciesAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading policies: {ex.Message}", Severity.Error);
+            _shippingPolicies ??= Array.Empty<ShippingPolicyDto>();
+            _returnPolicies ??= Array.Empty<ReturnPolicyDto>();
+            _paymentPolicies ??= Array.Empty<PaymentPolicyDto>();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void RequestDelete(string type, Guid id, string name)
+    {
+        _pendingDelete = (type, id);
+        _pendingDeleteName = name;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_pendingDelete == null) return;
+        var (type, id) = _pendingDelete.Value;
+        try
+        {
+            var message = await PolicyService.DeletePolicyAsync(type, id);
+            Snackbar.Add(message, Severity.Success);
+            _pendingDelete = null;
+            _pendingDeleteName = string.Empty;
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SetDefault(string type, Guid id)
+    {
+        try
+        {
+            var message = await PolicyService.SetDefaultPolicyAsync(type, id);
+            Snackbar.Add(message, Severity.Success);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+}

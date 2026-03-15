@@ -1,0 +1,40 @@
+@inherits LayoutComponentBase
+@using MudBlazor
+
+<MudThemeProvider Theme="_ebayTheme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudPopoverProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Style="background-color: white; border-bottom: 1px solid #E5E5E5;" Dense="true">
+        <!-- Minimal Header -->
+        <MudText Typo="Typo.h5" Style="font-weight: 900; color: #E53238; letter-spacing: -1px; margin-right: 2px;">e</MudText>
+        <MudText Typo="Typo.h5" Style="font-weight: 900; color: #0064D2; letter-spacing: -1px; margin-right: 2px;">b</MudText>
+        <MudText Typo="Typo.h5" Style="font-weight: 900; color: #F5AF02; letter-spacing: -1px; margin-right: 2px;">a</MudText>
+        <MudText Typo="Typo.h5" Style="font-weight: 900; color: #86B817; letter-spacing: -1px;">y</MudText>
+        <MudSpacer />
+        @* Có thể nhét Avatar hoặc nút Menu phụ ở đây nếu cần *@
+    </MudAppBar>
+    
+    <MudMainContent Class="pt-8 pb-16" Style="background-color: white; min-height: 100vh;">
+        <MudContainer MaxWidth="MaxWidth.Medium">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private MudTheme _ebayTheme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#3665F3", // Xanh dương tươi hơn, chuẩn thiết kế eBay 2024
+            Background = "#FFFFFF",
+            AppbarBackground = "#FFFFFF",
+            AppbarText = "#111820",
+            TextPrimary = "#111820",
+            TextSecondary = "#707070"
+        }
+    };
+}
