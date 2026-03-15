@@ -18,7 +18,15 @@ namespace EbayClone.Frontend.Services
             
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadFromJsonAsync<DashboardStatsDto>() ?? throw new InvalidOperationException("Failed to decode dashboard stats.");
+                return await response.Content.ReadFromJsonAsync<DashboardStatsDto>() ?? new DashboardStatsDto();
+            }
+
+            // 401/403: User chưa đăng nhập hoặc token hết hạn → trả DTO rỗng thay vì crash
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                Console.WriteLine("Dashboard: User not authenticated, returning empty stats.");
+                return new DashboardStatsDto();
             }
             
             var errorContent = await response.Content.ReadAsStringAsync();

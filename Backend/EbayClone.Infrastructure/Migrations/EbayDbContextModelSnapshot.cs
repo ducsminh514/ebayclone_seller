@@ -54,6 +54,41 @@ namespace EbayClone.Infrastructure.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("EbayClone.Domain.Entities.CategoryItemSpecific", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Requirement")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("RECOMMENDED");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SuggestedValues")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("CategoryItemSpecifics");
+                });
+
             modelBuilder.Entity("EbayClone.Domain.Entities.FileEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -267,6 +302,15 @@ namespace EbayClone.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("AllowOffers")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("AutoAcceptPrice")
+                        .HasColumnType("decimal(18, 2)");
+
+                    b.Property<decimal?>("AutoDeclinePrice")
+                        .HasColumnType("decimal(18, 2)");
+
                     b.Property<decimal?>("BasePrice")
                         .HasColumnType("decimal(18, 2)");
 
@@ -276,6 +320,17 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Condition")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("New");
+
+                    b.Property<string>("ConditionDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -293,6 +348,13 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.Property<string>("LastModifiedBy")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ListingFormat")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("FIXED_PRICE");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -333,6 +395,10 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("DRAFT");
 
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -352,7 +418,36 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("ShopId", "Status");
+
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("EbayClone.Domain.Entities.ProductItemSpecific", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ProductItemSpecifics");
                 });
 
             modelBuilder.Entity("EbayClone.Domain.Entities.ProductVariant", b =>
@@ -493,7 +588,7 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<decimal>("RestockingFeePercent")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(5, 2)");
 
                     b.Property<string>("ReturnAddressJson")
                         .HasColumnType("nvarchar(max)");
@@ -653,7 +748,7 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("PackageWeightOz")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18, 2)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -725,10 +820,10 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasDefaultValue(false);
 
                     b.Property<decimal>("MicroDepositAmount1")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18, 2)");
 
                     b.Property<decimal>("MicroDepositAmount2")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18, 2)");
 
                     b.Property<int>("MonthlyListingLimit")
                         .HasColumnType("int");
@@ -854,6 +949,35 @@ namespace EbayClone.Infrastructure.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("EbayClone.Domain.Entities.VariantAttributeValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AttributeName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AttributeValue")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("VariantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttributeName");
+
+                    b.HasIndex("VariantId", "AttributeName")
+                        .IsUnique();
+
+                    b.ToTable("VariantAttributeValues");
+                });
+
             modelBuilder.Entity("EbayClone.Domain.Entities.Voucher", b =>
                 {
                     b.Property<Guid>("Id")
@@ -966,6 +1090,17 @@ namespace EbayClone.Infrastructure.Migrations
                     b.Navigation("Parent");
                 });
 
+            modelBuilder.Entity("EbayClone.Domain.Entities.CategoryItemSpecific", b =>
+                {
+                    b.HasOne("EbayClone.Domain.Entities.Category", "Category")
+                        .WithMany("ItemSpecifics")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("EbayClone.Domain.Entities.FileEntity", b =>
                 {
                     b.HasOne("EbayClone.Domain.Entities.User", "Owner")
@@ -1006,9 +1141,7 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.HasOne("EbayClone.Domain.Entities.Product", "Product")
                         .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .HasForeignKey("ProductId");
 
                     b.HasOne("EbayClone.Domain.Entities.ProductVariant", "Variant")
                         .WithMany()
@@ -1069,13 +1202,22 @@ namespace EbayClone.Infrastructure.Migrations
                     b.Navigation("Shop");
                 });
 
+            modelBuilder.Entity("EbayClone.Domain.Entities.ProductItemSpecific", b =>
+                {
+                    b.HasOne("EbayClone.Domain.Entities.Product", "Product")
+                        .WithMany("ItemSpecifics")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("EbayClone.Domain.Entities.ProductVariant", b =>
                 {
                     b.HasOne("EbayClone.Domain.Entities.Product", "Product")
                         .WithMany("Variants")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("ProductId");
 
                     b.Navigation("Product");
                 });
@@ -1084,9 +1226,7 @@ namespace EbayClone.Infrastructure.Migrations
                 {
                     b.HasOne("EbayClone.Domain.Entities.Product", "Product")
                         .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("ProductId");
 
                     b.HasOne("EbayClone.Domain.Entities.Shop", "Shop")
                         .WithMany()
@@ -1124,9 +1264,7 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.HasOne("EbayClone.Domain.Entities.Product", "Product")
                         .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .HasForeignKey("ProductId");
 
                     b.Navigation("Buyer");
 
@@ -1177,6 +1315,17 @@ namespace EbayClone.Infrastructure.Migrations
                     b.Navigation("Shop");
                 });
 
+            modelBuilder.Entity("EbayClone.Domain.Entities.VariantAttributeValue", b =>
+                {
+                    b.HasOne("EbayClone.Domain.Entities.ProductVariant", "Variant")
+                        .WithMany("AttributeValues")
+                        .HasForeignKey("VariantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Variant");
+                });
+
             modelBuilder.Entity("EbayClone.Domain.Entities.Voucher", b =>
                 {
                     b.HasOne("EbayClone.Domain.Entities.Shop", "Shop")
@@ -1201,6 +1350,8 @@ namespace EbayClone.Infrastructure.Migrations
 
             modelBuilder.Entity("EbayClone.Domain.Entities.Category", b =>
                 {
+                    b.Navigation("ItemSpecifics");
+
                     b.Navigation("SubCategories");
                 });
 
@@ -1211,7 +1362,14 @@ namespace EbayClone.Infrastructure.Migrations
 
             modelBuilder.Entity("EbayClone.Domain.Entities.Product", b =>
                 {
+                    b.Navigation("ItemSpecifics");
+
                     b.Navigation("Variants");
+                });
+
+            modelBuilder.Entity("EbayClone.Domain.Entities.ProductVariant", b =>
+                {
+                    b.Navigation("AttributeValues");
                 });
 #pragma warning restore 612, 618
         }

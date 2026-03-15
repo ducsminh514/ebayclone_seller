@@ -1,6 +1,7 @@
-﻿using EbayClone.Shared.DTOs.Auth;
+using EbayClone.Shared.DTOs.Auth;
 using EbayClone.Application.UseCases.Auth;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -12,6 +13,7 @@ using System.Text;
 namespace EbayClone.API.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
@@ -35,6 +37,7 @@ namespace EbayClone.API.Controllers
             _configuration = configuration;
         }
 
+        [AllowAnonymous]
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
@@ -49,6 +52,7 @@ namespace EbayClone.API.Controllers
             }
         }
 
+        [AllowAnonymous]
         [HttpPost("verify-email")]
         public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
         {
@@ -67,6 +71,7 @@ namespace EbayClone.API.Controllers
             }
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
@@ -78,8 +83,9 @@ namespace EbayClone.API.Controllers
                 {
                     new Claim(ClaimTypes.NameIdentifier, loginResult.UserId),
                     new Claim(ClaimTypes.Name, loginResult.Username),
-                    new Claim(ClaimTypes.Role, "SELLER"),
+                    new Claim(ClaimTypes.Role, loginResult.Role),
                     new Claim("HasShop", loginResult.HasShop.ToString()),
+                    new Claim("IsVerified", loginResult.IsVerified.ToString()),
                     new Claim("ShopId", loginResult.ShopId?.ToString() ?? string.Empty),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 };
@@ -105,7 +111,6 @@ namespace EbayClone.API.Controllers
                 return Unauthorized(new { Error = ex.Message });
             }
         }
-        [Microsoft.AspNetCore.Authorization.Authorize]
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshToken()
         {
@@ -124,8 +129,9 @@ namespace EbayClone.API.Controllers
                 {
                     new Claim(ClaimTypes.NameIdentifier, loginResult.UserId),
                     new Claim(ClaimTypes.Name, loginResult.Username),
-                    new Claim(ClaimTypes.Role, "SELLER"),
+                    new Claim(ClaimTypes.Role, loginResult.Role),
                     new Claim("HasShop", loginResult.HasShop.ToString()),
+                    new Claim("IsVerified", loginResult.IsVerified.ToString()),
                     new Claim("ShopId", loginResult.ShopId?.ToString() ?? string.Empty),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 };

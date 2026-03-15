@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using EbayClone.Shared.DTOs.Auth;
 using EbayClone.Application.Interfaces.Repositories;
@@ -35,7 +35,9 @@ namespace EbayClone.Application.UseCases.Auth
             {
                 UserId = user.Id.ToString(),
                 Username = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName.Trim() : user.Username,
+                Role = user.Role,
                 HasShop = shop != null,
+                IsVerified = shop?.IsVerified ?? false,
                 ShopId = shop?.Id
             };
         }

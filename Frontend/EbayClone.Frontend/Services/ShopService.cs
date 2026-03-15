@@ -22,6 +22,11 @@ namespace EbayClone.Frontend.Services
                 var result = await response.Content.ReadFromJsonAsync<ShopCreationResponse>();
                 return result?.Message ?? "Shop created successfully.";
             }
+            // 409 Conflict = Shop already exists → NOT an error, just advance
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                return "Shop already exists. Continuing...";
+            }
             else
             {
                 var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
@@ -75,10 +80,14 @@ namespace EbayClone.Frontend.Services
             }
         }
 
-        public async Task<OnboardingStatusResponse> GetOnboardingStatusAsync()
+        public async Task<OnboardingStatusResponse?> GetOnboardingStatusAsync()
         {
-            return await _httpClient.GetFromJsonAsync<OnboardingStatusResponse>("api/shops/onboarding/status") 
-                   ?? new OnboardingStatusResponse();
+            var response = await _httpClient.GetAsync("api/shops/onboarding/status");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return null; // User chưa có shop → Onboarding ở step 0
+            if (!response.IsSuccessStatusCode)
+                return null; // 401 hoặc lỗi khác → xử lý gracefully
+            return await response.Content.ReadFromJsonAsync<OnboardingStatusResponse>();
         }
 
         public async Task<ShopProfileResponse> GetShopProfileAsync()
@@ -99,6 +108,19 @@ namespace EbayClone.Frontend.Services
             {
                 var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
                 throw new InvalidOperationException(error?.Error ?? "Failed to update store profile.");
+            }
+        }
+
+        /// <summary>
+        /// [DEV ONLY] Xóa shop + wallet để reset onboarding flow.
+        /// </summary>
+        public async Task DevResetOnboardingAsync()
+        {
+            var response = await _httpClient.DeleteAsync("api/shops/dev/reset");
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                throw new InvalidOperationException(error?.Error ?? "Reset failed.");
             }
         }
     }

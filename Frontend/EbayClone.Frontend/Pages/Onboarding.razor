@@ -1,12 +1,13 @@
 @page "/onboarding"
-@inject EbayClone.Frontend.Services.ShopService ShopService
-@inject EbayClone.Frontend.Services.AuthService AuthService
-@inject NavigationManager NavigationManager
-@inject ISnackbar Snackbar
 @using EbayClone.Shared.DTOs.Shops
+@using EbayClone.Frontend.Services
+@inject NavigationManager NavigationManager
+@inject ShopService ShopService
+@inject AuthService AuthService
+@inject ISnackbar Snackbar
 @using MudBlazor
 
-<PageTitle>Seller Onboarding - eBay Clone</PageTitle>
+<PageTitle>Ebay Seller Onboarding</PageTitle>
 
 <div style="max-width: 900px; margin: 40px auto; padding: 0 16px;">
     @if (isInitialLoading)
@@ -23,183 +24,205 @@
             <p style="color: var(--text-secondary); font-size: 16px;">Complete these steps to start listing and getting paid on eBay.</p>
         </div>
 
-        <MudStepper @ref="_stepper" @bind-ActiveStepIndex="_activeStepIndex" Color="Color.Primary" Variant="Variant.Filled" HeaderBadgeType="BadgeType.Number" CenterLabels="true" Class="ebay-stepper">
-        <!-- STEP 1: SHOP INFORMATION -->
-        <MudStep Title="Shop Info">
-            <div class="step-content">
+        @* Bọc toàn bộ nội dung động trong @key để force Blazor re-create DOM khi step thay đổi *@
+        <div @key="@($"step-{_activeStepIndex}")">
+
+        @* ===== STEP INDICATOR ===== *@
+        <div class="d-flex justify-center gap-2 mb-8">
+            @{ var steps = new[] { "Shop Info", "Identity", "Payments", "Go Live" }; }
+            @for (int i = 0; i < steps.Length; i++)
+            {
+                var idx = i;
+                <div class="d-flex align-center gap-1">
+                    <MudAvatar Size="Size.Small"
+                        Style="@(idx < _activeStepIndex ? "background:#137A20;color:white;" : idx == _activeStepIndex ? "background:#0654BA;color:white;" : "background:#E5E5E5;color:#707070;")">
+                        @if (idx < _activeStepIndex) { <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" /> } else { @(idx + 1) }
+                    </MudAvatar>
+                    <MudText Typo="Typo.body2" Style="@(idx == _activeStepIndex ? "font-weight:700;color:#0654BA;" : "color:#707070;")">@steps[idx]</MudText>
+                    @if (idx < 3) { <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" Style="color:#ccc;" /> }
+                </div>
+            }
+        </div>
+
+        <MudPaper Elevation="1" Class="pa-8" Style="border-radius:16px;">
+            @* ===== STEP 0: SHOP INFO ===== *@
+            @if (_activeStepIndex == 0)
+            {
                 <MudText Typo="Typo.h5" Class="mb-4">Tell us about your business</MudText>
-                <EditForm Model="shopModel">
+                <EditForm Model="shopModel" OnValidSubmit="ProcessShopInfo">
                     <DataAnnotationsValidator />
                     <MudGrid>
                         <MudItem xs="12">
-                            <MudTextField @bind-Value="shopModel.Name" Label="Shop Name" Required="true" Variant="Variant.Outlined" Placeholder="e.g. Awesome Gadgets Store" />
+                            <MudTextField @bind-Value="shopModel.Name" For="@(() => shopModel.Name)" Label="Shop Name" Required="true" Variant="Variant.Outlined" Placeholder="e.g. Awesome Gadgets Store" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudTextField @bind-Value="shopModel.TaxCode" Label="Tax ID / Business License" Variant="Variant.Outlined" Placeholder="Optional for individuals" />
+                            <MudTextField @bind-Value="shopModel.TaxCode" For="@(() => shopModel.TaxCode)" Label="Tax ID / Business License" Variant="Variant.Outlined" Placeholder="Optional for individuals" />
                         </MudItem>
                         <MudItem xs="12" sm="6">
-                            <MudTextField @bind-Value="shopModel.Address" Label="Business Address" Required="true" Variant="Variant.Outlined" Placeholder="Street, City, Country" />
+                            <MudTextField @bind-Value="shopModel.Address" For="@(() => shopModel.Address)" Label="Business Address" Required="true" Variant="Variant.Outlined" Placeholder="Street, City, Country" />
                         </MudItem>
                         <MudItem xs="12">
-                            <MudTextField @bind-Value="shopModel.Description" Label="Shop Description" Variant="Variant.Outlined" Lines="3" Placeholder="Briefly describe what you sell..." />
+                            <MudTextField @bind-Value="shopModel.Description" For="@(() => shopModel.Description)" Label="Shop Description" Variant="Variant.Outlined" Lines="3" Placeholder="Briefly describe what you sell..." />
                         </MudItem>
                     </MudGrid>
+                    <div class="mt-8 d-flex justify-end">
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@isSubmitting" Class="rounded-pill px-8 py-2">
+                            @if (isSubmitting) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2"/> }
+                            Continue
+                        </MudButton>
+                    </div>
                 </EditForm>
-                <div class="mt-8 d-flex justify-end">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ProcessShopInfo" Disabled="@isSubmitting" Class="rounded-pill px-8 py-2">
-                        @if (isSubmitting) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2"/> }
-                        Continue
-                    </MudButton>
-                </div>
-            </div>
-        </MudStep>
+            }
 
-        <!-- STEP 2: IDENTITY VERIFICATION -->
-        <MudStep Title="Identity">
-            <div class="step-content text-center">
-                <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Color="Color.Primary" Style="font-size: 64px;" Class="mb-4" />
-                <MudText Typo="Typo.h5" Class="mb-2">Verify your identity</MudText>
-                <MudText Typo="Typo.body1" Class="text-secondary mb-6">We've sent a security code to your phone to ensure it's really you.</MudText>
-                
-                <div style="max-width: 300px; margin: 0 auto;">
-                    <MudTextField @bind-Value="otpModel.OtpCode" Label="6-digit Code" Variant="Variant.Outlined" MaxLength="6" Placeholder="123456" Style="text-align: center; font-size: 24px; letter-spacing: 4px;" />
-                    <MudText Typo="Typo.caption" Color="Color.Info" Class="mt-2 d-block">Mock code: 123456</MudText>
-                </div>
+            @* ===== STEP 1: IDENTITY VERIFICATION ===== *@
+            else if (_activeStepIndex == 1)
+            {
+                <div class="text-center">
+                    <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" Color="Color.Primary" Style="font-size: 64px;" Class="mb-4" />
+                    <MudText Typo="Typo.h5" Class="mb-2">Verify your identity</MudText>
+                    <MudText Typo="Typo.body1" Class="text-secondary mb-6">We've sent a security code to your phone to ensure it's really you.</MudText>
 
-                <div class="mt-8 d-flex justify-center gap-4">
-                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => _activeStepIndex = 0">Back</MudButton>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ProcessIdentity" Disabled="@isSubmitting" Class="rounded-pill px-8 py-2">
-                        @if (isSubmitting) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2"/> }
-                        Verify Identity
-                    </MudButton>
-                </div>
-            </div>
-        </MudStep>
+                    <EditForm Model="otpModel" OnValidSubmit="ProcessIdentity">
+                        <DataAnnotationsValidator />
+                        <div style="max-width: 300px; margin: 0 auto;">
+                            <MudTextField @bind-Value="otpModel.OtpCode" For="@(() => otpModel.OtpCode)" Label="6-digit Code" Variant="Variant.Outlined" MaxLength="6" Placeholder="123456" Style="text-align: center; font-size: 24px; letter-spacing: 4px;" />
+                            <MudText Typo="Typo.caption" Color="Color.Info" Class="mt-2 d-block">Mock code: 123456</MudText>
+                        </div>
 
-        <!-- STEP 3: MANAGED PAYMENTS (EBAY UI STYLE) -->
-        <MudStep Title="Payments">
-            <div class="ebay-payment-modal">
+                        <div class="mt-8 d-flex justify-center gap-4">
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => GoToStep(0))">Back</MudButton>
+                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@isSubmitting" Class="rounded-pill px-8 py-2">
+                                @if (isSubmitting) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2"/> }
+                                Verify Identity
+                            </MudButton>
+                        </div>
+                    </EditForm>
+                </div>
+            }
+
+            @* ===== STEP 2: PAYMENTS ===== *@
+            else if (_activeStepIndex == 2)
+            {
                 <div class="d-flex justify-space-between align-center mb-6">
                     <MudText Typo="Typo.h5" Style="font-weight: 700;">Add payment method</MudText>
                 </div>
-
                 <MudText Typo="Typo.body2" Class="mb-4 text-secondary">eBay needs to know where to send your payouts (money you earn from selling).</MudText>
 
-                <MudRadioGroup @bind-Value="_paymentType" T="string" Class="d-flex flex-column gap-3">
-                    <div class="payment-option @(_paymentType == "Bank" ? "selected" : "")" @onclick='(() => _paymentType = "Bank")'>
-                        <div class="d-flex align-center p-4">
-                            <MudRadio Value='@("Bank")' Color="Color.Primary" />
-                            <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Class="mx-3" />
-                            <div>
-                                <MudText Typo="Typo.body1" Style="font-weight: 600;">Bank account (Direct Payouts)</MudText>
-                                <MudText Typo="Typo.caption">Get paid directly to your checking account.</MudText>
+                <EditForm Model="bankModel" OnValidSubmit="ProcessPayments">
+                    <DataAnnotationsValidator />
+                    <MudRadioGroup @bind-Value="_paymentType" T="string" Class="d-flex flex-column gap-3">
+                        <div class="payment-option @(_paymentType == "Bank" ? "selected" : "")" @onclick='(() => _paymentType = "Bank")'>
+                            <div class="d-flex align-center p-4">
+                                <MudRadio Value='@("Bank")' Color="Color.Primary" />
+                                <MudIcon Icon="@Icons.Material.Filled.AccountBalance" Class="mx-3" />
+                                <div>
+                                    <MudText Typo="Typo.body1" Style="font-weight: 600;">Bank account (Direct Payouts)</MudText>
+                                    <MudText Typo="Typo.caption">Get paid directly to your checking account.</MudText>
+                                </div>
+                            </div>
+                            @if (_paymentType == "Bank")
+                            {
+                                <div class="bank-form px-12 pb-4">
+                                    <MudTextField @bind-Value="bankModel.BankName" For="@(() => bankModel.BankName)" Label="Bank Name" Variant="Variant.Text" Dense="true" />
+                                    <MudTextField @bind-Value="bankModel.BankAccountNumber" For="@(() => bankModel.BankAccountNumber)" Label="Account Number" Variant="Variant.Text" Dense="true" Class="mt-2" />
+                                    <MudTextField @bind-Value="bankModel.BankAccountHolderName" For="@(() => bankModel.BankAccountHolderName)" Label="Account Holder Name" Variant="Variant.Text" Dense="true" Class="mt-2" />
+                                </div>
+                            }
+                        </div>
+
+                        <div class="payment-option" style="opacity: 0.5; cursor: not-allowed;">
+                            <div class="d-flex align-center p-4">
+                                <MudRadio Value='@("Card")' Color="Color.Primary" Disabled="true" />
+                                <MudIcon Icon="@Icons.Material.Filled.CreditCard" Class="mx-3" />
+                                <div>
+                                    <MudText Typo="Typo.body1" Style="font-weight: 600;">Credit or debit card</MudText>
+                                    <MudText Typo="Typo.caption">Coming soon — Available in future updates.</MudText>
+                                </div>
                             </div>
                         </div>
-                        @if (_paymentType == "Bank")
+                    </MudRadioGroup>
+
+                    <div class="mt-8 d-flex justify-end gap-3">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="@(() => GoToStep(1))" Class="rounded-pill">Back</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(isSubmitting || string.IsNullOrEmpty(bankModel.BankAccountNumber))" Class="rounded-pill px-8">
+                            Continue
+                        </MudButton>
+                    </div>
+                </EditForm>
+            }
+
+            @* ===== STEP 3: GO LIVE ===== *@
+            else if (_activeStepIndex == 3)
+            {
+                <div class="text-center">
+                    @if (!isBankVerified)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Timer" Color="Color.Warning" Style="font-size: 64px;" Class="mb-4" />
+                        <MudText Typo="Typo.h5" Class="mb-2">Verifying your bank account</MudText>
+                        <MudText Typo="Typo.body1" Class="text-secondary mb-6">eBay has sent 2 small amounts to your bank. Check your statement and enter them below to finish. (Mock: Try $0.12 and $0.34)</MudText>
+
+                        @if (_remainingAttempts > 0 && _remainingAttempts < 3)
                         {
-                            <div class="bank-form px-12 pb-4">
-                                <MudTextField @bind-Value="bankModel.BankName" Label="Bank Name" Variant="Variant.Text" Dense="true" />
-                                <MudTextField @bind-Value="bankModel.BankAccountNumber" Label="Account Number" Variant="Variant.Text" Dense="true" Class="mt-2" />
-                                <MudTextField @bind-Value="bankModel.BankAccountHolderName" Label="Account Holder Name" Variant="Variant.Text" Dense="true" Class="mt-2" />
-                            </div>
+                            <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true">You have @_remainingAttempts attempts remaining. Please check carefully.</MudAlert>
                         }
-                    </div>
 
-                    <div class="payment-option @(_paymentType == "Card" ? "selected" : "")" @onclick='(() => _paymentType = "Card")'>
-                        <div class="d-flex align-center p-4">
-                            <MudRadio Value='@("Card")' Color="Color.Primary" />
-                            <MudIcon Icon="@Icons.Material.Filled.CreditCard" Class="mx-3" />
-                            <div>
-                                <MudText Typo="Typo.body1" Style="font-weight: 600;">Credit or debit card</MudText>
-                                <MudText Typo="Typo.caption">Use for selling fees or as a backup payout method.</MudText>
+                        <EditForm Model="microDepositModel" OnValidSubmit="ProcessMicroDeposit">
+                            <DataAnnotationsValidator />
+                            <div class="d-flex justify-center gap-4 mb-8" style="max-width: 400px; margin: 0 auto;">
+                                <MudNumericField @bind-Value="microDepositModel.Amount1" For="@(() => microDepositModel.Amount1)" Label="Amount 1" Variant="Variant.Outlined" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                                <MudNumericField @bind-Value="microDepositModel.Amount2" For="@(() => microDepositModel.Amount2)" Label="Amount 2" Variant="Variant.Outlined" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
+                            </div>
+
+                            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(isSubmitting || _remainingAttempts == 0)" Class="rounded-pill px-10 py-3">
+                                Verify and Finish
+                            </MudButton>
+                        </EditForm>
+
+                        @if (_remainingAttempts == 0)
+                        {
+                            <MudText Color="Color.Error" Class="mt-4">Too many failed attempts. Please contact eBay support to reset.</MudText>
+                        }
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Style="font-size: 80px;" Class="mb-4" />
+                        <MudText Typo="Typo.h4" Style="font-weight: 800;" Class="mb-2">Congratulations!</MudText>
+                        <MudText Typo="Typo.h6" Class="mb-6">Your eBay seller account is fully set up.</MudText>
+
+                        <div class="summary-box p-4 mb-8" style="background: #F7F7F7; border-radius: 12px; text-align: left;">
+                            <div class="d-flex align-center mb-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Done" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                                <MudText>Identity Verified</MudText>
+                            </div>
+                            <div class="d-flex align-center mb-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Done" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                                <MudText>Payment Account Linked (Managed Payments)</MudText>
+                            </div>
+                            <div class="d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.Done" Color="Color.Success" Size="Size.Small" Class="mr-2" />
+                                <MudText>Business Policies: Shipping, Return, & Payment Initialized</MudText>
                             </div>
                         </div>
-                    </div>
-                </MudRadioGroup>
 
-                <div class="mt-8 d-flex justify-end gap-3">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => _activeStepIndex = 1" Class="rounded-pill">Back</MudButton>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ProcessPayments" Disabled="@(isSubmitting || string.IsNullOrEmpty(bankModel.BankAccountNumber))" Class="rounded-pill px-8">
-                        Continue
-                    </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick='(() => NavigationManager.NavigateTo("/"))' Class="rounded-pill px-12 py-3" Style="font-size: 18px;">
+                            Go to Dashboard
+                        </MudButton>
+                    }
                 </div>
-            </div>
-        </MudStep>
-
-        <!-- STEP 4: VERIFY DEPOSITS & FINISH -->
-        <MudStep Title="Go Live">
-            <div class="step-content text-center">
-                @if (!isBankVerified)
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.Timer" Color="Color.Warning" Style="font-size: 64px;" Class="mb-4" />
-                    <MudText Typo="Typo.h5" Class="mb-2">Verifying your bank account</MudText>
-                    <MudText Typo="Typo.body1" Class="text-secondary mb-6">eBay has sent 2 small amounts to your bank. Check your statement and enter them below to finish. (Mock: Try $0.12 and $0.34)</MudText>
-
-                    @if (_remainingAttempts > 0 && _remainingAttempts < 3)
-                    {
-                        <MudAlert Severity="Severity.Warning" Class="mb-4" Dense="true">You have @_remainingAttempts attempts remaining. Please check carefully.</MudAlert>
-                    }
-
-                    <div class="d-flex justify-center gap-4 mb-8" style="max-width: 400px; margin: 0 auto;">
-                        <MudNumericField @bind-Value="microDepositModel.Amount1" Label="Amount 1" Variant="Variant.Outlined" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
-                        <MudNumericField @bind-Value="microDepositModel.Amount2" Label="Amount 2" Variant="Variant.Outlined" Format="N2" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" />
-                    </div>
-
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ProcessMicroDeposit" Disabled="@(isSubmitting || _remainingAttempts == 0)" Class="rounded-pill px-10 py-3">
-                        Verify and Finish
-                    </MudButton>
-
-                    @if (_remainingAttempts == 0)
-                    {
-                        <MudText Color="Color.Error" Class="mt-4">Too many failed attempts. Please contact eBay support to reset.</MudText>
-                    }
-                }
-                else
-                {
-                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Style="font-size: 80px;" Class="mb-4" />
-                    <MudText Typo="Typo.h4" Style="font-weight: 800;" Class="mb-2">Congratulations!</MudText>
-                    <MudText Typo="Typo.h6" Class="mb-6">Your eBay seller account is fully set up.</MudText>
-                    
-                    <div class="summary-box p-4 mb-8" style="background: var(--bg-secondary); border-radius: 12px; text-align: left;">
-                        <div class="d-flex align-center mb-2">
-                            <MudIcon Icon="@Icons.Material.Filled.Done" Color="Color.Success" Size="Size.Small" Class="mr-2" />
-                            <MudText>Identity Verified</MudText>
-                        </div>
-                        <div class="d-flex align-center mb-2">
-                            <MudIcon Icon="@Icons.Material.Filled.Done" Color="Color.Success" Size="Size.Small" Class="mr-2" />
-                            <MudText>Payment Account Linked (Managed Payments)</MudText>
-                        </div>
-                        <div class="d-flex align-center">
-                            <MudIcon Icon="@Icons.Material.Filled.Done" Color="Color.Success" Size="Size.Small" Class="mr-2" />
-                            <MudText>Business Policies: Shipping, Return, & Payment Initialized</MudText>
-                        </div>
-                    </div>
-
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick='(() => NavigationManager.NavigateTo("/"))' Class="rounded-pill px-12 py-3" Style="font-size: 18px;">
-                        Go to Dashboard
-                    </MudButton>
-                }
-            </div>
-        </MudStep>
-    </MudStepper>
+            }
+        </MudPaper>
+        </div> @* end @key wrapper *@
     }
+
+    @* DEV ONLY: Nút reset để test lại flow *@
+    <div class="d-flex justify-center mt-6">
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Filled.RestartAlt" OnClick="DevResetOnboarding">
+            [DEV] Reset Onboarding
+        </MudButton>
+    </div>
 </div>
 
 <style>
-    .ebay-stepper {
-        background-color: white !important;
-        border-radius: 16px;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-        padding: 24px;
-        border: 1px solid #e0e0e0;
-    }
-    .step-content {
-        padding: 24px 0;
-    }
-    .ebay-payment-modal {
-        background: white;
-        padding: 24px;
-    }
     .payment-option {
         border: 1px solid #e0e0e0;
         border-radius: 12px;
@@ -221,7 +244,6 @@
 </style>
 
 @code {
-    private MudStepper _stepper = null!;
     private int _activeStepIndex = 0;
     private CreateShopRequest shopModel = new();
     private VerifyShopOtpRequest otpModel = new();
@@ -234,28 +256,34 @@
     private bool isInitialLoading = true;
     private int _remainingAttempts = 3;
 
+    private void GoToStep(int step)
+    {
+        _activeStepIndex = step;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         try {
             var status = await ShopService.GetOnboardingStatusAsync();
             if (status != null) {
+                // Shop ĐÃ tồn tại → skip sang step phù hợp
                 _remainingAttempts = 3 - status.BankVerificationAttempts;
                 if (status.IsVerified) {
                     isBankVerified = true;
-                    _activeStepIndex = 3; // Go to last step (Success)
+                    _activeStepIndex = 3;
                 }
                 else if (status.BankVerificationStatus == "Pending") {
-                    _activeStepIndex = 3; // Go to Verify Micro-deposit
+                    _activeStepIndex = 3;
                 }
                 else if (status.IsIdentityVerified) {
-                    _activeStepIndex = 2; // Go to Payments
+                    _activeStepIndex = 2;
                 }
                 else {
-                    _activeStepIndex = 1; // Go to Identity
+                    _activeStepIndex = 1; // Shop đã có nhưng chưa verify → Identity
                 }
             }
+            // status == null → chưa có shop → step 0
         } catch (Exception) {
-            // Probably no shop created yet, stay at Step 0
             _activeStepIndex = 0;
         } finally {
             isInitialLoading = false;
@@ -312,18 +340,30 @@
         try {
             await ShopService.VerifyMicroDepositAsync(microDepositModel);
             isBankVerified = true;
-            StateHasChanged();
-            
+
             await AuthService.RefreshTokenAsync();
             Snackbar.Add("Seller account verified successfully!", Severity.Success);
         } catch (Exception ex) {
             Snackbar.Add(ex.Message, Severity.Error);
             try {
                 var status = await ShopService.GetOnboardingStatusAsync();
-                _remainingAttempts = 3 - status.BankVerificationAttempts;
+                if (status != null)
+                    _remainingAttempts = 3 - status.BankVerificationAttempts;
             } catch {}
         } finally {
             isSubmitting = false;
+        }
+    }
+
+    private async Task DevResetOnboarding()
+    {
+        try {
+            await ShopService.DevResetOnboardingAsync();
+            Snackbar.Add("Onboarding reset! Đăng xuất và đăng nhập lại để test.", Severity.Success);
+            // Reload page
+            NavigationManager.NavigateTo("/onboarding", forceLoad: true);
+        } catch (Exception ex) {
+            Snackbar.Add($"Reset failed: {ex.Message}", Severity.Error);
         }
     }
 }

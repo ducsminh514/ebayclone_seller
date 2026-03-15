@@ -44,10 +44,10 @@ namespace EbayClone.Application.UseCases.Shops
             shop.BankAccountHolderName = request.BankAccountHolderName;
             shop.BankVerificationStatus = "Pending";
 
-            // Giả lập sinh 2 khoản tiền lẻ ngẫu nhiên (Micro-deposits)
-            // Trong thực tế, đây là lệnh gửi sang hệ thống thanh toán
-            shop.MicroDepositAmount1 = (decimal)(Random.Shared.Next(1, 99) / 100.0);
-            shop.MicroDepositAmount2 = (decimal)(Random.Shared.Next(1, 99) / 100.0);
+            // [MVP/DEV] Dùng giá trị cố định khớp với gợi ý trên UI
+            // Production: dùng Random + gửi thông báo qua email/SMS
+            shop.MicroDepositAmount1 = 0.12m;
+            shop.MicroDepositAmount2 = 0.34m;
 
             _shopRepository.Update(shop);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

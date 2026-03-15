@@ -5,6 +5,8 @@ using System;
 using System.Threading.Tasks;
 using EbayClone.Shared.DTOs.Shops;
 using EbayClone.Application.UseCases.Shops;
+using EbayClone.Application.Interfaces.Repositories;
+using EbayClone.Application.Interfaces;
 
 namespace EbayClone.API.Controllers
 {
@@ -17,7 +19,9 @@ namespace EbayClone.API.Controllers
         private readonly ILinkBankAccountUseCase _linkBankAccountUseCase;
         private readonly IVerifyMicroDepositUseCase _verifyMicroDepositUseCase;
         private readonly IUpdateShopProfileUseCase _updateShopProfileUseCase;
-        private readonly EbayClone.Application.Interfaces.Repositories.IShopRepository _shopRepository;
+        private readonly IShopRepository _shopRepository;
+        private readonly ISellerWalletRepository _walletRepository;
+        private readonly IUnitOfWork _unitOfWork;
 
         public ShopsController(
             ICreateShopUseCase createShopUseCase,
@@ -25,7 +29,9 @@ namespace EbayClone.API.Controllers
             ILinkBankAccountUseCase linkBankAccountUseCase,
             IVerifyMicroDepositUseCase verifyMicroDepositUseCase,
             IUpdateShopProfileUseCase updateShopProfileUseCase,
-            EbayClone.Application.Interfaces.Repositories.IShopRepository shopRepository)
+            IShopRepository shopRepository,
+            ISellerWalletRepository walletRepository,
+            IUnitOfWork unitOfWork)
         {
             _createShopUseCase = createShopUseCase;
             _verifyShopOtpUseCase = verifyShopOtpUseCase;
@@ -33,6 +39,8 @@ namespace EbayClone.API.Controllers
             _verifyMicroDepositUseCase = verifyMicroDepositUseCase;
             _updateShopProfileUseCase = updateShopProfileUseCase;
             _shopRepository = shopRepository;
+            _walletRepository = walletRepository;
+            _unitOfWork = unitOfWork;
         }
 
         /// <summary>
@@ -59,6 +67,10 @@ namespace EbayClone.API.Controllers
             }
             catch (InvalidOperationException ex)
             {
+                if (ex.Message.Contains("User already owns a shop"))
+                {
+                    return Conflict(new { Error = ex.Message });
+                }
                 return BadRequest(new { Error = ex.Message });
             }
         }
@@ -153,7 +165,8 @@ namespace EbayClone.API.Controllers
                 shop.BankVerificationStatus,
                 shop.IsVerified,
                 shop.IsPolicyOptedIn,
-                shop.MonthlyListingLimit
+                shop.MonthlyListingLimit,
+                shop.BankVerificationAttempts
             });
         }
 
@@ -213,6 +226,48 @@ namespace EbayClone.API.Controllers
                 shop.Address,
                 shop.CreatedAt
             });
+        }
+        /// <summary>
+        /// [DEV ONLY] Reset toàn bộ onboarding data cho user hiện tại để test lại flow từ đầu.
+        /// Xóa Shop + SellerWallet. KHÔNG dùng cho production!
+        /// </summary>
+        [HttpDelete("api/shops/dev/reset")]
+        public async Task<IActionResult> DevResetOnboarding()
+        {
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized(new { Error = "Unauthorized access." });
+            }
+
+            var shop = await _shopRepository.GetByUserIdAsync(userId);
+            if (shop == null) return NotFound(new { Error = "No shop found to reset." });
+
+            try
+            {
+                // Xóa wallet trước (FK constraint)
+                var wallet = await _walletRepository.GetByShopIdAsync(shop.Id);
+                if (wallet != null)
+                {
+                    // Dùng DbContext trực tiếp để xóa vì Repository không có Delete method
+                    var dbContext = HttpContext.RequestServices.GetRequiredService<EbayClone.Infrastructure.Data.EbayDbContext>();
+                    dbContext.SellerWallets.Remove(wallet);
+                    dbContext.Shops.Remove(shop);
+                    await dbContext.SaveChangesAsync();
+                }
+                else
+                {
+                    var dbContext = HttpContext.RequestServices.GetRequiredService<EbayClone.Infrastructure.Data.EbayDbContext>();
+                    dbContext.Shops.Remove(shop);
+                    await dbContext.SaveChangesAsync();
+                }
+
+                return Ok(new { Message = "Onboarding reset successfully. Please log out and log back in." });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Error = $"Reset failed: {ex.Message}" });
+            }
         }
     }
 }
