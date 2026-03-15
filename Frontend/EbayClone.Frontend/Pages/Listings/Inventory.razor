@@ -1,0 +1,314 @@
+@page "/listings/inventory"
+@using EbayClone.Shared.DTOs.Products
+@using EbayClone.Frontend.Services
+@using System.Text.Json
+@inject ProductService ProductService
+@inject NavigationManager NavigationManager
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="ebay-page-title mb-1">📦 Quản Lý Tồn Kho (Inventory)</h2>
+            <p class="text-muted mb-0" style="font-size: 13px;">Xem tổng quan kho, nhập thêm hàng (Restock) nhanh cho từng biến thể</p>
+        </div>
+        <button class="ebay-btn-outline" @onclick='() => NavigationManager.NavigateTo("/listings")'>
+            ← Quay lại Danh sách
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="font-size: 13px;">
+            @successMessage
+            <button type="button" class="btn-close" @onclick="() => successMessage = null"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="font-size: 13px;">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    @* ─── THỐNG KÊ NHANH ─── *@
+    @if (!isLoading && variants != null)
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center">
+                    <div style="font-size: 28px; font-weight: 700; color: var(--primary-color);">@variants.Count</div>
+                    <div class="text-muted" style="font-size: 12px;">Tổng biến thể</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center">
+                    <div style="font-size: 28px; font-weight: 700; color: #28a745;">@variants.Count(v => v.Available > 0)</div>
+                    <div class="text-muted" style="font-size: 12px;">Còn hàng</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center">
+                    <div style="font-size: 28px; font-weight: 700; color: #ffc107;">@variants.Count(v => v.Available > 0 && v.Available <= 10)</div>
+                    <div class="text-muted" style="font-size: 12px;">Sắp hết (&le; 10)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="ebay-card p-3 text-center">
+                    <div style="font-size: 28px; font-weight: 700; color: #dc3545;">@variants.Count(v => v.Available <= 0)</div>
+                    <div class="text-muted" style="font-size: 12px;">Hết hàng</div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ─── FILTER ─── *@
+    <div class="ebay-card p-0 overflow-hidden">
+        <div class="bg-white border-bottom px-3 py-2 d-flex align-items-center gap-3">
+            <span class="fw-bold" style="font-size: 13px;">Lọc:</span>
+            <select class="form-select form-select-sm" style="width: 200px;" @onchange="OnFilterChanged">
+                <option value="ALL" selected="@(stockFilter == "ALL")">Tất cả</option>
+                <option value="IN_STOCK" selected="@(stockFilter == "IN_STOCK")">Còn hàng (&gt; 10)</option>
+                <option value="LOW_STOCK" selected="@(stockFilter == "LOW_STOCK")">Sắp hết (1-10)</option>
+                <option value="OUT_OF_STOCK" selected="@(stockFilter == "OUT_OF_STOCK")">Hết hàng (0)</option>
+            </select>
+            <span class="text-muted ms-auto" style="font-size: 12px;">
+                Đang hiện <strong>@FilteredVariants.Count()</strong> / @(variants?.Count ?? 0) biến thể
+            </span>
+        </div>
+
+        <div class="card-body p-0">
+            @if (isLoading)
+            {
+                <div class="p-4 text-center text-muted">Đang tải dữ liệu kho...</div>
+            }
+            else if (variants == null || !variants.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <h5>Không có biến thể nào.</h5>
+                    <p>Hãy tạo sản phẩm trước.</p>
+                </div>
+            }
+            else if (!FilteredVariants.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <h5>Không có biến thể nào khớp bộ lọc.</h5>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-secondary" style="font-size: 12px; text-transform: uppercase;">
+                            <tr>
+                                <th class="py-3 px-3 border-0" style="width: 40px;">Ảnh</th>
+                                <th class="py-3 px-3 border-0">Sản phẩm</th>
+                                <th class="py-3 px-3 border-0">SKU</th>
+                                <th class="py-3 px-3 border-0">Thuộc tính</th>
+                                <th class="py-3 px-3 border-0 text-end">Giá</th>
+                                <th class="py-3 px-3 border-0 text-center">Kho</th>
+                                <th class="py-3 px-3 border-0 text-center">Đã giữ</th>
+                                <th class="py-3 px-3 border-0 text-center">Còn lại</th>
+                                <th class="py-3 px-3 border-0 text-center">Trạng thái</th>
+                                <th class="py-3 px-3 border-0 text-center" style="width: 200px;">Nhập kho</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in FilteredVariants)
+                            {
+                                var stockBadge = item.Available <= 0 
+                                    ? ("bg-danger", "Hết hàng") 
+                                    : item.Available <= 10 
+                                        ? ("bg-warning text-dark", "Sắp hết") 
+                                        : ("bg-success", "Còn hàng");
+
+                                <tr class="border-bottom">
+                                    <td class="py-2 px-3">
+                                        @if (!string.IsNullOrEmpty(item.ProductImage))
+                                        {
+                                            <img src="@item.ProductImage" alt="" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;" />
+                                        }
+                                        else
+                                        {
+                                            <div style="width: 36px; height: 36px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #bbb;">📷</div>
+                                        }
+                                    </td>
+                                    <td class="py-2 px-3">
+                                        <div class="fw-bold" style="font-size: 13px; color: var(--primary-color);">@item.ProductName</div>
+                                        <div class="text-muted" style="font-size: 11px;">@item.ProductStatus</div>
+                                    </td>
+                                    <td class="py-2 px-3"><code style="font-size: 12px;">@item.SkuCode</code></td>
+                                    <td class="py-2 px-3" style="font-size: 12px;">
+                                        @if (item.ParsedAttributes != null && item.ParsedAttributes.Any())
+                                        {
+                                            @foreach (var attr in item.ParsedAttributes)
+                                            {
+                                                <span class="badge bg-light text-dark border me-1" style="font-size: 11px;">@attr.Key: @attr.Value</span>
+                                            }
+                                        }
+                                    </td>
+                                    <td class="py-2 px-3 text-end fw-bold" style="font-size: 13px;">@item.Price.ToString("N0") ₫</td>
+                                    <td class="py-2 px-3 text-center" style="font-size: 13px;">@item.Quantity</td>
+                                    <td class="py-2 px-3 text-center" style="font-size: 13px; color: #ff8500;">@item.ReservedQuantity</td>
+                                    <td class="py-2 px-3 text-center fw-bold" style="font-size: 14px;">@item.Available</td>
+                                    <td class="py-2 px-3 text-center">
+                                        <span class="badge @stockBadge.Item1 rounded-pill" style="font-size: 11px;">@stockBadge.Item2</span>
+                                    </td>
+                                    <td class="py-2 px-3 text-center">
+                                        <div class="d-flex align-items-center gap-1 justify-content-center">
+                                            <input type="number" min="1" max="99999" class="form-control form-control-sm"
+                                                   style="width: 70px; font-size: 12px;"
+                                                   placeholder="Số lượng"
+                                                   @bind="item.RestockInput"
+                                                   @bind:event="oninput" />
+                                            @if (restockingVariantId == item.VariantId)
+                                            {
+                                                <button class="btn btn-sm btn-success" disabled>
+                                                    <span class="spinner-border spinner-border-sm"></span>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-sm btn-success" 
+                                                        disabled="@(item.RestockInput <= 0)"
+                                                        @onclick="() => RestockVariant(item)"
+                                                        title="Nhập kho">
+                                                    +
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<InventoryRow> variants = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+    private string stockFilter = "ALL";
+    private Guid? restockingVariantId = null;
+
+    // ─── Model cho bảng ───
+    private class InventoryRow
+    {
+        public Guid VariantId { get; set; }
+        public Guid ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string? ProductImage { get; set; }
+        public string ProductStatus { get; set; } = "";
+        public string SkuCode { get; set; } = "";
+        public decimal Price { get; set; }
+        public int Quantity { get; set; }
+        public int ReservedQuantity { get; set; }
+        public int Available => Math.Max(0, Quantity - ReservedQuantity);
+        public string? Attributes { get; set; }
+        public Dictionary<string, string>? ParsedAttributes { get; set; }
+        public int RestockInput { get; set; } = 0;
+    }
+
+    private IEnumerable<InventoryRow> FilteredVariants
+    {
+        get
+        {
+            if (variants == null) return new List<InventoryRow>();
+            return stockFilter switch
+            {
+                "IN_STOCK" => variants.Where(v => v.Available > 10),
+                "LOW_STOCK" => variants.Where(v => v.Available > 0 && v.Available <= 10),
+                "OUT_OF_STOCK" => variants.Where(v => v.Available <= 0),
+                _ => variants
+            };
+        }
+    }
+
+    private void OnFilterChanged(ChangeEventArgs e)
+    {
+        stockFilter = e.Value?.ToString() ?? "ALL";
+    }
+
+    private async Task RestockVariant(InventoryRow item)
+    {
+        if (item.RestockInput <= 0) return;
+
+        restockingVariantId = item.VariantId;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await ProductService.RestockVariantAsync(item.VariantId, item.RestockInput);
+            successMessage = $"✅ Đã nhập thêm {item.RestockInput} SP cho SKU '{item.SkuCode}'. Kho mới: {item.Quantity + item.RestockInput}.";
+            
+            // Cập nhật UI tức thì (optimistic update)
+            item.Quantity += item.RestockInput;
+            item.RestockInput = 0;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Lỗi nhập kho: {ex.Message}";
+        }
+        finally
+        {
+            restockingVariantId = null;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var products = await ProductService.GetMyProductsAsync();
+            if (products != null)
+            {
+                variants = products
+                    .Where(p => p.Variants != null && p.Variants.Any())
+                    .SelectMany(p => p.Variants!.Select(v => new InventoryRow
+                    {
+                        VariantId = v.Id,
+                        ProductId = p.Id,
+                        ProductName = p.Name ?? "(Chưa đặt tên)",
+                        ProductImage = p.PrimaryImageUrl,
+                        ProductStatus = p.Status ?? "DRAFT",
+                        SkuCode = v.SkuCode,
+                        Price = v.Price,
+                        Quantity = v.Quantity,
+                        ReservedQuantity = v.ReservedQuantity,
+                        Attributes = v.Attributes,
+                        ParsedAttributes = TryParseAttributes(v.Attributes)
+                    }))
+                    .OrderBy(v => v.Available) // Hết hàng lên đầu
+                    .ThenBy(v => v.ProductName)
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private Dictionary<string, string>? TryParseAttributes(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}

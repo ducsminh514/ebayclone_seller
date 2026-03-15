@@ -86,6 +86,27 @@ namespace EbayClone.Application.UseCases.Products
                         $"Thuộc tính '{attrGroup.Key}' có {distinctOptions} options, vượt quá giới hạn 50 options/attribute.");
             }
 
+            // [FIX-1] Validate SkuCode unique per listing
+            var skuCodes = request.Variants.Select(v => v.SkuCode).ToList();
+            var duplicateSkus = skuCodes.GroupBy(s => s).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (duplicateSkus.Any())
+                throw new ArgumentException($"SkuCode bị trùng trong cùng listing: {string.Join(", ", duplicateSkus)}. Mỗi biến thể phải có SKU riêng biệt.");
+
+            // [FIX-2] Validate duplicate attribute keys per variant
+            foreach (var vReq in request.Variants)
+            {
+                if (vReq.Attributes != null)
+                {
+                    var duplicateKeys = vReq.Attributes.Keys
+                        .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+                        .Where(g => g.Count() > 1)
+                        .Select(g => g.Key)
+                        .ToList();
+                    if (duplicateKeys.Any())
+                        throw new ArgumentException($"Biến thể {vReq.SkuCode} có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
+                }
+            }
+
             // Kiểm tra giới hạn đăng bài hàng tháng (MonthlyListingLimit)
             var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
             if (shop != null)
@@ -193,18 +214,19 @@ namespace EbayClone.Application.UseCases.Products
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                 // 3b. [A1] Tạo VariantAttributeValue relational entries
-                // Lưu song song JSON (quick read) + relational (query/filter)
+                // [FIX-3] Dùng request.Attributes trực tiếp thay vì parse lại từ JSON
+                // → đảm bảo JSON và relational luôn từ cùng 1 nguồn data
                 var attributeValues = new List<VariantAttributeValue>();
-                foreach (var variant in variantsToSave)
+                for (int i = 0; i < variantsToSave.Count; i++)
                 {
-                    if (variant.Attributes == null) continue;
-                    var attrs = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(variant.Attributes);
-                    if (attrs == null) continue;
-                    foreach (var kv in attrs)
+                    var savedVariant = variantsToSave[i];
+                    var originalRequest = request.Variants[i];
+                    if (originalRequest.Attributes == null || !originalRequest.Attributes.Any()) continue;
+                    foreach (var kv in originalRequest.Attributes)
                     {
                         attributeValues.Add(new VariantAttributeValue
                         {
-                            VariantId = variant.Id,
+                            VariantId = savedVariant.Id,
                             AttributeName = kv.Key,
                             AttributeValue = kv.Value
                         });

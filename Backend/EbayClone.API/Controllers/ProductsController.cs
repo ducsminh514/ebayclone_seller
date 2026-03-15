@@ -134,7 +134,8 @@ namespace EbayClone.API.Controllers
             try
             {
                 var productId = await _createListingUseCase.ExecuteAsync(shopId, request);
-                return CreatedAtAction(nameof(CreateListing), new { id = productId }, new { Message = "Sản phẩm mới đã được đưa lên kệ thành công." });
+                return CreatedAtAction(nameof(CreateListing), new { id = productId }, 
+                    new CreateProductResponse { Id = productId, Message = "Sản phẩm mới đã được đưa lên kệ thành công." });
             }
             catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
             catch (InvalidOperationException ex) { return UnprocessableEntity(new { Error = ex.Message }); } // 422 = Business rule violation (MonthlyLimit)

@@ -63,7 +63,13 @@
                     </InputSelect>
                 </div>
             </div>
-
+            @if (request.Condition != "New")
+            {
+                <div class="mb-3">
+                    <label class="form-label">Mô tả tình trạng (vết xước, thiếu phụ kiện...)</label>
+                    <InputTextArea class="form-control ebay-input" @bind-Value="request.ConditionDescription" rows="2" placeholder="Mô tả chi tiết tình trạng sản phẩm để người mua hiểu rõ..." />
+                </div>
+            }
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Hình thức bán</label>
@@ -279,6 +285,18 @@
                     </InputSelect>
                 </div>
             </div>
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label class="form-label">Payment Policy</label>
+                    <InputSelect class="form-select ebay-input" @bind-Value="request.PaymentPolicyId">
+                        <option value="">-- Chọn Payment Policy (bỏ trống = dùng Default) --</option>
+                        @foreach (var p in paymentPolicies)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
         </div>
 
         @* ─────────────── BIẾN THỂ / SKU ─────────────── *@
@@ -415,6 +433,7 @@
     private CreateListingRequest request = new CreateListingRequest();
     private List<ShippingPolicyDto> shippingPolicies = new();
     private List<ReturnPolicyDto> returnPolicies = new();
+    private List<PaymentPolicyDto> paymentPolicies = new();
     private List<CategoryDto> categories = new();
     private string? errorMessage;
     private bool isSubmitting = false;
@@ -516,6 +535,9 @@
 
             var rp = await PolicyService.GetReturnPoliciesAsync();
             returnPolicies = rp.ToList();
+
+            var pp = await PolicyService.GetPaymentPoliciesAsync();
+            paymentPolicies = pp.ToList();
 
             // Khởi tạo sẵn 1 biến thể mặc định
             AddVariant();

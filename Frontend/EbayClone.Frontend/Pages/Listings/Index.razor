@@ -11,9 +11,14 @@
             <h2 class="ebay-page-title mb-1">Quản Lý Sản Phẩm (My Listings)</h2>
             <p class="text-muted mb-0" style="font-size: 13px;">Xem, sửa, kích hoạt, tạm ẩn hoặc xóa sản phẩm</p>
         </div>
-        <button class="ebay-btn-primary" @onclick='() => NavigationManager.NavigateTo("/listings/create")'>
-            + Tạo Sản Phẩm Mới
-        </button>
+        <div class="d-flex gap-2">
+            <button class="ebay-btn-outline" @onclick='() => NavigationManager.NavigateTo("/listings/inventory")'>
+                📦 Quản lý Tồn kho
+            </button>
+            <button class="ebay-btn-primary" @onclick='() => NavigationManager.NavigateTo("/listings/create")'>
+                + Tạo Sản Phẩm Mới
+            </button>
+        </div>
     </div>
 
     @if (!string.IsNullOrEmpty(successMessage))

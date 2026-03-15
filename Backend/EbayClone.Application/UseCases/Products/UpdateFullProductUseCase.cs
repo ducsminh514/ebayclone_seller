@@ -38,6 +38,10 @@ namespace EbayClone.Application.UseCases.Products
             if (product.ShopId != shopId)
                 throw new UnauthorizedAccessException("Bạn không có quyền chỉnh sửa sản phẩm này.");
 
+            // [C2] Block edit sản phẩm ENDED — final status, không cho phép sửa
+            if (product.Status == "ENDED")
+                throw new InvalidOperationException("Không thể chỉnh sửa sản phẩm đã kết thúc (ENDED). Hãy tạo listing mới.");
+
             // 1. Optimistic Concurrency Check
             if (request.RowVersion != null && product.RowVersion != null)
             {
@@ -102,6 +106,27 @@ namespace EbayClone.Application.UseCases.Products
                         $"Thuộc tính '{attrGroup.Key}' có {distinctOptions} options, vượt quá giới hạn 50.");
             }
 
+            // [FIX-1] Validate SkuCode unique per listing
+            var allSkuCodes = request.Variants.Select(v => v.SkuCode).ToList();
+            var duplicateSkus = allSkuCodes.GroupBy(s => s).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (duplicateSkus.Any())
+                throw new ArgumentException($"SkuCode bị trùng trong cùng listing: {string.Join(", ", duplicateSkus)}. Mỗi biến thể phải có SKU riêng biệt.");
+
+            // [FIX-2] Validate duplicate attribute keys per variant
+            foreach (var vReq in request.Variants)
+            {
+                if (vReq.Attributes != null)
+                {
+                    var duplicateKeys = vReq.Attributes.Keys
+                        .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+                        .Where(g => g.Count() > 1)
+                        .Select(g => g.Key)
+                        .ToList();
+                    if (duplicateKeys.Any())
+                        throw new ArgumentException($"Biến thể {vReq.SkuCode} có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
+                }
+            }
+
             // 2. Update Master Data
             product.Name = request.Name;
             product.Description = request.Description;
@@ -116,6 +141,7 @@ namespace EbayClone.Application.UseCases.Products
             product.CategoryId = request.CategoryId;
             product.ShippingPolicyId = request.ShippingPolicyId;
             product.ReturnPolicyId = request.ReturnPolicyId;
+            product.PaymentPolicyId = request.PaymentPolicyId;
             product.Status = request.Status;
             
             product.PrimaryImageUrl = request.PrimaryImageUrl;
@@ -149,6 +175,8 @@ namespace EbayClone.Application.UseCases.Products
                     {
                         variant.SkuCode = variantDto.SkuCode;
                         variant.Price = variantDto.Price;
+                        variant.Quantity = variantDto.Quantity;
+                        variant.WeightGram = variantDto.WeightGram;
                         variant.ImageUrl = variantDto.ImageUrl;
                         variant.Attributes = JsonSerializer.Serialize(variantDto.Attributes);
                         variant.UpdatedAt = DateTimeOffset.UtcNow;
@@ -162,14 +190,39 @@ namespace EbayClone.Application.UseCases.Products
                         ProductId = productId,
                         SkuCode = variantDto.SkuCode,
                         Price = variantDto.Price,
-                        Quantity = 0, // Enforce restock flow
+                        Quantity = variantDto.Quantity,
                         ReservedQuantity = 0,
                         Attributes = JsonSerializer.Serialize(variantDto.Attributes),
                         ImageUrl = variantDto.ImageUrl,
+                        WeightGram = variantDto.WeightGram,
                         CreatedAt = DateTimeOffset.UtcNow
                     };
                     product.Variants.Add(newVariant);
                 }
+            }
+
+            // [FIX-3] Sync VariantAttributeValues relational store
+            // Delete ALL existing attribute values for this product's variants
+            await _productRepository.DeleteVariantAttributeValuesByProductIdAsync(productId, cancellationToken);
+            // Recreate from request data (đảm bảo JSON ↔ relational luôn đồng bộ)
+            var attrValues = new List<VariantAttributeValue>();
+            foreach (var variant in product.Variants)
+            {
+                var matchingDto = request.Variants.FirstOrDefault(v => v.Id == variant.Id || (!v.Id.HasValue && v.SkuCode == variant.SkuCode));
+                if (matchingDto?.Attributes == null || !matchingDto.Attributes.Any()) continue;
+                foreach (var kv in matchingDto.Attributes)
+                {
+                    attrValues.Add(new VariantAttributeValue
+                    {
+                        VariantId = variant.Id,
+                        AttributeName = kv.Key,
+                        AttributeValue = kv.Value
+                    });
+                }
+            }
+            if (attrValues.Count > 0)
+            {
+                await _productRepository.AddVariantAttributeValuesAsync(attrValues, cancellationToken);
             }
 
             // [A5] Sync Item Specifics — delete cũ, tạo mới
@@ -187,6 +240,9 @@ namespace EbayClone.Application.UseCases.Products
                     await _productRepository.AddProductItemSpecificsAsync(specifics, cancellationToken);
                 }
             }
+
+            // [C3] Auto-toggle ACTIVE↔OUT_OF_STOCK khi Quantity thay đổi qua EditListing
+            product.CheckAndUpdateStockStatus();
 
             try 
             {

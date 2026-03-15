@@ -25,6 +25,7 @@ namespace EbayClone.Shared.DTOs.Products
         public Guid CategoryId { get; set; }
         public Guid? ShippingPolicyId { get; set; }
         public Guid? ReturnPolicyId { get; set; }
+        public Guid? PaymentPolicyId { get; set; }
         public string Status { get; set; } = "DRAFT";
         
         // Product Images

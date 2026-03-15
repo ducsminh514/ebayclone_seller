@@ -72,7 +72,7 @@ Nơi Seller quản lý hàng hóa hiển thị trên sàn. Listing = 1 Product +
       - Lưu vào bảng ProductItemSpecifics (ProductId, Name, Value).
 
    * Bước 5 (Upload ảnh):
-      - 1 ảnh bìa (PrimaryImageUrl) + N ảnh phụ (ImageUrls lưu JSON array).
+      - 1 ảnh bìa (PrimaryImageUrl) + tối đa 5 ảnh phụ (ImageUrls lưu JSON array). Giới hạn hardcode ở FE.
       - Mỗi biến thể có thể có ảnh riêng (variant.ImageUrl).
       - Upload qua FileUploadService → POST /api/files/upload.
 
@@ -114,6 +114,7 @@ Nơi Seller quản lý hàng hóa hiển thị trên sàn. Listing = 1 Product +
          a. Nếu Status = ACTIVE && TẤT CẢ variants có (Quantity - ReservedQuantity) ≤ 0 → chuyển OUT_OF_STOCK.
          b. Nếu Status = OUT_OF_STOCK && CÓ BẤT KỲ variant nào (Quantity - ReservedQuantity) > 0 → chuyển lại ACTIVE.
       - Gọi từ: RestockVariantUseCase, UpdateOrderStatusUseCase (READY_TO_SHIP + CANCELLED).
+   * Trang Restock/Inventory: FE đã có trang quản lý tồn kho tại /listings/inventory. Seller có thể xem trạng thái kho, lọc biến thể hết/sắp hết, và nhập kho (Restock) inline. Backend endpoint PUT /api/products/variants/{id}/restock đã sẵn sàng.
 
 5. Luồng Quản lý Danh sách & Sửa/Xóa (Listing Maintenance):
    * Sửa toàn diện (Full Update): PUT /api/products/{id}/full — sửa tất cả: tên, ảnh, variants, condition, format, specifics, policies. Dùng Concurrency Token (RowVersion) chống xung đột.

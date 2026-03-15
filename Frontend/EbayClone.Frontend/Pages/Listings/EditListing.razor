@@ -130,7 +130,13 @@
                             </InputSelect>
                         </div>
                     </div>
-
+                    @if (fullRequest.Condition != "New")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Mô tả tình trạng (vết xước, thiếu phụ kiện...)</label>
+                            <InputTextArea class="form-control ebay-input" @bind-Value="fullRequest.ConditionDescription" rows="2" placeholder="Mô tả chi tiết tình trạng sản phẩm..." />
+                        </div>
+                    }
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Hình thức bán</label>
@@ -166,6 +172,59 @@
                     }
                 </div>
 
+                @* ─── ITEM SPECIFICS (GAP-2) ─── *@
+                @if (categoryItemSpecifics.Any())
+                {
+                    <div class="ebay-card">
+                        <h4 class="ebay-card-title">📋 Thông Tin Chi Tiết (Item Specifics)</h4>
+                        <div class="text-muted mb-3" style="font-size: 12px;">Các trường đánh dấu <span class="text-danger fw-bold">*</span> là bắt buộc trước khi đăng bán.</div>
+                        
+                        @foreach (var spec in categoryItemSpecifics.OrderBy(s => s.SortOrder))
+                        {
+                            var existing = fullRequest.ItemSpecifics?.FirstOrDefault(v => v.Name == spec.Name);
+                            var isRequired = spec.Requirement == "REQUIRED";
+                            var badgeClass = spec.Requirement switch
+                            {
+                                "REQUIRED" => "bg-danger",
+                                "RECOMMENDED" => "bg-warning text-dark",
+                                _ => "bg-secondary"
+                            };
+                            
+                            <div class="mb-2 row align-items-center">
+                                <div class="col-md-3">
+                                    <label class="form-label mb-0">
+                                        @spec.Name
+                                        @if (isRequired) { <span class="text-danger">*</span> }
+                                        <span class="badge @badgeClass ms-1" style="font-size: 10px;">@spec.Requirement</span>
+                                    </label>
+                                </div>
+                                <div class="col-md-9">
+                                    @if (!string.IsNullOrEmpty(spec.SuggestedValues))
+                                    {
+                                        var suggestions = spec.SuggestedValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                        <select class="form-select form-select-sm ebay-input" 
+                                                value="@(existing != null ? existing.Value : string.Empty)"
+                                                @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())">
+                                            <option value="">-- Chọn --</option>
+                                            @foreach (var sug in suggestions)
+                                            {
+                                                <option value="@sug">@sug</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <input type="text" class="form-control form-control-sm ebay-input" 
+                                               placeholder="Nhập giá trị..."
+                                               value="@(existing != null ? existing.Value : string.Empty)"
+                                               @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())" />
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
                 <div class="ebay-card">
                     <h4 class="ebay-card-title">Chính sách Bán Hàng & Trạng Thái</h4>
                     <div class="row">
@@ -184,6 +243,16 @@
                             <InputSelect class="form-select" @bind-Value="fullRequest.ReturnPolicyId">
                                 <option value="">-- Chọn Return Policy --</option>
                                 @foreach (var p in returnPolicies)
+                                {
+                                    <option value="@p.Id">@p.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Payment Policy</label>
+                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.PaymentPolicyId">
+                                <option value="">-- Chọn Payment Policy (bỏ trống = dùng Default) --</option>
+                                @foreach (var p in paymentPolicies)
                                 {
                                     <option value="@p.Id">@p.Name</option>
                                 }
@@ -223,6 +292,8 @@
                                     <th>Phân loại (Attributes)</th>
                                     <th>SKU Code</th>
                                     <th>Giá Bán (₫)</th>
+                                    <th>Kho hàng</th>
+                                    <th>Khối lượng (g)</th>
                                     <th>Ảnh</th>
                                 </tr>
                             </thead>
@@ -241,6 +312,12 @@
                                         </td>
                                         <td>
                                             <input type="number" class="form-control form-control-sm" @bind="v.Price" step="1000" />
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" @bind="v.Quantity" min="0" />
+                                        </td>
+                                        <td>
+                                            <input type="number" class="form-control form-control-sm" @bind="v.WeightGram" min="1" placeholder="gram" />
                                         </td>
                                         <td>
                                             @if (!string.IsNullOrEmpty(v.ImageUrl))
@@ -304,7 +381,9 @@
     private UpdateFullProductRequest fullRequest = new();
     private List<ShippingPolicyDto> shippingPolicies = new();
     private List<ReturnPolicyDto> returnPolicies = new();
+    private List<PaymentPolicyDto> paymentPolicies = new();
     private List<CategoryDto> categories = new();
+    private List<CategoryItemSpecificDto> categoryItemSpecifics = new();
     
     private bool isLoading = true;
     private bool isSubmitting = false;
@@ -314,6 +393,23 @@
     private bool isUploadingPrimary = false;
     private bool isUploadingExtra = false;
     private HashSet<UpdateVariantDto> uploadingVariants = new();
+
+    private void SetItemSpecificValue(string name, string? value)
+    {
+        fullRequest.ItemSpecifics ??= new List<ItemSpecificInput>();
+        var existing = fullRequest.ItemSpecifics.FirstOrDefault(s => s.Name == name);
+        if (existing != null)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                fullRequest.ItemSpecifics.Remove(existing);
+            else
+                existing.Value = value;
+        }
+        else if (!string.IsNullOrWhiteSpace(value))
+        {
+            fullRequest.ItemSpecifics.Add(new ItemSpecificInput { Name = name, Value = value });
+        }
+    }
 
     private async Task UploadPrimaryImage(InputFileChangeEventArgs e)
     {
@@ -391,6 +487,9 @@
             var rp = await PolicyService.GetReturnPoliciesAsync();
             returnPolicies = rp.ToList();
 
+            var pp = await PolicyService.GetPaymentPoliciesAsync();
+            paymentPolicies = pp.ToList();
+
             // Load Master Data của Product để Fill vào Form
             var product = await ProductService.GetProductByIdAsync(Id);
             if (product == null)
@@ -405,6 +504,7 @@
                 fullRequest.CategoryId = product.CategoryId;
                 fullRequest.ShippingPolicyId = product.ShippingPolicyId;
                 fullRequest.ReturnPolicyId = product.ReturnPolicyId;
+                fullRequest.PaymentPolicyId = product.PaymentPolicyId;
                 fullRequest.Status = product.Status;
                 fullRequest.PrimaryImageUrl = product.PrimaryImageUrl;
                 fullRequest.RowVersion = product.RowVersion;
@@ -432,6 +532,8 @@
                         Id = v.Id,
                         SkuCode = v.SkuCode,
                         Price = v.Price,
+                        Quantity = v.Quantity,
+                        WeightGram = v.WeightGram,
                         ImageUrl = v.ImageUrl,
                         Attributes = JsonSerializer.Deserialize<Dictionary<string, string>>(v.Attributes ?? "{}") ?? new()
                     }).ToList();
@@ -445,6 +547,20 @@
                         Name = s.Name,
                         Value = s.Value
                     }).ToList();
+                }
+                else
+                {
+                    fullRequest.ItemSpecifics = new List<ItemSpecificInput>();
+                }
+
+                // [GAP-2] Load category item specifics cho dynamic form
+                if (product.CategoryId != Guid.Empty)
+                {
+                    try
+                    {
+                        categoryItemSpecifics = (await CategoryService.GetItemSpecificsByCategoryIdAsync(product.CategoryId)).ToList();
+                    }
+                    catch { /* Category may not have item specifics */ }
                 }
             }
         }
@@ -467,6 +583,10 @@
         {
             // Sync extra images
             fullRequest.ImageUrls = extraImageUrls;
+
+            // [GAP-2] Sync Item Specifics from form
+            // Merge: giữ existing values + cập nhật từ form
+            // (fullRequest.ItemSpecifics đã được bind trực tiếp qua SetItemSpecificValue)
 
             // Gọi 1 API duy nhất để cập nhật toàn bộ (Atomic)
             await ProductService.UpdateFullProductAsync(Id, fullRequest);

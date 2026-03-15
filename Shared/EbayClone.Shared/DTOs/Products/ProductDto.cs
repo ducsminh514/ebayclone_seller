@@ -10,6 +10,7 @@ namespace EbayClone.Shared.DTOs.Products
         public Guid CategoryId { get; set; }
         public Guid? ShippingPolicyId { get; set; }
         public Guid? ReturnPolicyId { get; set; }
+        public Guid? PaymentPolicyId { get; set; }
         
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }

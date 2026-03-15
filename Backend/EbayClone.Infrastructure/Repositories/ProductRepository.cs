@@ -36,13 +36,13 @@ namespace EbayClone.Infrastructure.Repositories
                                  .Include(p => p.Variants)
                                     .ThenInclude(v => v.AttributeValues)
                                  .Include(p => p.ItemSpecifics)
-                                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+                                 .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
         }
 
         public async Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Products
-                                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+                                 .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
         }
 
         public async Task<IEnumerable<Product>> GetProductsByShopIdAsync(Guid shopId, CancellationToken cancellationToken = default)
@@ -50,7 +50,7 @@ namespace EbayClone.Infrastructure.Repositories
             // Fix N+1 Query Using AsSplitQuery
             return await _context.Products
                                  .AsNoTracking()
-                                 .Where(p => p.ShopId == shopId)
+                                 .Where(p => p.ShopId == shopId && !p.IsDeleted)
                                  .Include(p => p.Variants)
                                     .ThenInclude(v => v.AttributeValues)
                                  .Include(p => p.ItemSpecifics)
@@ -84,6 +84,21 @@ namespace EbayClone.Infrastructure.Repositories
                 .ExecuteDeleteAsync(cancellationToken);
         }
 
+        public async Task DeleteVariantAttributeValuesByProductIdAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            // Xóa tất cả VariantAttributeValues của tất cả variants thuộc product
+            var variantIds = await _context.ProductVariants
+                .Where(v => v.ProductId == productId)
+                .Select(v => v.Id)
+                .ToListAsync(cancellationToken);
+            
+            if (variantIds.Count > 0)
+            {
+                await _context.VariantAttributeValues
+                    .Where(a => variantIds.Contains(a.VariantId))
+                    .ExecuteDeleteAsync(cancellationToken);
+            }
+        }
         // [A5] Item Specifics CRUD
         public async Task AddProductItemSpecificsAsync(IEnumerable<ProductItemSpecific> specifics, CancellationToken cancellationToken = default)
         {
