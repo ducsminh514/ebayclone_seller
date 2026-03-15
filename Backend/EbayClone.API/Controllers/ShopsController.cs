@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using EbayClone.Application.UseCases.Shops;
 namespace EbayClone.API.Controllers
 {
     [ApiController]
+    [Authorize]
     public class ShopsController : ControllerBase
     {
         private readonly ICreateShopUseCase _createShopUseCase;
@@ -150,6 +152,7 @@ namespace EbayClone.API.Controllers
                 shop.IsIdentityVerified,
                 shop.BankVerificationStatus,
                 shop.IsVerified,
+                shop.IsPolicyOptedIn,
                 shop.MonthlyListingLimit
             });
         }
@@ -165,7 +168,6 @@ namespace EbayClone.API.Controllers
         /// Cập nhật Store Profile (Name, Description, Avatar, Banner).
         /// eBay thật: Truy cập qua Store tab > Edit store.
         /// </summary>
-        [Microsoft.AspNetCore.Authorization.Authorize]
         [HttpPut("api/shops/profile")]
         public async Task<IActionResult> UpdateShopProfile([FromBody] UpdateShopProfileRequest request)
         {
@@ -189,7 +191,6 @@ namespace EbayClone.API.Controllers
         /// <summary>
         /// Lấy thông tin Store Profile hiện tại để hiển thị trên trang Edit.
         /// </summary>
-        [Microsoft.AspNetCore.Authorization.Authorize]
         [HttpGet("api/shops/profile")]
         public async Task<IActionResult> GetShopProfile()
         {

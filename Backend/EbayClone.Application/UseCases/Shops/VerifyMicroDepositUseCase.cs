@@ -62,6 +62,7 @@ namespace EbayClone.Application.UseCases.Shops
                 if (shop.IsIdentityVerified)
                 {
                     shop.IsVerified = true;
+                    shop.IsPolicyOptedIn = true; // Auto opt-in khi verified (default policies seeded cùng lúc)
                     // Seed policies only when fully verified
                     await _policySeeder.SeedDefaultPoliciesAsync(shop.Id, cancellationToken);
                 }

@@ -63,12 +63,22 @@ namespace EbayClone.Application.UseCases.Policies
                     HandlingTimeDays = request.HandlingTimeDays,
                     IsDefault = request.IsDefault,
 
+                    OfferFreeShipping = request.OfferFreeShipping,
+
                     DomesticCostType = request.DomesticCostType,
                     DomesticServicesJson = JsonSerializer.Serialize(request.DomesticServices),
 
                     IsInternationalShippingAllowed = request.IsInternationalShippingAllowed,
                     InternationalCostType = request.InternationalCostType,
                     InternationalServicesJson = JsonSerializer.Serialize(request.InternationalServices),
+
+                    OfferCombinedShippingDiscount = request.OfferCombinedShippingDiscount,
+
+                    PackageType = request.PackageType,
+                    PackageWeightOz = request.PackageWeightOz,
+                    PackageDimensionsJson = request.PackageDimensionsJson,
+
+                    HandlingTimeCutoff = request.HandlingTimeCutoff,
 
                     ExcludedLocationsJson = JsonSerializer.Serialize(request.ExcludedLocations),
 

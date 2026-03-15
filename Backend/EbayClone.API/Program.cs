@@ -61,6 +61,7 @@ builder.Services.AddScoped<IGetReturnPoliciesUseCase, GetReturnPoliciesUseCase>(
 builder.Services.AddScoped<IGetPaymentPoliciesUseCase, GetPaymentPoliciesUseCase>();
 builder.Services.AddScoped<IDeletePolicyUseCase, DeletePolicyUseCase>();
 builder.Services.AddScoped<ISetDefaultPolicyUseCase, SetDefaultPolicyUseCase>();
+builder.Services.AddScoped<IOptInPolicyUseCase, OptInPolicyUseCase>();
 builder.Services.AddScoped<IUpdateOrderStatusUseCase, UpdateOrderStatusUseCase>();
 builder.Services.AddScoped<IGetOrdersUseCase, GetOrdersUseCase>();
 builder.Services.AddScoped<IGetOrderByIdUseCase, GetOrderByIdUseCase>();

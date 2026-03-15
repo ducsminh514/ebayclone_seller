@@ -18,7 +18,19 @@ namespace EbayClone.Domain.Entities
         public bool IsInternationalAccepted { get; set; } = false;
         public int InternationalReturnDays { get; set; } = 30;
         public string InternationalShippingPaidBy { get; set; } = "BUYER";
-        
+
+        // Auto-Accept Returns (eBay: tự động chấp nhận return request từ buyer)
+        public bool AutoAcceptReturns { get; set; } = false;
+
+        // Send Immediate Refund (eBay: hoàn tiền ngay khi buyer gửi hàng trả)
+        public bool SendImmediateRefund { get; set; } = false;
+
+        // Return Address (eBay: cho phép dùng địa chỉ khác với địa chỉ shop chính)
+        public string? ReturnAddressJson { get; set; } // { name, street, city, state, zip, country }
+
+        // Restocking Fee (eBay: phí restock 0-20%, thường áp dụng cho electronics)
+        public decimal RestockingFeePercent { get; set; } = 0; // 0 = no fee
+
         public bool IsDefault { get; set; } = false;
  
         // Management

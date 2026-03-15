@@ -34,6 +34,9 @@ namespace EbayClone.Domain.Entities
         public decimal MicroDepositAmount2 { get; set; } = 0;
         public int BankVerificationAttempts { get; set; } = 0; // Chặn brute-force (tối đa 3 lần)
 
+        // Business Policies Opt-in (eBay thật: seller phải chủ động bật trước khi dùng)
+        public bool IsPolicyOptedIn { get; set; } = false;
+
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation property

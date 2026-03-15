@@ -38,7 +38,9 @@ namespace EbayClone.Application.UseCases.Shops
             }
 
             shop.BankName = request.BankName;
-            shop.BankAccountNumber = request.BankAccountNumber;
+            // SECURITY: Mask bank account number - chỉ lưu 4 số cuối để hiển thị
+            // Production: dùng AES-256 encryption thay vì masking
+            shop.BankAccountNumber = MaskBankAccount(request.BankAccountNumber);
             shop.BankAccountHolderName = request.BankAccountHolderName;
             shop.BankVerificationStatus = "Pending";
 
@@ -49,6 +51,17 @@ namespace EbayClone.Application.UseCases.Shops
 
             _shopRepository.Update(shop);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Mask bank account: giữ 4 số cuối, phần còn lại = *.
+        /// VD: "123456789" → "*****6789"
+        /// </summary>
+        private static string MaskBankAccount(string accountNumber)
+        {
+            if (string.IsNullOrWhiteSpace(accountNumber)) return accountNumber;
+            if (accountNumber.Length <= 4) return accountNumber;
+            return new string('*', accountNumber.Length - 4) + accountNumber[^4..];
         }
     }
 }

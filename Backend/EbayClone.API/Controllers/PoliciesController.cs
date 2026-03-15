@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System;
 using System.Threading.Tasks;
 using EbayClone.Shared.DTOs.Policies;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace EbayClone.API.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/[controller]")]
     public class PoliciesController : ControllerBase
     {
@@ -19,6 +21,7 @@ namespace EbayClone.API.Controllers
         private readonly IGetPaymentPoliciesUseCase _getPaymentPoliciesUseCase;
         private readonly IDeletePolicyUseCase _deletePolicyUseCase;
         private readonly ISetDefaultPolicyUseCase _setDefaultPolicyUseCase;
+        private readonly IOptInPolicyUseCase _optInPolicyUseCase;
         private readonly EbayClone.Application.Interfaces.Repositories.IShopRepository _shopRepository;
 
         public PoliciesController(
@@ -30,6 +33,7 @@ namespace EbayClone.API.Controllers
             IGetPaymentPoliciesUseCase getPaymentPoliciesUseCase,
             IDeletePolicyUseCase deletePolicyUseCase,
             ISetDefaultPolicyUseCase setDefaultPolicyUseCase,
+            IOptInPolicyUseCase optInPolicyUseCase,
             EbayClone.Application.Interfaces.Repositories.IShopRepository shopRepository)
         {
             _createShippingPolicyUseCase = createShippingPolicyUseCase;
@@ -40,6 +44,7 @@ namespace EbayClone.API.Controllers
             _getPaymentPoliciesUseCase = getPaymentPoliciesUseCase;
             _deletePolicyUseCase = deletePolicyUseCase;
             _setDefaultPolicyUseCase = setDefaultPolicyUseCase;
+            _optInPolicyUseCase = optInPolicyUseCase;
             _shopRepository = shopRepository;
         }
 
@@ -276,6 +281,30 @@ namespace EbayClone.API.Controllers
             {
                 await _setDefaultPolicyUseCase.ExecuteAsync(shop.Id, policyId, policyType);
                 return Ok(new { Message = $"{policyType} policy set as default." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Opt-in vào Business Policies (eBay thật: bizpolicy.ebay.com/policyoptin).
+        /// </summary>
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        [HttpPost("opt-in")]
+        public async Task<IActionResult> OptInPolicies()
+        {
+            var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            {
+                return Unauthorized(new { Error = "Unauthorized access." });
+            }
+
+            try
+            {
+                await _optInPolicyUseCase.ExecuteAsync(userId);
+                return Ok(new { Message = "Successfully opted into Business Policies." });
             }
             catch (InvalidOperationException ex)
             {

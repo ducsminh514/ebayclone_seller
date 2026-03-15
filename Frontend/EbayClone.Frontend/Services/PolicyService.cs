@@ -134,5 +134,20 @@ namespace EbayClone.Frontend.Services
                 throw new InvalidOperationException(error?.Error ?? "Failed to set default policy.");
             }
         }
+
+        public async Task<string> OptInPoliciesAsync()
+        {
+            var response = await _httpClient.PostAsync("api/policies/opt-in", null);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<SuccessResponse>();
+                return result?.Message ?? "Opted in successfully.";
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+                throw new InvalidOperationException(error?.Error ?? "Failed to opt in.");
+            }
+        }
     }
 }
