@@ -139,6 +139,30 @@ namespace EbayClone.Application.UseCases.Products
                 await _productRepository.AddVariantsAsync(variantsToSave, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+                // 3b. [A1] Tạo VariantAttributeValue relational entries
+                // Lưu song song JSON (quick read) + relational (query/filter)
+                var attributeValues = new List<VariantAttributeValue>();
+                foreach (var variant in variantsToSave)
+                {
+                    if (variant.Attributes == null) continue;
+                    var attrs = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(variant.Attributes);
+                    if (attrs == null) continue;
+                    foreach (var kv in attrs)
+                    {
+                        attributeValues.Add(new VariantAttributeValue
+                        {
+                            VariantId = variant.Id,
+                            AttributeName = kv.Key,
+                            AttributeValue = kv.Value
+                        });
+                    }
+                }
+                if (attributeValues.Count > 0)
+                {
+                    await _productRepository.AddVariantAttributeValuesAsync(attributeValues, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
                 // 4. Commit toàn bộ thay đổi thành 1 khối vững chắc
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
 

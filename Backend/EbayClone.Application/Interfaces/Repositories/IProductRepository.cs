@@ -16,6 +16,8 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task<int> GetCountByShopInCurrentMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
         
         Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default);
+        Task AddVariantAttributeValuesAsync(IEnumerable<VariantAttributeValue> values, CancellationToken cancellationToken = default);
+        Task DeleteVariantAttributeValuesByVariantIdAsync(Guid variantId, CancellationToken cancellationToken = default);
         Task<ProductVariant?> GetVariantByIdAsync(Guid variantId, CancellationToken cancellationToken = default);
         
         // Optimistic Concurrency Update for Restock

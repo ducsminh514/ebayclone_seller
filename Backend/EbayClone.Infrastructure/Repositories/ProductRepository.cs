@@ -34,6 +34,8 @@ namespace EbayClone.Infrastructure.Repositories
         {
             return await _context.Products
                                  .Include(p => p.Variants)
+                                    .ThenInclude(v => v.AttributeValues)
+                                 .Include(p => p.ItemSpecifics)
                                  .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         }
 
@@ -50,6 +52,8 @@ namespace EbayClone.Infrastructure.Repositories
                                  .AsNoTracking()
                                  .Where(p => p.ShopId == shopId)
                                  .Include(p => p.Variants)
+                                    .ThenInclude(v => v.AttributeValues)
+                                 .Include(p => p.ItemSpecifics)
                                  .AsSplitQuery()
                                  .ToListAsync(cancellationToken);
         }
@@ -65,6 +69,19 @@ namespace EbayClone.Infrastructure.Repositories
         public async Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default)
         {
             await _context.ProductVariants.AddRangeAsync(variants, cancellationToken);
+        }
+
+        public async Task AddVariantAttributeValuesAsync(IEnumerable<VariantAttributeValue> values, CancellationToken cancellationToken = default)
+        {
+            await _context.VariantAttributeValues.AddRangeAsync(values, cancellationToken);
+        }
+
+        public async Task DeleteVariantAttributeValuesByVariantIdAsync(Guid variantId, CancellationToken cancellationToken = default)
+        {
+            // Xóa atomic tại DB level, không cần load vào memory
+            await _context.VariantAttributeValues
+                .Where(v => v.VariantId == variantId)
+                .ExecuteDeleteAsync(cancellationToken);
         }
 
         public async Task<ProductVariant?> GetVariantByIdAsync(Guid variantId, CancellationToken cancellationToken = default)

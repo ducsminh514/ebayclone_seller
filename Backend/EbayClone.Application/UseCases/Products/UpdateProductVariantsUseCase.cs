@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -52,12 +52,24 @@ namespace EbayClone.Application.UseCases.Products
                         variant.ImageUrl = variantDto.ImageUrl;
                         variant.Attributes = JsonSerializer.Serialize(variantDto.Attributes);
                         variant.UpdatedAt = DateTimeOffset.UtcNow;
+
+                        // [A1] Sync relational attributes: xóa cũ → tạo mới
+                        await _productRepository.DeleteVariantAttributeValuesByVariantIdAsync(variant.Id, cancellationToken);
+                        if (variantDto.Attributes != null && variantDto.Attributes.Count > 0)
+                        {
+                            var newValues = variantDto.Attributes.Select(kv => new VariantAttributeValue
+                            {
+                                VariantId = variant.Id,
+                                AttributeName = kv.Key,
+                                AttributeValue = kv.Value
+                            });
+                            await _productRepository.AddVariantAttributeValuesAsync(newValues, cancellationToken);
+                        }
                     }
                 }
                 else
                 {
-                    // Optionally: Add new variant if Id is null
-                    // Note: Quantity defaults to 0 as they must restock later
+                    // Add new variant
                     var newVariant = new ProductVariant
                     {
                         Id = Guid.NewGuid(),
@@ -71,6 +83,19 @@ namespace EbayClone.Application.UseCases.Products
                         CreatedAt = DateTimeOffset.UtcNow
                     };
                     product.Variants?.Add(newVariant);
+
+                    // [A1] Tạo relational attributes cho variant mới
+                    // Note: phải SaveChanges trước để có VariantId, hoặc dùng Id đã generate
+                    if (variantDto.Attributes != null && variantDto.Attributes.Count > 0)
+                    {
+                        var attrValues = variantDto.Attributes.Select(kv => new VariantAttributeValue
+                        {
+                            VariantId = newVariant.Id,
+                            AttributeName = kv.Key,
+                            AttributeValue = kv.Value
+                        });
+                        await _productRepository.AddVariantAttributeValuesAsync(attrValues, cancellationToken);
+                    }
                 }
             }
 
