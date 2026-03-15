@@ -34,22 +34,93 @@ ________________
 
 
 PHẦN 2: LUỒNG QUẢN LÝ NGUỒN CUNG (LISTING & INVENTORY FLOW - CHUẨN EBAY 2024)
-Nơi Seller quản lý hàng hóa hiển thị trên sàn. Quá trình chia làm 6 bước cực đoan.
-1. Luồng Đăng bán Sản phẩm (Create Listing):
-* Bước 1 (Find Match): Nhập từ khoá tìm sản phẩm mẫu trong Product Library. Nếu có, chọn "Sell one like this". Nếu không, chọn "Continue without match".
-* Bước 2 (Condition): Bắt buộc chọn Condition (New, Open box, Used, For parts...) qua Modal. Lưu vào biến thể sản phẩm.
-* Bước 3 (Complete Form): 
-   * Upload tối đa 24 ảnh và 1 video (Hỗ trợ kéo thả).
-   * Điền Title (80 ký tự), Subtitle.
-   * Cực kỳ quan trọng: Điền "Item Specifics" (Danh mục thuộc tính như Brand, Model, Color). Càng điền kỹ càng dễ lên top filter.
-   * Viết Description chân thực.
-* Bước 4 (Pricing & Format): Chọn Fixed Price (Mua ngay) hoặc Auction (Đấu giá 3-10 ngày). Cho phép bật "Allow Offers".
-* Bước 5 (Shipping & Policies): Chọn thả xuống 3 cái Policy (Payment, Return, Shipping) đã cài ở Phần 1. Nhập Package weight & dimensions.
-* Bước 6 (Publish): Bấm "List it". Trạng thái sản phẩm chuyển thành ACTIVE (hoặc SCHEDULED).
-2. Luồng Quản lý Danh sách Sản phẩm (Listing Maintenance):
-* Cập nhật Tồn kho (Restock): Seller vào sửa Quantity. (Hệ thống tuyệt đối không bù trừ vào ReservedQuantity của đơn hàng đang treo).
-* Tạo Biến thể (Variants): Từ danh mục cha, tạo các SKU con (Ví dụ: Áo có Size S/M/L) với giá, ảnh và số lượng riêng. Lưu dưới DB dạng JSON/List.
-* Tạm ẩn/Xóa (Hide/Delete): Đổi Status = HIDDEN, IsDeleted = True. Hệ thống cấm dùng Hard Delete bằng lệnh SQL DELETE để không phá vỡ Lịch sử Đơn hàng.
+Nơi Seller quản lý hàng hóa hiển thị trên sàn. Listing = 1 Product + N Variants (SKUs). Hệ thống hỗ trợ Đấu giá (Auction) và Giá cố định (Fixed Price), kèm Best Offer, Item Specifics bắt buộc, và quản lý trạng thái tồn kho tự động.
+
+1. Hệ thống Danh mục & Seed Data (Category & Item Specifics):
+   * Danh mục phân cấp 2 tầng: Root (Electronics, Clothing & Accessories...) → Sub (Cell Phones, Men's Shirts...). Mỗi Category có Slug, AttributeHints (gợi ý thuộc tính biến thể), và ParentId.
+   * CategorySeeder chạy idempotent khi app khởi động (Program.cs) — seed 6 root + 12 sub categories + 60+ CategoryItemSpecifics.
+   * Mỗi CategoryItemSpecific gồm: Name (vd: "Brand"), Requirement (REQUIRED/RECOMMENDED/OPTIONAL), SuggestedValues (vd: "Apple,Samsung,Google"), SortOrder.
+   * LƯU Ý: Controller KHÔNG chứa inline seed data — toàn bộ seed nằm ở CategorySeeder.
+
+2. Luồng Đăng bán Sản phẩm (Create Listing):
+   * Bước 1 (Thông tin cơ bản):
+      - Nhập Title (3-255 ký tự), Subtitle (max 80 ký tự, hiển thị dưới tiêu đề trong kết quả tìm kiếm, phí phụ trên eBay thật), Description, Brand.
+      - Chọn Danh mục (**bắt buộc**): Dropdown hiển thị cấu trúc phân cấp (└ Sub-category). Khi chọn → API tự động load Item Specifics: GET /api/categories/{id}/item-specifics.
+
+   * Bước 2 (Condition — ở Product Level):
+      - **BẮT BUỘC** chọn Condition. Giá trị hợp lệ: New, New Other, Open Box, Seller Refurbished, Used, For Parts.
+      - LƯU Ý: Condition lưu ở Product (KHÔNG phải ở Variant). Tất cả variants cùng listing phải cùng 1 Condition (đúng chuẩn eBay).
+      - Có thể thêm ConditionDescription mô tả chi tiết (vết xước, thiếu phụ kiện...).
+
+   * Bước 3 (Listing Format & Best Offer):
+      - Chọn hình thức bán:
+         a. FIXED_PRICE (Giá cố định, mặc định): Bán ngay với giá niêm yết. Hỗ trợ nhiều biến thể.
+         b. AUCTION (Đấu giá): Listing dạng đấu giá. **BẮT BUỘC chỉ có đúng 1 variant** — backend reject nếu >1.
+      - Best Offer (AllowOffers):
+         a. Bật → Buyer có thể đặt giá. Seller duyệt/từ chối thủ công.
+         b. AutoAcceptPrice: Tự chấp nhận offer ≥ X (vd: ≥ 900K → tự đồng ý).
+         c. AutoDeclinePrice: Tự từ chối offer < Y (vd: < 500K → tự reject).
+         d. Validate: AutoAcceptPrice PHẢI > AutoDeclinePrice (nếu cả 2 được set).
+
+   * Bước 4 (Item Specifics — Trọng yếu cho SEO):
+      - Hiển thị form động theo Category đã chọn (load từ API):
+         a. REQUIRED (đỏ *): Bắt buộc điền TRƯỚC khi đăng bán. Nếu thiếu → backend reject status ACTIVE.
+         b. RECOMMENDED (vàng): Nên điền để tăng khả năng xuất hiện trong bộ lọc.
+         c. OPTIONAL (xám): Tùy chọn.
+      - Nếu có SuggestedValues → hiển thị dropdown. Nếu không → input text tự do.
+      - LƯU Ý: Item Specifics được validate khi chuyển status DRAFT/SCHEDULED → ACTIVE (publish). Khi tạo nháp thì không bắt buộc.
+      - Lưu vào bảng ProductItemSpecifics (ProductId, Name, Value).
+
+   * Bước 5 (Upload ảnh):
+      - 1 ảnh bìa (PrimaryImageUrl) + N ảnh phụ (ImageUrls lưu JSON array).
+      - Mỗi biến thể có thể có ảnh riêng (variant.ImageUrl).
+      - Upload qua FileUploadService → POST /api/files/upload.
+
+   * Bước 6 (Biến thể — Variations/SKUs):
+      - Mỗi listing BẮT BUỘC ít nhất 1 variant. Mỗi variant gồm: SkuCode (unique), Price, Quantity, Attributes (động dạng Key-Value), WeightGram (tùy chọn).
+      - **Giới hạn cứng (Validation ở Application Layer):**
+         a. Tối đa **250 variants** / listing.
+         b. Tối đa **5 thuộc tính** / variant (vd: Color, Size, Storage, RAM, Material).
+         c. Tối đa **50 options** / thuộc tính (vd: Color có max 50 màu khác nhau).
+      - Thuộc tính lưu dual-store: JSON snapshot (quick read) + VariantAttributeValues relational table (query/filter).
+
+   * Bước 7 (Chính sách & Xuất bản):
+      - Chọn 3 Policy (Shipping, Return, Payment) từ kho đã tạo ở Phần 1. Nếu không chọn → hệ thống tự gán Default Policy.
+      - Xuất bản: 3 nút:
+         a. "💾 Lưu Nháp" → Status = DRAFT (default từ backend).
+         b. "⏰ Hẹn Giờ Đăng" → Status = SCHEDULED (cần set ScheduledAt).
+         c. "🚀 Đăng Bán Ngay" → Tạo DRAFT → gọi PATCH /api/products/{id}/status thành ACTIVE.
+      - Khi publish (ACTIVE): Backend validate REQUIRED Item Specifics. Thiếu → reject 400 kèm danh sách cần điền.
+
+3. Luồng Quản lý Trạng thái Sản phẩm (Status Lifecycle):
+   * Các trạng thái hợp lệ: DRAFT, ACTIVE, SCHEDULED, OUT_OF_STOCK, HIDDEN, ENDED.
+   * Diagram chuyển trạng thái:
+      - DRAFT → ACTIVE (sau validate Item Specifics) | SCHEDULED (có ScheduledAt)
+      - SCHEDULED → ACTIVE (khi đến giờ — cần Background Job)
+      - ACTIVE → HIDDEN (seller ẩn thủ công) | OUT_OF_STOCK (tự động, xem mục 4) | ENDED (seller kết thúc)
+      - OUT_OF_STOCK → ACTIVE (tự động khi restock) | HIDDEN (seller ẩn) | ENDED (seller kết thúc)
+      - HIDDEN → ACTIVE (seller mở lại) | ENDED (seller kết thúc)
+      - **ENDED → ⛔ KHÔNG THỂ chuyển sang trạng thái khác** (final state — phải tạo listing mới = relist)
+   * LƯU Ý: OUT_OF_STOCK là trạng thái TỰ ĐỘNG — seller KHÔNG THỂ set manual. Chỉ hệ thống chuyển khi tất cả variants hết hàng.
+   * LƯU Ý: ENDED là trạng thái CUỐI CÙNG — seller có thể kết thúc listing thủ công bất kỳ lúc nào (giống nút "End listing" trên eBay).
+   * Tại sao dùng OUT_OF_STOCK thay vì HIDDEN? Vì eBay giữ SEO ranking cho listing OUT_OF_STOCK, còn HIDDEN thì mất ranking.
+   * [CHƯA IMPLEMENT] Auto-end Auction: Background Job tự động chuyển ENDED khi Auction hết hạn thời gian đấu giá — dự kiến phase khi có module Auction bidding.
+
+4. Luồng Quản lý Tồn kho & Tự động OUT_OF_STOCK (Inventory & A6):
+   * Cập nhật tồn kho (Restock): Seller nhập thêm số lượng qua Inventory page. Gọi PUT /api/products/variants/{id}/restock.
+   * Tuyệt đối không bù trừ vào ReservedQuantity — chỉ cộng Quantity.
+   * **Cơ chế tự động OUT_OF_STOCK (Domain Logic: Product.CheckAndUpdateStockStatus()):**
+      - Sau MỌI thao tác ảnh hưởng stock (restock, deduct kho khi PAID, trả hàng khi CANCELLED):
+         a. Nếu Status = ACTIVE && TẤT CẢ variants có (Quantity - ReservedQuantity) ≤ 0 → chuyển OUT_OF_STOCK.
+         b. Nếu Status = OUT_OF_STOCK && CÓ BẤT KỲ variant nào (Quantity - ReservedQuantity) > 0 → chuyển lại ACTIVE.
+      - Gọi từ: RestockVariantUseCase, UpdateOrderStatusUseCase (READY_TO_SHIP + CANCELLED).
+
+5. Luồng Quản lý Danh sách & Sửa/Xóa (Listing Maintenance):
+   * Sửa toàn diện (Full Update): PUT /api/products/{id}/full — sửa tất cả: tên, ảnh, variants, condition, format, specifics, policies. Dùng Concurrency Token (RowVersion) chống xung đột.
+   * Sửa biến thể (Variant Sync): DELETE variants cũ không còn trong request + UPDATE existing + ADD mới. Giải quyết Ghost Variants (variant mồ côi trong DB).
+   * Tạm ẩn: Đổi Status = HIDDEN. Sản phẩm biến mất khỏi search nhưng vẫn tồn tại trong DB.
+   * Xóa mềm: IsDeleted = True, sản phẩm biến mất khỏi mọi giao diện. Tuyệt đối cấm Hard Delete bằng SQL DELETE để bảo toàn lịch sử đơn hàng.
+   * LƯU Ý (Data Loss Risk): Khi sửa listing, FE PHẢI load toàn bộ fields từ product trước khi submit. Nếu không → default values đè mất data gốc (vd: ListingFormat reset về FIXED_PRICE, AllowOffers reset về false).
 ________________
 
 

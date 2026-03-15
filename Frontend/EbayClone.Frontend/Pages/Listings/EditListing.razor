@@ -1,4 +1,4 @@
-﻿@page "/listings/edit/{Id:guid}"
+@page "/listings/edit/{Id:guid}"
 @using EbayClone.Shared.DTOs.Products
 @using EbayClone.Shared.DTOs.Policies
 @using EbayClone.Frontend.Services
@@ -102,22 +102,68 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Thương hiệu</label>
                             <InputText class="form-control ebay-input" @bind-Value="fullRequest.Brand" placeholder="Ví dụ: Apple, Samsung..." />
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Danh mục *</label>
                             <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.CategoryId">
                                 <option value="">-- Chọn danh mục --</option>
                                 @foreach (var cat in categories)
                                 {
-                                    <option value="@cat.Id">@cat.Name</option>
+                                    var prefix = cat.ParentId.HasValue ? "   └ " : "";
+                                    <option value="@cat.Id">@prefix@cat.Name</option>
                                 }
                             </InputSelect>
                             <ValidationMessage For="@(() => fullRequest.CategoryId)" />
                         </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Tình trạng *</label>
+                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.Condition">
+                                <option value="New">Mới (New)</option>
+                                <option value="New Other">Mới khác (New Other)</option>
+                                <option value="Open Box">Đã khui hộp (Open Box)</option>
+                                <option value="Seller Refurbished">Đã tân trang (Refurbished)</option>
+                                <option value="Used">Đã qua sử dụng (Used)</option>
+                                <option value="For Parts">Dùng linh kiện (For Parts)</option>
+                            </InputSelect>
+                        </div>
                     </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Hình thức bán</label>
+                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.ListingFormat">
+                                <option value="FIXED_PRICE">Giá cố định (Fixed Price)</option>
+                                <option value="AUCTION">Đấu giá (Auction)</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Subtitle (phụ đề SEO)</label>
+                            <InputText class="form-control ebay-input" @bind-Value="fullRequest.Subtitle" placeholder="Phụ đề hiển thị trong kết quả tìm kiếm" />
+                        </div>
+                        <div class="col-md-4 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <InputCheckbox class="form-check-input" @bind-Value="fullRequest.AllowOffers" />
+                                <label class="form-check-label">Cho phép đặt giá (Best Offer)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (fullRequest.AllowOffers)
+                    {
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tự chấp nhận offer ≥ (₫)</label>
+                                <InputNumber class="form-control ebay-input" @bind-Value="fullRequest.AutoAcceptPrice" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tự từ chối offer &lt; (₫)</label>
+                                <InputNumber class="form-control ebay-input" @bind-Value="fullRequest.AutoDeclinePrice" />
+                            </div>
+                        </div>
+                    }
                 </div>
 
                 <div class="ebay-card">
@@ -149,7 +195,21 @@
                                 <option value="DRAFT">DRAFT (Bản Nháp)</option>
                                 <option value="ACTIVE">ACTIVE (Mở Bán)</option>
                                 <option value="SCHEDULED">SCHEDULED (Hẹn Giờ)</option>
+                                <option value="HIDDEN">HIDDEN (Ẩn)</option>
+                                <option value="ENDED">ENDED (Kết Thúc)</option>
+                                @if (fullRequest.Status == "OUT_OF_STOCK")
+                                {
+                                    <option value="OUT_OF_STOCK" disabled>OUT_OF_STOCK (Tự động - Hết hàng)</option>
+                                }
                             </InputSelect>
+                            @if (fullRequest.Status == "OUT_OF_STOCK")
+                            {
+                                <div class="text-warning mt-1" style="font-size: 12px;">⚠️ Trạng thái này tự động khi tất cả biến thể hết hàng. Nhập kho để chuyển về ACTIVE.</div>
+                            }
+                            @if (fullRequest.Status == "ENDED")
+                            {
+                                <div class="text-danger mt-1" style="font-size: 12px;">🛑 Listing đã kết thúc. Không thể chỉnh sửa hoặc mở lại. Hãy tạo listing mới (relist).</div>
+                            }
                         </div>
                     </div>
                 </div>
@@ -349,6 +409,17 @@
                 fullRequest.PrimaryImageUrl = product.PrimaryImageUrl;
                 fullRequest.RowVersion = product.RowVersion;
 
+                // [A2] Load Condition
+                fullRequest.Condition = product.Condition;
+                fullRequest.ConditionDescription = product.ConditionDescription;
+
+                // [A3] Load ListingFormat + Offers
+                fullRequest.ListingFormat = product.ListingFormat;
+                fullRequest.AllowOffers = product.AllowOffers;
+                fullRequest.AutoAcceptPrice = product.AutoAcceptPrice;
+                fullRequest.AutoDeclinePrice = product.AutoDeclinePrice;
+                fullRequest.Subtitle = product.Subtitle;
+
                 if (!string.IsNullOrEmpty(product.ImageUrls))
                 {
                     extraImageUrls = JsonSerializer.Deserialize<List<string>>(product.ImageUrls) ?? new();
@@ -363,6 +434,16 @@
                         Price = v.Price,
                         ImageUrl = v.ImageUrl,
                         Attributes = JsonSerializer.Deserialize<Dictionary<string, string>>(v.Attributes ?? "{}") ?? new()
+                    }).ToList();
+                }
+
+                // [A5] Load existing Item Specifics
+                if (product.ItemSpecifics != null && product.ItemSpecifics.Any())
+                {
+                    fullRequest.ItemSpecifics = product.ItemSpecifics.Select(s => new ItemSpecificInput
+                    {
+                        Name = s.Name,
+                        Value = s.Value
                     }).ToList();
                 }
             }

@@ -84,6 +84,19 @@ namespace EbayClone.Infrastructure.Repositories
                 .ExecuteDeleteAsync(cancellationToken);
         }
 
+        // [A5] Item Specifics CRUD
+        public async Task AddProductItemSpecificsAsync(IEnumerable<ProductItemSpecific> specifics, CancellationToken cancellationToken = default)
+        {
+            await _context.ProductItemSpecifics.AddRangeAsync(specifics, cancellationToken);
+        }
+
+        public async Task DeleteProductItemSpecificsByProductIdAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            await _context.ProductItemSpecifics
+                .Where(s => s.ProductId == productId)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
         public async Task<ProductVariant?> GetVariantByIdAsync(Guid variantId, CancellationToken cancellationToken = default)
         {
             return await _context.ProductVariants.FindAsync(new object[] { variantId }, cancellationToken);

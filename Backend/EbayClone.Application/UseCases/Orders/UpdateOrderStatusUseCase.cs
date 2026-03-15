@@ -65,6 +65,23 @@ namespace EbayClone.Application.UseCases.Orders
                             await _productRepository.DeductStockAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
                         }
 
+                        // [A6] Sau deduct stock → check tất cả product liên quan → auto OUT_OF_STOCK nếu hết hàng
+                        // Tối ưu: chỉ load DISTINCT products (tránh duplicate nếu 2 items cùng product)
+                        var checkedProductIds = new HashSet<Guid>();
+                        foreach (var item in order.Items)
+                        {
+                            var variant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
+                            if (variant != null && checkedProductIds.Add(variant.ProductId))
+                            {
+                                var prod = await _productRepository.GetByIdAsync(variant.ProductId, cancellationToken);
+                                if (prod != null)
+                                {
+                                    prod.CheckAndUpdateStockStatus();
+                                    await _productRepository.UpdateAsync(prod, cancellationToken);
+                                }
+                            }
+                        }
+
                         // 2. NGHIỆP VỤ 2024: Ghi nhận doanh thu treo (Escrow) ngay khi khách TRẢ TIỀN
                         var walletPaid = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
                         if (walletPaid != null)
@@ -126,6 +143,22 @@ namespace EbayClone.Application.UseCases.Orders
                             foreach(var item in order.Items)
                             {
                                 await _productRepository.RestockVariantAsync(item.VariantId, item.Quantity, cancellationToken);
+                            }
+
+                            // [A6] Sau restock → check auto OUT_OF_STOCK → ACTIVE
+                            var checkedCancelProductIds = new HashSet<Guid>();
+                            foreach (var item in order.Items)
+                            {
+                                var cancelVariant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
+                                if (cancelVariant != null && checkedCancelProductIds.Add(cancelVariant.ProductId))
+                                {
+                                    var cancelProd = await _productRepository.GetByIdAsync(cancelVariant.ProductId, cancellationToken);
+                                    if (cancelProd != null)
+                                    {
+                                        cancelProd.CheckAndUpdateStockStatus();
+                                        await _productRepository.UpdateAsync(cancelProd, cancellationToken);
+                                    }
+                                }
                             }
                         }
                         else if (order.PaymentStatus == "UNPAID")

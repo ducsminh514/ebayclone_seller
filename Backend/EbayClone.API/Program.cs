@@ -34,8 +34,10 @@ builder.Services.AddScoped<IWalletTransactionRepository, WalletTransactionReposi
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IDefaultPolicySeeder, DefaultPolicySeeder>();
+builder.Services.AddScoped<ICategorySeeder, CategorySeeder>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<ICreateShopUseCase, CreateShopUseCase>();
@@ -224,5 +226,12 @@ app.MapGet("/test-db", async (EbayClone.Infrastructure.Data.EbayDbContext dbCont
     }
 })
 .WithName("TestDatabaseConnection");
+
+// [A7] Seed categories + item specifics khi khởi động (idempotent)
+using (var seedScope = app.Services.CreateScope())
+{
+    var categorySeeder = seedScope.ServiceProvider.GetRequiredService<ICategorySeeder>();
+    await categorySeeder.SeedCategoriesAsync();
+}
 
 app.Run();

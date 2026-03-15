@@ -56,5 +56,34 @@ namespace EbayClone.Frontend.Services
                 throw new Exception($"Lỗi xóa danh mục: {error}");
             }
         }
+
+        // [A5] Lấy Item Specifics theo Category ID
+        public async Task<IEnumerable<CategoryItemSpecificDto>> GetItemSpecificsByCategoryIdAsync(Guid categoryId)
+        {
+            var response = await _httpClient.GetAsync($"api/categories/{categoryId}/item-specifics");
+            if (response.IsSuccessStatusCode)
+            {
+                var specifics = await response.Content.ReadFromJsonAsync<IEnumerable<CategoryItemSpecificDto>>();
+                return specifics ?? Array.Empty<CategoryItemSpecificDto>();
+            }
+
+            // Nếu category chưa có specifics → trả rỗng (không throw)
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) 
+                return Array.Empty<CategoryItemSpecificDto>();
+            
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"Không thể tải Item Specifics: {error}");
+        }
+    }
+
+    // DTO cho CategoryItemSpecific response
+    public class CategoryItemSpecificDto
+    {
+        public Guid Id { get; set; }
+        public Guid CategoryId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Requirement { get; set; } = "OPTIONAL"; // REQUIRED, RECOMMENDED, OPTIONAL
+        public string? SuggestedValues { get; set; }
+        public int SortOrder { get; set; }
     }
 }

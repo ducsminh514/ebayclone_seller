@@ -1,4 +1,4 @@
-﻿@page "/listings/create"
+@page "/listings/create"
 @using EbayClone.Shared.DTOs.Products
 @using EbayClone.Shared.DTOs.Policies
 @using EbayClone.Frontend.Services
@@ -38,17 +38,69 @@
                 <label class="form-label">Mô tả</label>
                 <InputTextArea class="form-control ebay-input" @bind-Value="request.Description" rows="3" />
             </div>
-            <div class="mb-3">
-                <label class="form-label">Danh Mục *</label>
-                <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId"
-                             @bind-Value:after="OnCategoryChanged">
-                    <option value="">-- Chọn Danh Mục --</option>
-                    @foreach (var c in categories)
-                    {
-                        <option value="@c.Id">@c.Name</option>
-                    }
-                </InputSelect>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Danh Mục *</label>
+                    <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId"
+                                 @bind-Value:after="OnCategoryChanged">
+                        <option value="">-- Chọn Danh Mục --</option>
+                        @foreach (var c in categories)
+                        {
+                            var prefix = c.ParentId.HasValue ? "   └ " : "";
+                            <option value="@c.Id">@prefix@c.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Tình trạng sản phẩm *</label>
+                    <InputSelect class="form-select ebay-input" @bind-Value="request.Condition">
+                        <option value="New">Mới (New)</option>
+                        <option value="New Other">Mới khác (New Other)</option>
+                        <option value="Open Box">Đã khui hộp (Open Box)</option>
+                        <option value="Seller Refurbished">Đã tân trang (Refurbished)</option>
+                        <option value="Used">Đã qua sử dụng (Used)</option>
+                        <option value="For Parts">Dùng linh kiện (For Parts)</option>
+                    </InputSelect>
+                </div>
             </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Hình thức bán</label>
+                    <InputSelect class="form-select ebay-input" @bind-Value="request.ListingFormat">
+                        <option value="FIXED_PRICE">Giá cố định (Fixed Price)</option>
+                        <option value="AUCTION">Đấu giá (Auction)</option>
+                    </InputSelect>
+                    @if (request.ListingFormat == "AUCTION" && request.Variants.Count > 1)
+                    {
+                        <div class="text-danger mt-1" style="font-size: 12px;">⚠️ Auction chỉ hỗ trợ 1 biến thể. Vui lòng xóa bớt.</div>
+                    }
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Subtitle (phụ đề SEO)</label>
+                    <InputText class="form-control ebay-input" @bind-Value="request.Subtitle" placeholder="Hiển thị dưới tiêu đề trong kết quả tìm kiếm" />
+                </div>
+                <div class="col-md-4 mb-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <InputCheckbox class="form-check-input" @bind-Value="request.AllowOffers" />
+                        <label class="form-check-label">Cho phép đặt giá (Best Offer)</label>
+                    </div>
+                </div>
+            </div>
+
+            @if (request.AllowOffers)
+            {
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Tự chấp nhận offer ≥ (₫)</label>
+                        <InputNumber class="form-control ebay-input" @bind-Value="request.AutoAcceptPrice" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Tự từ chối offer &lt; (₫)</label>
+                        <InputNumber class="form-control ebay-input" @bind-Value="request.AutoDeclinePrice" />
+                    </div>
+                </div>
+            }
 
             @if (suggestedAttributes.Any())
             {
@@ -71,6 +123,59 @@
                 </div>
             }
         </div>
+
+        @* ─────────────── ITEM SPECIFICS (A5) ─────────────── *@
+        @if (categoryItemSpecifics.Any())
+        {
+            <div class="ebay-card">
+                <h4 class="ebay-card-title">📋 Thông Tin Chi Tiết (Item Specifics)</h4>
+                <div class="text-muted mb-3" style="font-size: 12px;">Các trường đánh dấu <span class="text-danger fw-bold">*</span> là bắt buộc trước khi đăng bán.</div>
+                
+                @foreach (var spec in categoryItemSpecifics.OrderBy(s => s.SortOrder))
+                {
+                    var existing = itemSpecificsValues.FirstOrDefault(v => v.Name == spec.Name);
+                    var isRequired = spec.Requirement == "REQUIRED";
+                    var badgeClass = spec.Requirement switch
+                    {
+                        "REQUIRED" => "bg-danger",
+                        "RECOMMENDED" => "bg-warning text-dark",
+                        _ => "bg-secondary"
+                    };
+                    
+                    <div class="mb-2 row align-items-center">
+                        <div class="col-md-3">
+                            <label class="form-label mb-0">
+                                @spec.Name
+                                @if (isRequired) { <span class="text-danger">*</span> }
+                                <span class="badge @badgeClass ms-1" style="font-size: 10px;">@spec.Requirement</span>
+                            </label>
+                        </div>
+                        <div class="col-md-9">
+                            @if (!string.IsNullOrEmpty(spec.SuggestedValues))
+                            {
+                                var suggestions = spec.SuggestedValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                <select class="form-select form-select-sm ebay-input" 
+                                        value="@(existing != null ? existing.Value : string.Empty)"
+                                        @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())">
+                                    <option value="">-- Chọn --</option>
+                                    @foreach (var sug in suggestions)
+                                    {
+                                        <option value="@sug">@sug</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <input type="text" class="form-control form-control-sm ebay-input" 
+                                       placeholder="Nhập giá trị..."
+                                       value="@(existing != null ? existing.Value : string.Empty)"
+                                       @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())" />
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
 
         @* ─────────────── ẢNH SẢN PHẨM ─────────────── *@
         <div class="ebay-card">
@@ -181,8 +286,9 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h4 class="ebay-card-title mb-0">Biến thể Sản Phẩm (SKUs)</h4>
                 <div>
-                    <span class="text-muted me-2">Số lượng: @request.Variants.Count / 50</span>
-                    <button type="button" class="ebay-btn-outline btn-sm" @onclick="AddVariant" disabled="@(request.Variants.Count >= 50)">
+                    <span class="text-muted me-2">Số lượng: @request.Variants.Count / 250</span>
+                    <button type="button" class="ebay-btn-outline btn-sm" @onclick="AddVariant" 
+                            disabled="@(request.Variants.Count >= 250 || (request.ListingFormat == "AUCTION" && request.Variants.Count >= 1))">
                         + Thêm Biến Thể
                     </button>
                 </div>
@@ -319,11 +425,42 @@
     private List<string> suggestedAttributes = new();
     private HashSet<string> usedHints = new();
 
-    private void OnCategoryChanged()
+    // [A5] Item Specifics dynamic form state
+    private List<CategoryItemSpecificDto> categoryItemSpecifics = new();
+    private List<ItemSpecificInput> itemSpecificsValues = new();
+
+    private async Task OnCategoryChanged()
     {
         var selectedCat = categories.FirstOrDefault(c => c.Id == request.CategoryId);
         suggestedAttributes = selectedCat?.SuggestedAttributes ?? new();
         usedHints.Clear();
+
+        // [A5] Load Item Specifics cho category đã chọn
+        categoryItemSpecifics = new();
+        itemSpecificsValues = new();
+        if (request.CategoryId != Guid.Empty)
+        {
+            try
+            {
+                var specs = await CategoryService.GetItemSpecificsByCategoryIdAsync(request.CategoryId);
+                categoryItemSpecifics = specs.ToList();
+                // Pre-populate empty values cho REQUIRED + RECOMMENDED
+                foreach (var spec in categoryItemSpecifics)
+                {
+                    itemSpecificsValues.Add(new ItemSpecificInput { Name = spec.Name, Value = "" });
+                }
+            }
+            catch { /* silent — category mới không có specifics là bình thường */ }
+        }
+    }
+
+    private void SetItemSpecificValue(string name, string value)
+    {
+        var existing = itemSpecificsValues.FirstOrDefault(v => v.Name == name);
+        if (existing != null)
+            existing.Value = value;
+        else
+            itemSpecificsValues.Add(new ItemSpecificInput { Name = name, Value = value });
     }
 
     // Bấm chip gợi ý → toggle thêm/xóa key đó vào tất cả biến thể
@@ -470,7 +607,8 @@
 
     private void AddVariant()
     {
-        if (request.Variants.Count >= 50) return;
+        if (request.Variants.Count >= 250) return;
+        if (request.ListingFormat == "AUCTION" && request.Variants.Count >= 1) return;
         var newVariant = new CreateVariantRequest();
         request.Variants.Add(newVariant);
         variantAttributesMap[newVariant] = new List<AttributePair>();
@@ -526,6 +664,11 @@
 
             // Gom ảnh phụ
             request.ImageUrls = extraImageUrls.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+
+            // [A5] Sync Item Specifics values → request
+            request.ItemSpecifics = itemSpecificsValues
+                .Where(v => !string.IsNullOrWhiteSpace(v.Value))
+                .ToList();
 
             var productId = await ProductService.CreateListingAsync(request);
             

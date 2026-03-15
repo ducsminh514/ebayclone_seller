@@ -14,6 +14,18 @@ namespace EbayClone.Shared.DTOs.Products
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Brand { get; set; }
+        
+        // [A2] Condition ở Product level
+        public string Condition { get; set; } = "New";
+        public string? ConditionDescription { get; set; }
+        
+        // [A3] Listing Format & Best Offer
+        public string ListingFormat { get; set; } = "FIXED_PRICE";
+        public bool AllowOffers { get; set; } = false;
+        public decimal? AutoAcceptPrice { get; set; }
+        public decimal? AutoDeclinePrice { get; set; }
+        public string? Subtitle { get; set; }
+        
         public string Status { get; set; } = "DRAFT";
         public DateTimeOffset? ScheduledAt { get; set; }
         public decimal? BasePrice { get; set; }
@@ -26,6 +38,16 @@ namespace EbayClone.Shared.DTOs.Products
         public byte[]? RowVersion { get; set; }
 
         public ICollection<ProductVariantDto> Variants { get; set; } = new List<ProductVariantDto>();
+        
+        // [A5] Item Specifics output
+        public ICollection<ItemSpecificOutput>? ItemSpecifics { get; set; }
+    }
+
+    public class ItemSpecificOutput
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
     }
 
     public class ProductVariantDto

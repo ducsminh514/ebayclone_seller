@@ -39,6 +39,33 @@ namespace EbayClone.Application.UseCases.Products
             // Load existing variants
             var existingVariants = product.Variants?.ToList() ?? new List<ProductVariant>();
 
+            // [A4] Validate Variation Limits
+            var newVariantCount = request.Variants.Where(v => !v.Id.HasValue).Count();
+            var totalAfterUpdate = existingVariants.Count + newVariantCount;
+            if (totalAfterUpdate > 250)
+                throw new ArgumentException($"Một listing không được vượt quá 250 biến thể (hiện tại sẽ có {totalAfterUpdate}).");
+
+            // [A4] Validate max 5 attrs per variant + max 50 options per attribute
+            foreach (var variantDto in request.Variants)
+            {
+                if (variantDto.Attributes != null && variantDto.Attributes.Count > 5)
+                    throw new ArgumentException($"Biến thể {variantDto.SkuCode} vượt quá giới hạn 5 thuộc tính.");
+            }
+
+            var allAttrs = request.Variants
+                .Where(v => v.Attributes != null)
+                .SelectMany(v => v.Attributes)
+                .GroupBy(kv => kv.Key)
+                .ToList();
+
+            foreach (var attrGroup in allAttrs)
+            {
+                var distinctOptions = attrGroup.Select(kv => kv.Value).Distinct().Count();
+                if (distinctOptions > 50)
+                    throw new ArgumentException(
+                        $"Thuộc tính '{attrGroup.Key}' có {distinctOptions} options, vượt quá giới hạn 50.");
+            }
+
             foreach (var variantDto in request.Variants)
             {
                 if (variantDto.Id.HasValue)

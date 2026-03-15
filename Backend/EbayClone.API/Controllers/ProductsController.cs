@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using EbayClone.Shared.DTOs.Products;
@@ -153,6 +153,45 @@ namespace EbayClone.API.Controllers
             {
                 await _restockVariantUseCase.ExecuteAsync(shopId, variantId, request);
                 return Ok(new { Message = $"Nhập kho thành công (+{request.AddedQuantity} SP)." });
+            }
+            catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (UnauthorizedAccessException ex) { return StatusCode(403, new { Error = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Error = ex.Message }); }
+        }
+
+        [HttpPut("{id:guid}/full")]
+        public async Task<IActionResult> UpdateFullProduct(Guid id, [FromBody] UpdateFullProductRequest request)
+        {
+            var shopIdClaim = User.FindFirst("ShopId")?.Value;
+            if (string.IsNullOrEmpty(shopIdClaim) || !Guid.TryParse(shopIdClaim, out Guid shopId))
+            {
+                return StatusCode(403, new { Error = "You do not have a registered Shop." });
+            }
+
+            try
+            {
+                await _updateFullProductUseCase.ExecuteAsync(shopId, id, request);
+                return Ok(new { Message = "Cập nhật toàn diện sản phẩm thành công." });
+            }
+            catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (InvalidOperationException ex) { return UnprocessableEntity(new { Error = ex.Message }); }
+            catch (UnauthorizedAccessException ex) { return StatusCode(403, new { Error = ex.Message }); }
+            catch (Exception ex) { return StatusCode(500, new { Error = ex.Message }); }
+        }
+
+        [HttpPatch("{id:guid}/variants")]
+        public async Task<IActionResult> UpdateProductVariants(Guid id, [FromBody] UpdateProductVariantsRequest request)
+        {
+            var shopIdClaim = User.FindFirst("ShopId")?.Value;
+            if (string.IsNullOrEmpty(shopIdClaim) || !Guid.TryParse(shopIdClaim, out Guid shopId))
+            {
+                return StatusCode(403, new { Error = "You do not have a registered Shop." });
+            }
+
+            try
+            {
+                await _updateProductVariantsUseCase.ExecuteAsync(shopId, id, request);
+                return Ok(new { Message = "Cập nhật biến thể thành công." });
             }
             catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
             catch (UnauthorizedAccessException ex) { return StatusCode(403, new { Error = ex.Message }); }

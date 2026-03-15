@@ -31,6 +31,10 @@ namespace EbayClone.Application.Interfaces.Repositories
         // Kiểm tra giới hạn MonthlyListingLimit
         Task<int> CountProductsThisMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
         
+        // [A5] Item Specifics
+        Task AddProductItemSpecificsAsync(IEnumerable<ProductItemSpecific> specifics, CancellationToken cancellationToken = default);
+        Task DeleteProductItemSpecificsByProductIdAsync(Guid productId, CancellationToken cancellationToken = default);
+        
         // Dashboard Stats
         Task<int> CountByStatusAsync(Guid shopId, string status, CancellationToken cancellationToken = default);
     }

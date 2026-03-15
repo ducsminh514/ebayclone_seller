@@ -23,6 +23,25 @@ namespace EbayClone.Shared.DTOs.Products
         [StringLength(100)]
         public string? Brand { get; set; }
 
+        // [A2] Condition ở Product level — tất cả variants cùng 1 condition
+        // Values: "New", "New Other", "Open Box", "Seller Refurbished", "Used", "For Parts"
+        [StringLength(50)]
+        public string Condition { get; set; } = "New";
+        
+        [StringLength(500)]
+        public string? ConditionDescription { get; set; }
+
+        // [A3] Listing Format & Best Offer
+        // "FIXED_PRICE" hoặc "AUCTION". Nếu có > 1 variant → BẮT BUỘC FIXED_PRICE.
+        [StringLength(20)]
+        public string ListingFormat { get; set; } = "FIXED_PRICE";
+        public bool AllowOffers { get; set; } = false;
+        public decimal? AutoAcceptPrice { get; set; }   // Tự chấp nhận offer ≥ X
+        public decimal? AutoDeclinePrice { get; set; }  // Tự từ chối offer < Y
+        
+        [StringLength(80)]
+        public string? Subtitle { get; set; }
+
         // Ảnh sản phẩm
         [StringLength(500)]
         public string? PrimaryImageUrl { get; set; }
@@ -34,6 +53,17 @@ namespace EbayClone.Shared.DTOs.Products
         [Required(ErrorMessage = "At least one variant (SKU) is required.")]
         [MinLength(1, ErrorMessage = "At least one variant must be provided.")]
         public List<CreateVariantRequest> Variants { get; set; } = new();
+
+        // [A5] Item Specifics — seller nhập giá trị cho thuộc tính category yêu cầu
+        public List<ItemSpecificInput>? ItemSpecifics { get; set; }
+    }
+
+    public class ItemSpecificInput
+    {
+        [Required]
+        public string Name { get; set; } = string.Empty;  // "Brand", "Model"
+        [Required]
+        public string Value { get; set; } = string.Empty;  // "Apple", "iPhone 15"
     }
 
     public class CreateVariantRequest
