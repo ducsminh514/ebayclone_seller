@@ -1,0 +1,200 @@
+@page "/bp/rtn/create"
+@layout PolicyCreationLayout
+@using EbayClone.Frontend.Services
+@using MudBlazor
+@using System.ComponentModel.DataAnnotations
+@using EbayClone.Shared.DTOs.Policies
+@inject PolicyService PolicyService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+
+<EditForm Model="@_model" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    
+    <!-- Top Section -->
+    <MudGrid Justify="Justify.SpaceBetween" Class="mb-6 align-center">
+        <MudItem>
+            <MudText Typo="Typo.h4" Style="font-family: 'Times New Roman', serif; font-weight: bold;">Create return policy</MudText>
+        </MudItem>
+        <MudItem>
+            <MudLink Href="#" Underline="Underline.Hover" Style="color: #111820; text-decoration: underline; font-size: 13px;">How to set up return policy?</MudLink>
+        </MudItem>
+    </MudGrid>
+
+    <MudText Typo="Typo.body2" Class="mb-1 fw-bold" Style="font-weight: 600;">Policy name</MudText>
+    <MudTextField @bind-Value="_model.Name" Immediate="true" Variant="Variant.Filled" Underline="false" MaxLength="64" Style="border-radius: 8px; border: 1px solid #ccc; background-color: #F7F7F7;" Class="mb-1" />
+    <MudGrid Justify="Justify.SpaceBetween" Class="mt-n1 mb-4">
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">Example: All returns allowed within 30 days</MudText>
+        </MudItem>
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">@(_model.Name?.Length ?? 0)/64</MudText>
+        </MudItem>
+    </MudGrid>
+    <ValidationMessage For="@(() => _model.Name)" />
+
+    <MudText Typo="Typo.body2" Class="mb-1 mt-6 fw-bold" Style="font-weight: 600; color: #111820;">Policy description (optional)</MudText>
+    <MudTextField @bind-Value="_model.Description" Immediate="true" Variant="Variant.Filled" Underline="false" Lines="4" MaxLength="250" Style="border-radius: 8px; border: 1px solid #c7c7c7; background-color: #F7F7F7;" Class="mb-1" />
+    <MudGrid Justify="Justify.SpaceBetween" Class="mt-n1 mb-8">
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">Additional text to help you identify the content of this policy</MudText>
+        </MudItem>
+        <MudItem>
+            <MudText Typo="Typo.caption" Style="color: #707070;">@(_model.Description?.Length ?? 0)/250</MudText>
+        </MudItem>
+    </MudGrid>
+
+    <MudCheckBox @bind-Value="_model.IsDefault" Label="Set as default return policy" Color="Color.Primary" Class="mb-8" />
+
+    <!-- Info Card -->
+    <MudAlert Severity="Severity.Normal" NoIcon="true" Class="mt-8 mb-10 pa-4" Style="background-color: #F8F8F8; color: #111820; border-radius: 8px;">
+        <MudGrid Justify="Justify.SpaceBetween" Spacing="0" Class="align-center">
+            <MudItem>Offering a minimum 30-day return policy helps your listings qualify for Top Rated Seller Benefits.</MudItem>
+            <MudItem><MudLink Href="#" Typo="Typo.body2" Style="font-weight: bold; color: #111820; text-decoration: underline;">Learn more</MudLink></MudItem>
+        </MudGrid>
+    </MudAlert>
+
+    <!-- Domestic returns -->
+    <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mb-4">Domestic returns</MudText>
+    
+    <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-8" Style="border-color: #E5E5E5; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <MudGrid Justify="Justify.SpaceBetween" Class="align-center">
+            <MudItem>
+                <MudText Typo="Typo.body1" Style="font-weight: bold; color: #111820;">Accept returns</MudText>
+                <MudText Typo="Typo.body2" Style="color: #707070;">Allow returns for items purchased domestically.</MudText>
+            </MudItem>
+            <MudItem>
+                <MudSwitch @bind-Value="_model.IsDomesticAccepted" Color="Color.Primary" Size="Size.Large" />
+            </MudItem>
+        </MudGrid>
+
+        <!-- Lazy Render / Expandable Area -->
+        @if (_model.IsDomesticAccepted)
+        {
+            <MudDivider Class="my-6" />
+            <MudGrid Spacing="4">
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_model.DomesticReturnDays" Label="Return window" Variant="Variant.Outlined">
+                        <MudSelectItem Value="14">14 days</MudSelectItem>
+                        <MudSelectItem Value="30">30 days</MudSelectItem>
+                        <MudSelectItem Value="60">60 days</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_model.DomesticShippingPaidBy" Label="Return shipping paid by" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("BUYER")">Buyer</MudSelectItem>
+                        <MudSelectItem Value="@("SELLER")">Free returns (Seller pays)</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudPaper>
+
+    <!-- International returns -->
+    <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mb-4">International returns</MudText>
+    
+    <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-16" Style="border-color: #E5E5E5; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <MudGrid Justify="Justify.SpaceBetween" Class="align-center">
+            <MudItem>
+                <MudText Typo="Typo.body1" Style="font-weight: bold; color: #111820;">Accept returns</MudText>
+                <MudText Typo="Typo.body2" Style="color: #707070;">Allow returns for items purchased internationally.</MudText>
+            </MudItem>
+            <MudItem>
+                <MudSwitch @bind-Value="_model.IsInternationalAccepted" Color="Color.Primary" Size="Size.Large" />
+            </MudItem>
+        </MudGrid>
+
+        @if (_model.IsInternationalAccepted)
+        {
+            <MudDivider Class="my-6" />
+            <MudGrid Spacing="4">
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_model.InternationalReturnDays" Label="Return window" Variant="Variant.Outlined">
+                        <MudSelectItem Value="14">14 days</MudSelectItem>
+                        <MudSelectItem Value="30">30 days</MudSelectItem>
+                        <MudSelectItem Value="60">60 days</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect @bind-Value="_model.InternationalShippingPaidBy" Label="Return shipping paid by" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@("BUYER")">Buyer</MudSelectItem>
+                        <MudSelectItem Value="@("SELLER")">Free returns (Seller pays)</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudPaper>
+
+    <!-- Phập mông trống cho khỏi bị che bởi Footer -->
+    <div style="height: 100px;"></div>
+
+    <!-- Sticky Footer -->
+    <div style="position: fixed; bottom: 0; left: 0; right: 0; background-color: white; border-top: 1px solid #E5E5E5; padding: 16px 24px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
+        <MudContainer MaxWidth="MaxWidth.Medium" Class="px-0">
+            <MudStack Row="true" Spacing="4">
+                <MudButton Href="/bp/manage" Variant="Variant.Outlined" Color="Color.Primary" Style="border-radius: 999px; text-transform: none; font-weight: bold;" Class="px-8 py-2">Cancel</MudButton>
+                <!-- Disabled logic tuân thủ luật lệ eBay -->
+                <MudButton ButtonType="ButtonType.Submit" Disabled="@(!_isValid)" Variant="Variant.Filled" Color="Color.Primary" Style="border-radius: 999px; text-transform: none; font-weight: bold;" Class="px-8 py-2">Save</MudButton>
+            </MudStack>
+            <MudText Typo="Typo.caption" Style="color: #707070; display: block; margin-top: 16px; font-size: 11px;">
+                Copyright © 1995-2026 eBay Inc. All Rights Reserved. <MudLink Href="#" Style="font-size: 11px;">Accessibility</MudLink>, <MudLink Href="#" Style="font-size: 11px;">User Agreement</MudLink>, <MudLink Href="#" Style="font-size: 11px;">Privacy</MudLink>
+            </MudText>
+        </MudContainer>
+    </div>
+</EditForm>
+
+@code {
+    private ReturnPolicyViewModel _model = new ReturnPolicyViewModel();
+    
+    // Strict realtime validation bound to EditForm
+    private bool _isValid => !string.IsNullOrWhiteSpace(_model.Name) 
+                             && _model.Name.Length <= 64 
+                             && (_model.Description == null || _model.Description.Length <= 250);
+
+    private async Task HandleValidSubmit()
+    {
+        try 
+        {
+            var request = new CreateReturnPolicyRequest
+            {
+                Name = _model.Name,
+                Description = _model.Description,
+                IsDefault = _model.IsDefault,
+                IsDomesticAccepted = _model.IsDomesticAccepted,
+                DomesticReturnDays = _model.DomesticReturnDays,
+                DomesticShippingPaidBy = _model.DomesticShippingPaidBy,
+                IsInternationalAccepted = _model.IsInternationalAccepted,
+                InternationalReturnDays = _model.InternationalReturnDays,
+                InternationalShippingPaidBy = _model.InternationalShippingPaidBy
+            };
+
+            var message = await PolicyService.CreateReturnPolicyAsync(request);
+            Snackbar.Add(message, Severity.Success);
+            NavigationManager.NavigateTo("/bp/manage");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public class ReturnPolicyViewModel
+    {
+        [Required]
+        [StringLength(64)]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(250)]
+        public string Description { get; set; } = string.Empty;
+
+        public bool IsDefault { get; set; } = false;
+        public bool IsDomesticAccepted { get; set; } = false;
+        public int DomesticReturnDays { get; set; } = 30;
+        public string DomesticShippingPaidBy { get; set; } = "BUYER";
+// ... (rest same)
+
+        public bool IsInternationalAccepted { get; set; } = false;
+        public int InternationalReturnDays { get; set; } = 30;
+        public string InternationalShippingPaidBy { get; set; } = "BUYER";
+    }
+}

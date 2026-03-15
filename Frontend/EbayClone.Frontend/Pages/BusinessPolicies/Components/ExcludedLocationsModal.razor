@@ -1,0 +1,105 @@
+@using MudBlazor
+@using EbayClone.Shared.DTOs.Policies
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Select excluded locations</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="max-height: 500px; overflow-y: auto; padding-right: 8px;">
+            <MudAlert Severity="Severity.Info" NoIcon="true" Class="mb-4" Style="background-color: #f7f7f7; color: #111820; border-radius: 8px;">
+                Selecting a region excludes all countries within that region. To exclude specific countries, expand the region.
+            </MudAlert>
+
+            @foreach (var region in _regions)
+            {
+                <div class="mb-2" style="border: 1px solid #efefef; border-radius: 8px; overflow: hidden;">
+                    <div class="d-flex align-center justify-space-between pa-3" style="background-color: #fcfcfc;">
+                        <div class="d-flex align-center">
+                            <MudCheckBox T="bool" Value="@IsRegionSelected(region)" ValueChanged="@((val) => ToggleRegion(region, val))" Color="Color.Primary" Dense="true" Class="mr-2" />
+                            <MudText Typo="Typo.body2" Style="font-weight: bold;">@region.RegionName</MudText>
+                        </div>
+                        <MudIconButton Icon="@(region.IsExpanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" OnClick="@(() => region.IsExpanded = !region.IsExpanded)" Size="Size.Small" />
+                    </div>
+                    
+                    @if (region.IsExpanded)
+                    {
+                        <div class="pa-3 pl-8" style="background-color: white;">
+                            <MudGrid>
+                                @foreach (var country in region.Countries)
+                                {
+                                    <MudItem xs="6" sm="4">
+                                        <MudCheckBox T="bool" Value="@IsCountrySelected(country)" ValueChanged="@((val) => ToggleCountry(country, val))" Label="@country" Color="Color.Primary" Dense="true" Style="font-size: 13px;" />
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text" Style="text-transform: none; font-weight: bold; color: #3665F3;">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Style="border-radius: 999px; text-transform: none; font-weight: bold; background-color: #3665F3;" Class="px-8">Apply</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public List<string> InitialExcludedLocations { get; set; } = new();
+
+    private HashSet<string> _selectedLocations = new();
+
+    protected override void OnInitialized()
+    {
+        _selectedLocations = new HashSet<string>(InitialExcludedLocations);
+    }
+
+    private bool IsRegionSelected(RegionItem region) => _selectedLocations.Contains(region.RegionName);
+    private bool IsCountrySelected(string country) => _selectedLocations.Contains(country);
+
+    private void ToggleRegion(RegionItem region, bool selected)
+    {
+        if (selected)
+        {
+            _selectedLocations.Add(region.RegionName);
+            // In eBay, selecting a region usually implies excluding all countries, but the specific 1:1 check might vary.
+            // For now, we'll just add the region name. 
+        }
+        else
+        {
+            _selectedLocations.Remove(region.RegionName);
+        }
+    }
+
+    private void ToggleCountry(string country, bool selected)
+    {
+        if (selected) _selectedLocations.Add(country);
+        else _selectedLocations.Remove(country);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_selectedLocations.ToList()));
+
+    private class RegionItem
+    {
+        public string RegionName { get; set; } = string.Empty;
+        public List<string> Countries { get; set; } = new();
+        public bool IsExpanded { get; set; }
+    }
+
+    private List<RegionItem> _regions = new()
+    {
+        new RegionItem { RegionName = "Africa", Countries = new() { "Algeria", "Angola", "Benin", "Botswana", "Egypt", "Ethiopia", "Kenya", "Morocco", "Nigeria", "South Africa" } },
+        new RegionItem { RegionName = "Asia", Countries = new() { "China", "Japan", "South Korea", "India", "Vietnam", "Thailand", "Indonesia" } },
+        new RegionItem { RegionName = "Central America and Caribbean", Countries = new() { "Bahamas", "Barbados", "Costa Rica", "Jamaica", "Panama" } },
+        new RegionItem { RegionName = "Europe", Countries = new() { "United Kingdom", "Germany", "France", "Italy", "Spain", "Netherlands", "Poland" } },
+        new RegionItem { RegionName = "Middle East", Countries = new() { "Israel", "Saudi Arabia", "United Arab Emirates", "Turkey", "Qatar" } },
+        new RegionItem { RegionName = "North America", Countries = new() { "Canada", "Mexico", "Bermuda" } },
+        new RegionItem { RegionName = "Oceania", Countries = new() { "Australia", "New Zealand", "Fiji", "Papua New Guinea" } },
+        new RegionItem { RegionName = "South America", Countries = new() { "Brazil", "Argentina", "Chile", "Colombia", "Peru" } }
+    };
+}
