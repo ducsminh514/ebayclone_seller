@@ -104,7 +104,6 @@ namespace EbayClone.Application.UseCases.Products
                         SkuCode = variantDto.SkuCode,
                         Price = variantDto.Price,
                         Quantity = 0,
-                        ReservedQuantity = 0,
                         Attributes = JsonSerializer.Serialize(variantDto.Attributes),
                         ImageUrl = variantDto.ImageUrl,
                         CreatedAt = DateTimeOffset.UtcNow

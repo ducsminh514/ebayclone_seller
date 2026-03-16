@@ -36,7 +36,7 @@ namespace EbayClone.Application.UseCases.Dashboard
             {
                 ActiveCount = await _productRepository.CountByStatusAsync(shopId, "ACTIVE", cancellationToken),
                 DraftCount = await _productRepository.CountByStatusAsync(shopId, "DRAFT", cancellationToken),
-                OrderCount = await _orderRepository.CountByStatusAsync(shopId, "READY_TO_SHIP", cancellationToken), // Awaiting shipment
+                OrderCount = await _orderRepository.CountByStatusAsync(shopId, "PAID", cancellationToken), // Awaiting shipment
                 UnsoldCount = await _productRepository.CountByStatusAsync(shopId, "ENDED", cancellationToken),
                 TotalSales90Days = await _orderRepository.SumSalesAsync(shopId, 90, cancellationToken),
                 MonthlyListingLimit = shop.MonthlyListingLimit,

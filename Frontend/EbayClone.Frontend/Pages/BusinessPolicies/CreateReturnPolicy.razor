@@ -153,14 +153,7 @@
             </MudItem>
         </MudGrid>
 
-        <MudDivider Class="my-4" />
 
-        <!-- Restocking Fee -->
-        <MudGrid Spacing="4">
-            <MudItem xs="12" sm="6">
-                <MudNumericField @bind-Value="_model.RestockingFeePercent" Label="Restocking fee (%)" Variant="Variant.Outlined" Min="0" Max="20" Step="1" Format="N0" HelperText="0% to 20%. eBay allows up to 20% restocking fee." />
-            </MudItem>
-        </MudGrid>
     </MudPaper>
 
     <!-- Spacer -->
@@ -206,7 +199,7 @@
                 InternationalShippingPaidBy = _model.InternationalShippingPaidBy,
                 AutoAcceptReturns = _model.AutoAcceptReturns,
                 SendImmediateRefund = _model.SendImmediateRefund,
-                RestockingFeePercent = _model.RestockingFeePercent
+
             };
 
             var message = await PolicyService.CreateReturnPolicyAsync(request);
@@ -240,6 +233,6 @@
         // New fields
         public bool AutoAcceptReturns { get; set; } = false;
         public bool SendImmediateRefund { get; set; } = false;
-        public decimal RestockingFeePercent { get; set; } = 0;
+
     }
 }

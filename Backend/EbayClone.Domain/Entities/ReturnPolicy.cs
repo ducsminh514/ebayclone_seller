@@ -28,8 +28,7 @@ namespace EbayClone.Domain.Entities
         // Return Address (eBay: cho phép dùng địa chỉ khác với địa chỉ shop chính)
         public string? ReturnAddressJson { get; set; } // { name, street, city, state, zip, country }
 
-        // Restocking Fee (eBay: phí restock 0-20%, thường áp dụng cho electronics)
-        public decimal RestockingFeePercent { get; set; } = 0; // 0 = no fee
+
 
         public bool IsDefault { get; set; } = false;
  

@@ -59,8 +59,6 @@ namespace EbayClone.Application.UseCases.Policies
                     AutoAcceptReturns = request.AutoAcceptReturns,
                     SendImmediateRefund = request.SendImmediateRefund,
                     ReturnAddressJson = request.ReturnAddressJson,
-                    RestockingFeePercent = request.RestockingFeePercent,
-                    
                     IsDefault = request.IsDefault,
                     IsArchived = false
                 };

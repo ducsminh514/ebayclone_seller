@@ -70,5 +70,95 @@ namespace EbayClone.Frontend.Services
                 throw new Exception($"{error}");
             }
         }
+
+        // ==================== TEST BUYER MOCK ====================
+
+        public async Task<List<EbayClone.Shared.DTOs.Products.ProductDto>> GetTestProductsAsync()
+        {
+            var response = await _httpClient.GetAsync("api/testbuyer/products");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<List<EbayClone.Shared.DTOs.Products.ProductDto>>() 
+                    ?? new List<EbayClone.Shared.DTOs.Products.ProductDto>();
+            }
+            throw new Exception("Không thể tải danh sách sản phẩm test.");
+        }
+
+        public async Task<string> TestBuyerCheckoutAsync(CreateBuyerTestOrderRequest request)
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/testbuyer/checkout", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                return result?["message"]?.ToString() ?? "Đặt hàng thành công!";
+            }
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception(error);
+        }
+
+        // ==================== GĐ2: CANCEL REQUEST FLOW ====================
+
+        public async Task<string> BuyerCancelRequestAsync(BuyerCancelRequest request)
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/testbuyer/cancel-request", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                return result?["message"]?.ToString() ?? "Cancel request đã gửi!";
+            }
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception(error);
+        }
+
+        public async Task<CancelRequestInfo?> GetCancelRequestAsync(Guid orderId)
+        {
+            var response = await _httpClient.GetAsync($"api/orders/{orderId}/cancel-request");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CancelRequestInfo>();
+            }
+            return null;
+        }
+
+        public async Task<string> RespondCancelRequestAsync(Guid orderId, RespondCancelRequest request)
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/orders/{orderId}/cancel-request/respond", request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                return result?["message"]?.ToString() ?? "Đã phản hồi!";
+            }
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception(error);
+        }
+
+        /// <summary>
+        /// Gọi release-funds API (giả lập hết return window → giải ngân → COMPLETED)
+        /// </summary>
+        public async Task<string> ReleaseFundsAsync()
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "api/orders/release-funds");
+            request.Headers.Add("X-Internal-Api-Key", "ebay-internal-fund-release-key-2024");
+            var response = await _httpClient.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadAsStringAsync();
+                return result;
+            }
+            var err = await response.Content.ReadAsStringAsync();
+            throw new Exception(err);
+        }
+    }
+
+    // DTO nhẹ cho FE
+    public class CancelRequestInfo
+    {
+        public bool HasPendingRequest { get; set; }
+        public Guid? CancellationId { get; set; }
+        public string? Reason { get; set; }
+        public string? RequestedBy { get; set; }
+        public string? Notes { get; set; }
+        public DateTimeOffset? RequestedAt { get; set; }
+        public DateTimeOffset? ResponseDeadline { get; set; }
     }
 }

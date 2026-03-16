@@ -77,9 +77,6 @@ namespace EbayClone.Shared.DTOs.Policies
         // Return Address (JSON: { name, street, city, state, zip, country })
         public string? ReturnAddressJson { get; set; }
 
-        // Restocking Fee
-        [Range(0, 20, ErrorMessage = "Restocking fee must be between 0% and 20%")]
-        public decimal RestockingFeePercent { get; set; } = 0;
     }
 
     public class CreatePaymentPolicyRequest

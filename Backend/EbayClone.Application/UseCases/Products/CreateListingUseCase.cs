@@ -201,7 +201,6 @@ namespace EbayClone.Application.UseCases.Products
                         Price = vReq.Price,
                         Attributes = attributesJson,
                         Quantity = vReq.Quantity, // Total physical stock
-                        ReservedQuantity = 0,
                         ImageUrl = vReq.ImageUrl,
                         WeightGram = vReq.WeightGram
                     };

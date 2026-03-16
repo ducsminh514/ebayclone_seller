@@ -144,6 +144,10 @@
                                 <option value="FIXED_PRICE">Giá cố định (Fixed Price)</option>
                                 <option value="AUCTION">Đấu giá (Auction)</option>
                             </InputSelect>
+                            @if (fullRequest.ListingFormat == "AUCTION" && fullRequest.Variants.Count > 1)
+                            {
+                                <div class="text-danger mt-1" style="font-size: 12px;">⚠️ Auction chỉ cho phép đúng 1 biến thể. Hiện có @fullRequest.Variants.Count — hãy xóa bớt trước khi lưu.</div>
+                            }
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Subtitle (phụ đề SEO)</label>
@@ -350,7 +354,107 @@
                                 }
                             </tbody>
                         </table>
+                </div>
+
+                @* ─── FORM THÊM BIẾN THỂ MỚI ─── *@
+                <div class="mt-3 border-top pt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted" style="font-size: 13px;">
+                            Tổng: @fullRequest.Variants.Count / 250 biến thể
+                        </span>
+                        <button type="button" class="ebay-btn-outline btn-sm" 
+                                @onclick="ToggleAddVariantForm"
+                                disabled="@(fullRequest.Variants.Count >= 250 || (fullRequest.ListingFormat == "AUCTION" && fullRequest.Variants.Count >= 1))">
+                            @(showAddVariantForm ? "✕ Đóng" : "+ Thêm Biến Thể Mới")
+                        </button>
                     </div>
+
+                    @if (showAddVariantForm)
+                    {
+                        <div class="border p-3 bg-light" style="border-radius: 8px; border-color: var(--primary-color) !important; border-width: 2px !important;">
+                            <h6 class="fw-bold mb-3" style="color: var(--primary-color);">📝 Nhập thông tin biến thể mới</h6>
+                            <div class="row g-2">
+                                <div class="col-md-3">
+                                    <label class="form-label" style="font-size: 12px;">Mã SKU *</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="newVariant.SkuCode" placeholder="VD: SHIRT-RED-M" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label" style="font-size: 12px;">Giá (₫) *</label>
+                                    <input type="number" class="form-control form-control-sm" @bind="newVariant.Price" step="1000" min="100" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label" style="font-size: 12px;">Kho hàng *</label>
+                                    <input type="number" class="form-control form-control-sm" @bind="newVariant.Quantity" min="0" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label" style="font-size: 12px;">Khối lượng (g)</label>
+                                    <input type="number" class="form-control form-control-sm" @bind="newVariant.WeightGram" min="1" placeholder="gram" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label" style="font-size: 12px;">Ảnh</label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        @if (!string.IsNullOrEmpty(newVariant.ImageUrl))
+                                        {
+                                            <img src="@newVariant.ImageUrl" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px;" />
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => newVariant.ImageUrl = null">✕</button>
+                                        }
+                                        else
+                                        {
+                                            <div style="width: 36px; height: 36px; border: 1px dashed #aaa; border-radius: 4px; position: relative; display: flex; align-items: center; justify-content: center;">
+                                                @if (isUploadingNewVariantImage)
+                                                {
+                                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                                }
+                                                else
+                                                {
+                                                    <span style="font-size: 12px; color: #888;">📷</span>
+                                                    <InputFile OnChange="UploadNewVariantImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            @* Thuộc tính cho variant mới *@
+                            <div class="mt-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="fw-bold text-secondary mb-0" style="font-size: 13px;">Thuộc tính (VD: Color - Red)</h6>
+                                    <div>
+                                        <span class="text-muted me-2" style="font-size: 12px;">@newVariantAttributes.Count / 5</span>
+                                        <button type="button" class="btn btn-sm btn-info text-white" 
+                                                @onclick="AddNewVariantAttribute" 
+                                                disabled="@(newVariantAttributes.Count >= 5)">
+                                            + Thuộc tính
+                                        </button>
+                                    </div>
+                                </div>
+                                @foreach (var attr in newVariantAttributes)
+                                {
+                                    <div class="d-flex mb-2 gap-2">
+                                        <input type="text" class="form-control form-control-sm" placeholder="Tên (VD: Màu)" @bind="attr.Key" />
+                                        <input type="text" class="form-control form-control-sm" placeholder="Giá trị (VD: Đỏ)" @bind="attr.Value" />
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => newVariantAttributes.Remove(attr)">✕</button>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="d-flex gap-2 mt-3">
+                                <button type="button" class="btn btn-sm btn-success" @onclick="ConfirmAddVariant">
+                                    ✓ Thêm vào danh sách
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleAddVariantForm">
+                                    Hủy
+                                </button>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(addVariantError))
+                            {
+                                <div class="alert alert-danger mt-2 mb-0 py-1" style="font-size: 12px;">@addVariantError</div>
+                            }
+                        </div>
+                    }
+                </div>
                 </div>
 
                 <div class="d-flex mb-5 gap-3">
@@ -393,6 +497,109 @@
     private bool isUploadingPrimary = false;
     private bool isUploadingExtra = false;
     private HashSet<UpdateVariantDto> uploadingVariants = new();
+
+    // ─── State cho form thêm biến thể mới ───
+    private bool showAddVariantForm = false;
+    private UpdateVariantDto newVariant = new();
+    private List<AttributePair> newVariantAttributes = new();
+    private string? addVariantError;
+    private bool isUploadingNewVariantImage = false;
+
+    private class AttributePair
+    {
+        public string Key { get; set; } = "";
+        public string Value { get; set; } = "";
+    }
+
+    private void ToggleAddVariantForm()
+    {
+        showAddVariantForm = !showAddVariantForm;
+        if (showAddVariantForm)
+        {
+            newVariant = new UpdateVariantDto();
+            newVariantAttributes = new List<AttributePair>();
+            addVariantError = null;
+        }
+    }
+
+    private void AddNewVariantAttribute()
+    {
+        if (newVariantAttributes.Count < 5)
+            newVariantAttributes.Add(new AttributePair());
+    }
+
+    private void ConfirmAddVariant()
+    {
+        addVariantError = null;
+
+        // Validate
+        if (string.IsNullOrWhiteSpace(newVariant.SkuCode))
+        { addVariantError = "Mã SKU là bắt buộc."; return; }
+
+        if (newVariant.Price <= 0)
+        { addVariantError = "Giá phải lớn hơn 0."; return; }
+
+        if (newVariant.Quantity < 0)
+        { addVariantError = "Kho hàng không được âm."; return; }
+
+        // Check SKU trùng với variant hiện có
+        if (fullRequest.Variants.Any(v => v.SkuCode.Equals(newVariant.SkuCode, StringComparison.OrdinalIgnoreCase)))
+        { addVariantError = $"SKU '{newVariant.SkuCode}' đã tồn tại trong danh sách."; return; }
+
+        // Validate attributes
+        var validAttrs = newVariantAttributes
+            .Where(a => !string.IsNullOrWhiteSpace(a.Key) && !string.IsNullOrWhiteSpace(a.Value))
+            .ToList();
+        
+        if (!validAttrs.Any())
+        { addVariantError = "Cần ít nhất 1 thuộc tính (VD: Color - Red)."; return; }
+
+        var dupKeys = validAttrs.GroupBy(a => a.Key, StringComparer.OrdinalIgnoreCase)
+                                .Where(g => g.Count() > 1)
+                                .Select(g => g.Key)
+                                .ToList();
+        if (dupKeys.Any())
+        { addVariantError = $"Tên thuộc tính bị trùng: {string.Join(", ", dupKeys)}"; return; }
+
+        // Build variant DTO (Id = null → BE sẽ tạo mới)
+        var variantToAdd = new UpdateVariantDto
+        {
+            Id = null, // Signal cho BE: tạo mới
+            SkuCode = newVariant.SkuCode,
+            Price = newVariant.Price,
+            Quantity = newVariant.Quantity,
+            WeightGram = newVariant.WeightGram,
+            ImageUrl = newVariant.ImageUrl,
+            Attributes = validAttrs.ToDictionary(a => a.Key, a => a.Value)
+        };
+
+        fullRequest.Variants.Add(variantToAdd);
+
+        // Reset form
+        newVariant = new UpdateVariantDto();
+        newVariantAttributes = new List<AttributePair>();
+        showAddVariantForm = false;
+        addVariantError = null;
+    }
+
+    private async Task UploadNewVariantImage(InputFileChangeEventArgs e)
+    {
+        isUploadingNewVariantImage = true;
+        StateHasChanged();
+        try
+        {
+            var url = await FileUploadService.UploadImageAsync(e.File);
+            newVariant.ImageUrl = url;
+        }
+        catch (Exception ex)
+        {
+            addVariantError = $"Lỗi upload ảnh: {ex.Message}";
+        }
+        finally
+        {
+            isUploadingNewVariantImage = false;
+        }
+    }
 
     private void SetItemSpecificValue(string name, string? value)
     {

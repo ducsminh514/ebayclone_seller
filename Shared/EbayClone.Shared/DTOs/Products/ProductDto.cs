@@ -59,7 +59,8 @@ namespace EbayClone.Shared.DTOs.Products
         public decimal Price { get; set; }
         public string? Attributes { get; set; }
         public int Quantity { get; set; }
-        public int ReservedQuantity { get; set; }
+
+
         public string? ImageUrl { get; set; }
         public int? WeightGram { get; set; }
         public byte[]? RowVersion { get; set; }

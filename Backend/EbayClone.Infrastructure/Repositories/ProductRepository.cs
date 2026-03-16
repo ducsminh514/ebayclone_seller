@@ -58,13 +58,7 @@ namespace EbayClone.Infrastructure.Repositories
                                  .ToListAsync(cancellationToken);
         }
 
-        public async Task<int> GetCountByShopInCurrentMonthAsync(Guid shopId, CancellationToken cancellationToken = default)
-        {
-            var now = DateTime.UtcNow;
-            var firstDayOfMonth = new DateTime(now.Year, now.Month, 1);
-            return await _context.Products
-                .CountAsync(p => p.ShopId == shopId && p.CreatedAt >= firstDayOfMonth, cancellationToken);
-        }
+        // Removed: GetCountByShopInCurrentMonthAsync (đã thay bởi CountProductsThisMonthAsync với timezone VN chính xác hơn)
 
         public async Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default)
         {
@@ -127,31 +121,24 @@ namespace EbayClone.Infrastructure.Repositories
 
         public async Task<int> DeductStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default)
         {
+            // Single-step deduction: chỉ check Quantity >= qty, không cần ReservedQuantity
             return await _context.ProductVariants
-                .Where(v => v.Id == variantId && v.Quantity >= quantity && v.ReservedQuantity >= quantity)
+                .Where(v => v.Id == variantId && v.Quantity >= quantity)
                 .ExecuteUpdateAsync(s => s
-                    .SetProperty(x => x.Quantity, x => x.Quantity - quantity)
-                    .SetProperty(x => x.ReservedQuantity, x => x.ReservedQuantity - quantity), 
+                    .SetProperty(x => x.Quantity, x => x.Quantity - quantity), 
                     cancellationToken);
         }
 
-        public async Task<int> ReleaseReservationAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default)
+        // RestoreStockAtomicAsync: hoàn kho khi cancel/return
+        public async Task<int> RestoreStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default)
         {
+            if (quantity <= 0)
+                throw new ArgumentOutOfRangeException(nameof(quantity), "Số lượng hoàn kho phải > 0.");
+                
             return await _context.ProductVariants
-                .Where(v => v.Id == variantId && v.ReservedQuantity >= quantity)
+                .Where(v => v.Id == variantId)
                 .ExecuteUpdateAsync(s => s
-                    .SetProperty(x => x.ReservedQuantity, x => x.ReservedQuantity - quantity), 
-                    cancellationToken);
-        }
-
-        public async Task<int> ReserveStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default)
-        {
-            // AvailableStock = Quantity - ReservedQuantity
-            // Condition to Reserve: Quantity - ReservedQuantity >= quantity
-            return await _context.ProductVariants
-                .Where(v => v.Id == variantId && (v.Quantity - v.ReservedQuantity) >= quantity)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(x => x.ReservedQuantity, x => x.ReservedQuantity + quantity), 
+                    .SetProperty(x => x.Quantity, x => x.Quantity + quantity), 
                     cancellationToken);
         }
 

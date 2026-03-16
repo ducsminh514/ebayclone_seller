@@ -71,7 +71,8 @@ namespace EbayClone.Shared.DTOs.Policies
         public bool AutoAcceptReturns { get; set; }
         public bool SendImmediateRefund { get; set; }
         public string? ReturnAddressJson { get; set; }
-        public decimal RestockingFeePercent { get; set; }
+
+
 
         public bool IsDefault { get; set; }
 

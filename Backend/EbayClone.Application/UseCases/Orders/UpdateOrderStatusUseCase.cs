@@ -16,23 +16,32 @@ namespace EbayClone.Application.UseCases.Orders
 
     public class UpdateOrderStatusUseCase : IUpdateOrderStatusUseCase
     {
+        // eBay Managed Payments: phí sàn ~13.25% (FVF). Demo simplified = 5%
+        private const decimal PLATFORM_FEE_RATE = 0.05m;
+
         private readonly IOrderRepository _orderRepository;
+        private readonly IOrderCancellationRepository _cancellationRepository;
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _walletTransactionRepository;
         private readonly IProductRepository _productRepository;
+        private readonly IPolicyRepository _policyRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public UpdateOrderStatusUseCase(
             IOrderRepository orderRepository,
+            IOrderCancellationRepository cancellationRepository,
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository walletTransactionRepository,
             IProductRepository productRepository,
+            IPolicyRepository policyRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
+            _cancellationRepository = cancellationRepository;
             _walletRepository = walletRepository;
             _walletTransactionRepository = walletTransactionRepository;
             _productRepository = productRepository;
+            _policyRepository = policyRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -57,32 +66,25 @@ namespace EbayClone.Application.UseCases.Orders
 
                 switch (request.NewStatus)
                 {
-                    case "READY_TO_SHIP":
+                    case "PAID":
                         order.MarkAsPaid();
-                        // 1. Trừ kho thật sự và xả khoá Reserved (ATOMIC)
-                        foreach(var item in order.Items)
-                        {
-                            await _productRepository.DeductStockAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
-                        }
 
-                        // [A6] Sau deduct stock → check tất cả product liên quan → auto OUT_OF_STOCK nếu hết hàng
-                        // Tối ưu: chỉ load DISTINCT products (tránh duplicate nếu 2 items cùng product)
-                        var checkedProductIds = new HashSet<Guid>();
-                        foreach (var item in order.Items)
+                        // Lấy HandlingTimeDays từ ShippingPolicy thực tế (seller đã set khi tạo sản phẩm)
+                        int handlingDays = 3; // fallback
+                        var firstItem = order.Items.FirstOrDefault();
+                        if (firstItem != null)
                         {
-                            var variant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
-                            if (variant != null && checkedProductIds.Add(variant.ProductId))
+                            var paidProduct = await _productRepository.GetByIdAsync(firstItem.ProductId, cancellationToken);
+                            if (paidProduct?.ShippingPolicyId != null)
                             {
-                                var prod = await _productRepository.GetByIdAsync(variant.ProductId, cancellationToken);
-                                if (prod != null)
-                                {
-                                    prod.CheckAndUpdateStockStatus();
-                                    await _productRepository.UpdateAsync(prod, cancellationToken);
-                                }
+                                var shipPolicy = await _policyRepository.GetShippingPolicyByIdAsync(paidProduct.ShippingPolicyId.Value, cancellationToken);
+                                if (shipPolicy != null) handlingDays = shipPolicy.HandlingTimeDays;
                             }
                         }
-
-                        // 2. NGHIỆP VỤ 2024: Ghi nhận doanh thu treo (Escrow) ngay khi khách TRẢ TIỀN
+                        order.SetShipByDate(handlingDays);
+                        
+                        // NGHIỆP VỤ 2024: Ghi nhận doanh thu treo (Escrow) ngay khi khách TRẢ TIỀN
+                        // Stock đã được trừ tại mock checkout (CreateTestOrderUseCase)
                         var walletPaid = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
                         if (walletPaid != null)
                         {
@@ -102,25 +104,62 @@ namespace EbayClone.Application.UseCases.Orders
                         }
                         break;
 
-                    case "PROCESSING":
-                        order.MarkAsPrintedLabel();
-                        break;
-
                     case "SHIPPED":
                         order.MarkAsShipped(request.ShippingCarrier ?? "Unknown", request.TrackingCode ?? "");
                         break;
 
                     case "DELIVERED":
                         order.MarkAsDelivered();
-                        // Tính phí sàn 5% (Ghi nhận để chuẩn bị cho bước Giải ngân ReleaseFunds sau này)
-                        order.PlatformFee = order.TotalAmount * 0.05m;
+
+                        // Lấy DomesticReturnDays từ ReturnPolicy thực tế (seller đã set khi tạo sản phẩm)
+                        int returnDays = 30; // fallback
+                        var deliveredItem = order.Items.FirstOrDefault();
+                        if (deliveredItem != null)
+                        {
+                            var deliveredProduct = await _productRepository.GetByIdAsync(deliveredItem.ProductId, cancellationToken);
+                            if (deliveredProduct?.ReturnPolicyId != null)
+                            {
+                                var retPolicy = await _policyRepository.GetReturnPolicyByIdAsync(deliveredProduct.ReturnPolicyId.Value, cancellationToken);
+                                if (retPolicy != null)
+                                {
+                                    returnDays = retPolicy.IsDomesticAccepted ? retPolicy.DomesticReturnDays : 0;
+                                }
+                            }
+                        }
+                        if (returnDays > 0) order.SetReturnDeadline(returnDays);
+
+                        order.PlatformFee = order.TotalAmount * PLATFORM_FEE_RATE;
                         break;
 
                     case "CANCELLED":
-                        // Nếu đã thanh toán (PAID), tiền đã vào PendingBalance -> Cần HOÀN TIỀN (Deduct Pending)
+                        // ⚠️ QUAN TRỌNG: Validate + đổi status TRƯỚC khi side-effects
+                        var cancelReason = request.CancelReason ?? "BUYER_ASKED";
+                        var cancelRequestedBy = request.CancelRequestedBy ?? "SELLER";
+                        order.CancelOrder(cancelReason, cancelRequestedBy);
+
+                        // [BUG-1 FIX] Check xem đã có OrderCancellation (buyer request → seller accepted) chưa
+                        // Nếu đã có (ACCEPTED/COMPLETED) thì SKIP tạo mới, tránh duplicate
+                        var existingCancellation = await _cancellationRepository.GetByOrderIdAsync(order.Id, cancellationToken);
+                        if (existingCancellation == null || existingCancellation.Status == "DECLINED")
+                        {
+                            // Chưa có hoặc bị decline trước đó → Tạo record mới (seller cancel chủ động)
+                            var cancellation = new OrderCancellation
+                            {
+                                OrderId = order.Id,
+                                RequestedBy = cancelRequestedBy,
+                                Reason = cancelReason,
+                                Notes = request.CancelNotes
+                            };
+                            cancellation.Initialize(); // Auto-set deadline + defect + fee credit
+                            cancellation.Accept();     // Auto-accept vì cancel trực tiếp
+                            cancellation.MarkCompleted();
+                            await _cancellationRepository.AddAsync(cancellation, cancellationToken);
+                        }
+                        // else: record đã tồn tại (buyer → seller accepted) → không tạo thêm
+
+                        // 1. Hoàn trả ví Pending (chỉ khi đã thanh toán)
                         if (order.PaymentStatus == "PAID")
                         {
-                            // 1. Hoàn trả ví Pending
                             var walletRefund = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
                             if (walletRefund != null)
                             {
@@ -138,39 +177,29 @@ namespace EbayClone.Application.UseCases.Orders
                                     BalanceAfter = walletRefund.PendingBalance
                                 }, cancellationToken);
                             }
+                        }
 
-                            // 2. Hoàn kho (Restock) vì PAID đã trừ kho thật
-                            foreach(var item in order.Items)
-                            {
-                                await _productRepository.RestockVariantAsync(item.VariantId, item.Quantity, cancellationToken);
-                            }
+                        // 2. Hoàn kho (Restock) — stock đã trừ trực tiếp tại mock checkout
+                        foreach(var item in order.Items)
+                        {
+                            await _productRepository.RestoreStockAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
+                        }
 
-                            // [A6] Sau restock → check auto OUT_OF_STOCK → ACTIVE
-                            var checkedCancelProductIds = new HashSet<Guid>();
-                            foreach (var item in order.Items)
+                        // [A6] Sau restock → check auto OUT_OF_STOCK → ACTIVE
+                        var checkedCancelProductIds = new HashSet<Guid>();
+                        foreach (var item in order.Items)
+                        {
+                            var cancelVariant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
+                            if (cancelVariant != null && checkedCancelProductIds.Add(cancelVariant.ProductId))
                             {
-                                var cancelVariant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
-                                if (cancelVariant != null && checkedCancelProductIds.Add(cancelVariant.ProductId))
+                                var cancelProd = await _productRepository.GetByIdAsync(cancelVariant.ProductId, cancellationToken);
+                                if (cancelProd != null)
                                 {
-                                    var cancelProd = await _productRepository.GetByIdAsync(cancelVariant.ProductId, cancellationToken);
-                                    if (cancelProd != null)
-                                    {
-                                        cancelProd.CheckAndUpdateStockStatus();
-                                        await _productRepository.UpdateAsync(cancelProd, cancellationToken);
-                                    }
+                                    cancelProd.CheckAndUpdateStockStatus();
+                                    await _productRepository.UpdateAsync(cancelProd, cancellationToken);
                                 }
                             }
                         }
-                        else if (order.PaymentStatus == "UNPAID")
-                        {
-                            // Nếu chưa thanh toán, chỉ xả khoá Reserved
-                            foreach(var item in order.Items)
-                            {
-                                await _productRepository.ReleaseReservationAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
-                            }
-                        }
-                        
-                        order.CancelOrder();
                         break;
 
                     default:

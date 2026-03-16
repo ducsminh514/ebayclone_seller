@@ -76,22 +76,35 @@
                 {
                     @foreach (var svc in _model.DomesticServices)
                     {
-                        <div class="pa-4 mb-3" style="border: 1px solid #efefef; border-radius: 8px; background-color: white;">
+                        var isFirst = svc == _model.DomesticServices.First();
+                        <div class="pa-4 mb-3" style="border: 1px solid @(isFirst && _model.OfferFreeShipping ? "#3665F3" : "#efefef"); border-radius: 8px; background-color: white;">
                             <MudGrid AlignItems="AlignItems.Center">
-                                <MudItem xs="6">
+                                <MudItem xs="5">
                                     <MudText Typo="Typo.body2" Style="font-weight: bold;">@svc.ServiceName</MudText>
+                                    @if (isFirst && _model.OfferFreeShipping)
+                                    {
+                                        <MudText Typo="Typo.caption" Style="color: #3665F3;">⭐ Primary service — Free shipping applied</MudText>
+                                    }
                                 </MudItem>
                                 <MudItem xs="2">
-                                    <MudTextField @bind-Value="svc.Cost" Label="Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" />
+                                    @if (svc.IsFreeShipping)
+                                    {
+                                        <MudTextField Value="@("Free")" Label="Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="true" />
+                                    }
+                                    else
+                                    {
+                                        <MudNumericField @bind-Value="svc.Cost" Label="Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" Min="0m" />
+                                    }
                                 </MudItem>
                                 <MudItem xs="3">
-                                    <MudTextField @bind-Value="svc.AdditionalItemCost" Label="Each add'l" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" />
+                                    <MudNumericField @bind-Value="svc.AdditionalItemCost" Label="Each add'l" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" Disabled="@svc.IsFreeShipping" Min="0m" />
                                 </MudItem>
-                                <MudItem xs="1" Class="d-flex justify-end">
+                                <MudItem xs="2" Class="d-flex justify-end gap-2">
+                                    <MudCheckBox @bind-Value="svc.IsFreeShipping" Color="Color.Primary" Dense="true" Style="margin: 0;" />
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => _model.DomesticServices.Remove(svc))" Size="Size.Small" />
                                 </MudItem>
-                                <MudItem xs="12" Class="mt-n2">
-                                    <MudCheckBox @bind-Value="svc.IsFreeShipping" Label="Free shipping" Color="Color.Primary" Dense="true" />
+                                <MudItem xs="12" Class="mt-n3">
+                                    <MudText Typo="Typo.caption" Style="color: #707070;">@(svc.IsFreeShipping ? "Free shipping for buyer" : $"Buyer pays ${svc.Cost:N2}")</MudText>
                                 </MudItem>
                             </MudGrid>
                         </div>
@@ -284,6 +297,12 @@
     {
         try 
         {
+            // eBay Logic: OfferFreeShipping → auto set IsFreeShipping cho service đầu tiên
+            if (_model.OfferFreeShipping && _model.DomesticServices.Any())
+            {
+                _model.DomesticServices.First().IsFreeShipping = true;
+            }
+
             var request = new CreateShippingPolicyRequest
             {
                 Name = _model.Name,

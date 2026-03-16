@@ -34,9 +34,10 @@ namespace EbayClone.API.Controllers
                 var stats = await _getDashboardStatsUseCase.ExecuteAsync(shopId);
                 return Ok(stats);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { Error = ex.Message });
+                // [Security] Không leak internal error info
+                return StatusCode(500, new { Error = "Đã xảy ra lỗi khi tải dashboard. Vui lòng thử lại sau." });
             }
         }
     }

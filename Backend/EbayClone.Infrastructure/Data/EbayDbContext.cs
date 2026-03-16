@@ -27,6 +27,9 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<VariantAttributeValue> VariantAttributeValues { get; set; }
         public DbSet<CategoryItemSpecific> CategoryItemSpecifics { get; set; }
         public DbSet<ProductItemSpecific> ProductItemSpecifics { get; set; }
+        public DbSet<OrderReturn> OrderReturns { get; set; }
+        public DbSet<OrderCancellation> OrderCancellations { get; set; }
+        public DbSet<OrderDispute> OrderDisputes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -89,7 +92,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.Description).HasMaxLength(250);
                 entity.Property(e => e.DomesticShippingPaidBy).HasMaxLength(20);
                 entity.Property(e => e.InternationalShippingPaidBy).HasMaxLength(20);
-                entity.Property(e => e.RestockingFeePercent).HasColumnType("decimal(5, 2)");
+                // RestockingFeePercent removed — eBay cấm restocking fee
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
 
@@ -134,8 +137,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.HasOne(e => e.Product).WithMany(p => p.Variants).HasForeignKey(e => e.ProductId).IsRequired(false);
                 entity.Property(e => e.SkuCode).HasMaxLength(100).IsRequired();
                 entity.Property(e => e.Price).HasColumnType("decimal(18, 2)");
-                // Computed Column mapping
-                entity.Property(e => e.AvailableStock).HasComputedColumnSql("[Quantity] - [ReservedQuantity]", stored: false);
+                // ReservedQuantity + AvailableStock removed — single-step deduction model
 
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
@@ -182,16 +184,54 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.PaymentStatus).HasMaxLength(50).HasDefaultValue("UNPAID");
                 entity.Property(e => e.ShippingCarrier).HasMaxLength(100);
                 entity.Property(e => e.TrackingCode).HasMaxLength(100);
+                entity.Property(e => e.CancelReason).HasMaxLength(50);
+                entity.Property(e => e.CancelRequestedBy).HasMaxLength(20);
+                entity.HasIndex(e => e.Status); // Performance: filter by status
+                entity.HasIndex(e => e.ShipByDate); // Performance: late shipment queries
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
 
-            // SellerWallet
-            modelBuilder.Entity<SellerWallet>(entity => {
-                entity.HasKey(e => e.ShopId);
-                entity.Property(e => e.AvailableBalance).HasColumnType("decimal(18, 2)");
-                entity.Property(e => e.PendingBalance).HasColumnType("decimal(18, 2)");
+            // OrderReturns
+            modelBuilder.Entity<OrderReturn>(entity => {
+                entity.HasOne(e => e.Order).WithMany(o => o.Returns).HasForeignKey(e => e.OrderId);
+                entity.HasOne(e => e.Buyer).WithMany().HasForeignKey(e => e.BuyerId).OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.Reason).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("REQUESTED");
+                entity.Property(e => e.SellerResponseType).HasMaxLength(50);
+                entity.Property(e => e.ReturnShippingPaidBy).HasMaxLength(20).HasDefaultValue("BUYER");
+                entity.Property(e => e.ReturnTrackingCode).HasMaxLength(100);
+                entity.Property(e => e.ReturnCarrier).HasMaxLength(100);
+                entity.Property(e => e.RefundAmount).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.DeductionAmount).HasColumnType("decimal(18, 2)");
+                entity.HasIndex(e => e.OrderId);
+                entity.HasIndex(e => e.Status); // Performance: filter by return status
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
+
+            // OrderCancellations
+            modelBuilder.Entity<OrderCancellation>(entity => {
+                entity.HasOne(e => e.Order).WithMany(o => o.Cancellations).HasForeignKey(e => e.OrderId);
+                entity.Property(e => e.RequestedBy).HasMaxLength(20).IsRequired();
+                entity.Property(e => e.Reason).HasMaxLength(50).IsRequired();
+                entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("REQUESTED");
+                entity.HasIndex(e => e.OrderId);
+                entity.HasIndex(e => e.Status); // Performance: filter by cancellation status
+                entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
+            });
+
+            // OrderDisputes
+            modelBuilder.Entity<OrderDispute>(entity => {
+                entity.HasOne(e => e.Order).WithMany(o => o.Disputes).HasForeignKey(e => e.OrderId);
+                entity.HasOne(e => e.Buyer).WithMany().HasForeignKey(e => e.BuyerId).OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.Type).HasMaxLength(20).IsRequired();
+                entity.Property(e => e.Status).HasMaxLength(50).HasDefaultValue("OPENED");
+                entity.Property(e => e.Resolution).HasMaxLength(50);
+                entity.HasIndex(e => e.OrderId);
+                entity.HasIndex(e => e.Status); // Performance: filter by dispute status
+                entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
+            });
+
+
 
             // OrderItems
             modelBuilder.Entity<OrderItem>(entity => {
@@ -217,6 +257,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.HasOne(w => w.Shop).WithOne().HasForeignKey<SellerWallet>(w => w.ShopId);
                 entity.Property(e => e.AvailableBalance).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.PendingBalance).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
             });
 
             // WalletTransactions
@@ -259,6 +300,14 @@ namespace EbayClone.Infrastructure.Data
                 }
                 if (fk.DeclaringEntityType.ClrType == typeof(Review) && 
                     (fk.Properties.Any(p => p.Name == "ProductId" || p.Name == "OrderId")))
+                {
+                    fk.DeleteBehavior = DeleteBehavior.Restrict;
+                }
+                // Prevent cascade for new Order child tables
+                if ((fk.DeclaringEntityType.ClrType == typeof(OrderReturn) ||
+                     fk.DeclaringEntityType.ClrType == typeof(OrderCancellation) ||
+                     fk.DeclaringEntityType.ClrType == typeof(OrderDispute)) &&
+                    fk.Properties.Any(p => p.Name == "BuyerId"))
                 {
                     fk.DeleteBehavior = DeleteBehavior.Restrict;
                 }

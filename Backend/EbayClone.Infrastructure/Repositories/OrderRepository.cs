@@ -34,6 +34,7 @@ namespace EbayClone.Infrastructure.Repositories
         public async Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Orders
+                .Include(o => o.Buyer)
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Variant)
                 .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
@@ -44,6 +45,7 @@ namespace EbayClone.Infrastructure.Repositories
             return await _context.Orders
                 .AsNoTracking()
                 .Where(o => o.ShopId == shopId)
+                .Include(o => o.Buyer)
                 .Include(o => o.Items)
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync(cancellationToken);
@@ -74,6 +76,7 @@ namespace EbayClone.Infrastructure.Repositories
             var totalCount = await query.CountAsync(cancellationToken);
             
             var items = await query
+                .Include(o => o.Buyer)
                 .Include(o => o.Items)
                 .OrderByDescending(o => o.CreatedAt)
                 .Skip((pageNumber - 1) * pageSize)
@@ -106,18 +109,21 @@ namespace EbayClone.Infrastructure.Repositories
         {
             var cutoffDate = DateTimeOffset.UtcNow.AddDays(-days);
             return await _context.Orders
-                .Where(o => o.ShopId == shopId && (o.Status == "READY_TO_SHIP" || o.Status == "SHIPPED" || o.Status == "DELIVERED") && o.CreatedAt >= cutoffDate)
+                .Where(o => o.ShopId == shopId 
+                    && (o.Status == "PAID" || o.Status == "SHIPPED" || o.Status == "DELIVERED" || o.Status == "COMPLETED") 
+                    && o.CreatedAt >= cutoffDate)
                 .SumAsync(o => o.TotalAmount, cancellationToken);
         }
+        // eBay Policy: Release after 3-7 days post-delivery.
+        // TODO: Dùng config/appsettings cho production. Demo = 1 phút.
+        private const int FUND_RELEASE_DELAY_MINUTES = 1;
         
         public async Task<IEnumerable<Order>> GetOrdersEligibleForFundReleaseAsync(CancellationToken cancellationToken = default)
         {
-            // eBay Policy: Release after 3-7 days. 
-            // For Demo/Dev: Release after 1 minute of DELIVERED status.
-            var cutoff = DateTimeOffset.UtcNow.AddMinutes(-1); 
+            var cutoff = DateTimeOffset.UtcNow.AddMinutes(-FUND_RELEASE_DELAY_MINUTES); 
             
             return await _context.Orders
-                .Where(o => o.Status == "DELIVERED" && o.CompletedAt <= cutoff && !o.IsEscrowReleased) 
+                .Where(o => o.Status == "DELIVERED" && o.DeliveredAt <= cutoff && !o.IsEscrowReleased) 
                 .ToListAsync(cancellationToken);
         }
     }

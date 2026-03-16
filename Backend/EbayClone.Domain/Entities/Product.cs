@@ -69,12 +69,12 @@ namespace EbayClone.Domain.Entities
         public void CheckAndUpdateStockStatus()
         {
             if (Status == "ACTIVE" && Variants.Count > 0 && 
-                Variants.All(v => v.Quantity - v.ReservedQuantity <= 0))
+                Variants.All(v => v.Quantity <= 0))
             {
                 Status = "OUT_OF_STOCK";
             }
             else if (Status == "OUT_OF_STOCK" && 
-                     Variants.Any(v => v.Quantity - v.ReservedQuantity > 0))
+                     Variants.Any(v => v.Quantity > 0))
             {
                 Status = "ACTIVE";
             }
