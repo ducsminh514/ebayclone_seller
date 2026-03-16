@@ -33,8 +33,8 @@ namespace EbayClone.Tests.UseCases
             var shop = new Shop { Id = shopId, MonthlyListingLimit = 250 };
             
             _shopRepositoryMock.Setup(r => r.GetByIdAsync(shopId, It.IsAny<CancellationToken>())).ReturnsAsync(shop);
-            _productRepositoryMock.Setup(r => r.GetCountByShopInCurrentMonthAsync(shopId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(10); // Limit reached
+            _productRepositoryMock.Setup(r => r.CountProductsThisMonthAsync(shopId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(250); // Limit reached (= MonthlyListingLimit)
 
             var useCase = new CreateListingUseCase(
                 _productRepositoryMock.Object,

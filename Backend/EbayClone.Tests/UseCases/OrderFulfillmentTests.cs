@@ -87,10 +87,10 @@ namespace EbayClone.Tests.UseCases
                 _productRepositoryMock.Object,
                 _unitOfWorkMock.Object);
 
-            // Act: Chuyển sang READY_TO_SHIP (trong code của tôi nó gọi MarkAsPaid)
+            // Act: Chuyển sang PAID (eBay 2024 flow)
             await useCase.ExecuteAsync(shopId, orderId, new UpdateOrderStatusRequest 
             { 
-                NewStatus = "READY_TO_SHIP", 
+                NewStatus = "PAID", 
                 RowVersion = rowVersion 
             });
 

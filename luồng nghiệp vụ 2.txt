@@ -125,21 +125,106 @@ Nơi Seller quản lý hàng hóa hiển thị trên sàn. Listing = 1 Product +
 ________________
 
 
-PHẦN 3: LUỒNG VẬN HÀNH ĐƠN HÀNG (ORDER FULFILLMENT FLOW)
-Xương sống của hệ thống, điều phối hàng hóa vật lý.
-1. Luồng Giữ hàng (Reservation) & Đặt hàng:
-* Khi Buyer bấm "Thanh toán":
-   * Hệ thống kiểm tra: IF (Quantity - ReservedQuantity >= Số lượng mua).
-   * Nếu đủ: UPDATE ProductVariants SET ReservedQuantity = ReservedQuantity + Số lượng mua. (Khóa kho tạm thời).
-   * Tạo đơn hàng vào bảng Orders (Status: PENDING_PAYMENT).
-   * Lưu chi tiết vào OrderItems cùng với giá tiền tại thời điểm đó (PriceAtPurchase).
-2. Luồng Xử lý của Seller (Fulfillment Machine):
-* Trạng thái PAID: Khách đã thanh toán. Hệ thống trừ kho thật (Quantity = Quantity - Mua) và xả khóa (ReservedQuantity = ReservedQuantity - Mua).
-* Trạng thái READY_TO_SHIP: Seller đóng gói xong, bấm nút "In phiếu giao hàng". Hệ thống sinh mã Tracking giả lập.
-* Trạng thái SHIPPED: Seller cập nhật đã giao hàng cho bưu cục.
-* Trạng thái DELIVERED: Khách nhận hàng. Đơn chuyển sang chờ đối soát tiền.
-3. Luồng Ngoại lệ:
-* Khách không thanh toán quá hạn: Hủy đơn, xả kho (trừ đi ReservedQuantity).
+PHẦN 3: LUỒNG VẬN HÀNH ĐƠN HÀNG (ORDER FULFILLMENT FLOW — CHUẨN EBAY 2024)
+Xương sống của hệ thống. Dự án tập trung vai trò SELLER — buyer actions được mock/giả lập, chỉ document nơi seller thực sự tương tác.
+
+=== ORDER STATUS LIFECYCLE (State Machine) ===
+Các trạng thái: PENDING_PAYMENT, PAID, SHIPPED, DELIVERED, CANCELLED, RETURN_REQUESTED, RETURN_IN_PROGRESS, REFUNDED, PARTIALLY_REFUNDED, DISPUTE_OPENED, COMPLETED.
+Chuyển trạng thái:
+   - PENDING_PAYMENT → PAID (mock: buyer pay) | CANCELLED (timeout 4 ngày / buyer cancel)
+   - PAID → SHIPPED (**seller** upload tracking) | CANCELLED (**seller** cancel / buyer cancel request)
+   - SHIPPED → DELIVERED (hệ thống giả lập carrier, seller KHÔNG tự mark)
+   - DELIVERED → COMPLETED (hệ thống auto, hết return window)
+   - DELIVERED → RETURN_REQUESTED (mock: buyer mở return) | DISPUTE_OPENED (mock: buyer mở case)
+   - RETURN_REQUESTED → RETURN_IN_PROGRESS (**seller** accept) | PARTIALLY_REFUNDED (**seller** offer partial) | COMPLETED (**seller** decline) | DISPUTE_OPENED (buyer escalate)
+   - RETURN_IN_PROGRESS → REFUNDED (**seller** inspect + refund) | PARTIALLY_REFUNDED (**seller** deduct max 50%)
+   - DISPUTE_OPENED → COMPLETED (seller win) | REFUNDED (buyer win)
+   - CANCELLED, COMPLETED, REFUNDED, PARTIALLY_REFUNDED → ⛔ FINAL STATES
+   LƯU Ý:
+   - READY_TO_SHIP đã bỏ (eBay thật không có).
+   - DELIVERED chỉ do HỆ THỐNG chuyển — seller TUYỆT ĐỐI KHÔNG tự mark (chống gian lận).
+
+0. Mock: Tạo Đơn Hàng (Buyer-side — Giả lập):
+   * Đầu vào mock: BuyerId, VariantId, Quantity, ShippingAddress. Hệ thống tự xử lý:
+      - Trừ kho 1 bước: UPDATE ProductVariants SET Quantity = Quantity - @qty WHERE Id = @id AND Quantity >= @qty.
+      - KHÔNG dùng ReservedQuantity 2 bước (eBay thật không dùng, gây race condition).
+      - Nếu 0 rows affected → reject "Out of stock".
+      - Tạo Order (Status = PAID), OrderItems (PriceAtPurchase), ShipByDate = NOW + HandlingTime.
+      - CheckAndUpdateStockStatus() → auto OUT_OF_STOCK nếu hết hàng.
+      - PendingBalance += TotalAmount. Ghi WalletTransaction.
+   * MVP: Không cần build checkout UI. Tạo API mock "Place Order" để seed data test.
+
+1. Luồng Xử lý của Seller (Fulfillment — CORE):
+   * Seller thấy đơn trong Seller Hub → Orders → Tab "Awaiting Shipment" (status = PAID).
+   * Ship-by Date: PaymentDate + HandlingTime (từ Shipping Policy). Trễ → Late Shipment defect (PHẦN 7).
+   * **Seller Actions:**
+      a. **Add Tracking Number**: Nhập tracking # + carrier → Order → SHIPPED.
+      b. **Print Shipping Label** (giả lập): Chọn carrier → sinh tracking giả lập → SHIPPED.
+      c. **Mark as Shipped** (manual): Mark thủ công → SHIPPED.
+      d. **Send Invoice**: Gửi invoice nhắc buyer pay (chỉ PENDING_PAYMENT).
+      e. **Cancel Order**: Xem mục 2 chi tiết.
+      f. **Message Buyer**: Chat trong context đơn hàng.
+      g. **Refund Buyer**: Full/Partial, max 90 ngày sau transaction.
+   * Sau SHIPPED: Hệ thống giả lập carrier → tự chuyển DELIVERED sau N ngày. Seller KHÔNG tự chuyển.
+
+2. Luồng Hủy Đơn (Cancellation — Seller quyết định):
+   * 2a. Buyer Request Cancel (mock trigger → Seller respond):
+      - Buyer chỉ cancel được TRƯỚC khi seller mark SHIPPED.
+      - **Seller có 3 NGÀY để Accept / Decline.** Không respond → AUTO-DECLINE.
+      - Accept: Order → CANCELLED, auto refund, stock restore (Quantity += CancelledQty).
+      - Decline: Buyer chờ hàng rồi dùng Return.
+   * 2b. Seller Cancel — Buyer Hasn't Paid:
+      - Điều kiện: PENDING_PAYMENT > 4 ngày.
+      - Seller chọn Reason: "Buyer hasn't paid" → CANCELLED, fee credit cho seller.
+      - [TỰ ĐỘNG] Seller bật Auto-cancel unpaid trong Settings → hệ thống tự cancel sau 4+ ngày.
+   * 2c. Seller Cancel — Out of Stock:
+      - Reason: "Out of stock" → CANCELLED, refund buyer.
+      - ⚠️ Seller bị GHI 1 TRANSACTION DEFECT. Rate > 2% → Below Standard.
+   * 2d. Seller Cancel — Address Issue:
+      - Reason: "Address issue" → CANCELLED, refund buyer, KHÔNG ảnh hưởng metrics.
+   * Cancel Reasons & Impact:
+      - "Buyer asked"   → ✅ Không ảnh hưởng seller.
+      - "Hasn't paid"   → ✅ Fee credit.
+      - "Out of stock"  → ❌ DEFECT.
+      - "Address issue"  → ✅ Không ảnh hưởng.
+   * Stock Restore: Nếu đã trừ kho (qua PAID) → Quantity += CancelledQty + CheckAndUpdateStockStatus().
+
+3. Luồng Return/Refund (Seller respond — QUAN TRỌNG):
+   * Mock trigger: Buyer mở Return Request (DELIVERED, trong return policy 14/30/60 ngày, có Reason + ảnh).
+   * Order → RETURN_REQUESTED.
+   * **Seller PHẢI respond trong 3 BUSINESS DAYS. Các options:**
+      a. **Accept Return**: Buyer ship back (max 15 ngày) → RETURN_IN_PROGRESS → Seller nhận hàng → inspect (2 ngày) → Issue Refund. NẾU seller không refund trong 2 ngày → HỆ THỐNG AUTO REFUND.
+      b. **Offer Partial Refund**: Buyer giữ hàng + nhận 1 phần tiền. Chỉ offer 1 LẦN. Buyer reject → có thể escalate.
+      c. **Full Refund — Buyer Keep Item**: Buyer giữ hàng + full refund (cho hàng giá thấp).
+      d. **Decline Return**: Chỉ khi policy "No Returns" + buyer đổi ý. NHƯNG: Money Back Guarantee override → SNAD/Damaged → PHẢI accept.
+   * After Return:
+      - Order → REFUNDED / PARTIALLY_REFUNDED.
+      - **Seller quyết định stock**: Hàng OK → Quantity += ReturnedQty. Damaged → seller decide.
+      - Finance: PendingBalance -= RefundAmount.
+   * Rules:
+      - Money Back Guarantee: "No Returns" vẫn phải accept nếu SNAD/Damaged.
+      - Return Shipping: Buyer đổi ý → theo policy. SNAD → seller LUÔN trả.
+      - Free Returns Deduction: Seller deduct tối đa 50% nếu hàng damaged.
+      - KHÔNG CÓ Restocking Fee.
+
+4. Luồng Khiếu nại (Dispute — Seller respond):
+   * Mock trigger: Buyer mở Case (INR: 30 ngày sau delivery / SNAD: hàng sai mô tả).
+   * Order → DISPUTE_OPENED. PendingBalance FROZEN.
+   * **Seller có 3 business days để respond** (nộp bằng chứng: tracking, ảnh đóng hàng).
+   * Nếu không resolve → Platform review (giả lập).
+   * Kết quả:
+      - Buyer win → REFUNDED, seller bị 1 DEFECT.
+      - Seller win → COMPLETED, case closed.
+
+5. Stock Management (Hệ thống tự xử lý, nhưng seller cần hiểu):
+   * Trừ kho: Atomic UPDATE khi PAID (1 bước).
+   * Cộng kho: Khi CANCELLED (sau PAID) hoặc Return completed (seller decide).
+   * Auto OUT_OF_STOCK / ACTIVE: CheckAndUpdateStockStatus() sau MỌI thao tác stock.
+
+6. Liên kết Finance (PHẦN 4):
+   * PAID → PendingBalance += Amount.
+   * CANCELLED/REFUNDED → PendingBalance -= Amount.
+   * COMPLETED → AvailableBalance += (Amount - PlatformFee).
 ________________
 
 

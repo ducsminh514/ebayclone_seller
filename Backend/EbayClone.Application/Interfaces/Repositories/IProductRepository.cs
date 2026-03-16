@@ -13,7 +13,6 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<IEnumerable<Product>> GetProductsByShopIdAsync(Guid shopId, CancellationToken cancellationToken = default);
-        Task<int> GetCountByShopInCurrentMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
         
         Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default);
         Task AddVariantAttributeValuesAsync(IEnumerable<VariantAttributeValue> values, CancellationToken cancellationToken = default);
@@ -24,10 +23,9 @@ namespace EbayClone.Application.Interfaces.Repositories
         // Optimistic Concurrency Update for Restock
         Task<int> RestockVariantAsync(Guid variantId, int addedQuantity, CancellationToken cancellationToken = default);
         
-        // Fulfillment Atomics
+        // Fulfillment Atomics (single-step deduction model)
         Task<int> DeductStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
-        Task<int> ReleaseReservationAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
-        Task<int> ReserveStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
+        Task<int> RestoreStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
         
         // Kiểm tra giới hạn MonthlyListingLimit
         Task<int> CountProductsThisMonthAsync(Guid shopId, CancellationToken cancellationToken = default);

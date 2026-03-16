@@ -1,21 +1,27 @@
 @page "/orders"
 @using EbayClone.Frontend.Services
 @using EbayClone.Shared.DTOs.Orders
+@using EbayClone.Shared.DTOs.Products
 @inject OrderService OrderService
 @inject NavigationManager NavigationManager
 
 <div class="seller-hub-container">
-    <div class="seller-hub-header">
+    <div class="seller-hub-header" style="display: flex; justify-content: space-between; align-items: center;">
         <h1 class="seller-hub-title">Manage orders</h1>
+        <button class="btn-ebay-primary" style="background: #e53238; border-color: #e53238;" @onclick="OpenTestBuyModal">
+            <i class="bi bi-cart-plus"></i> Test Buy
+        </button>
     </div>
     
     @* Tabs for Order Status *@
-    <div class="nav-ebay-tabs">
+    <div class="nav-ebay-tabs" style="flex-wrap: wrap;">
         <button class="nav-link @(currentTab == "ALL" ? "active" : "")" @onclick='() => ChangeTab("ALL")'>All</button>
         <button class="nav-link @(currentTab == "PENDING_PAYMENT" ? "active" : "")" @onclick='() => ChangeTab("PENDING_PAYMENT")'>Awaiting payment</button>
-        <button class="nav-link @(currentTab == "READY_TO_SHIP" ? "active" : "")" @onclick='() => ChangeTab("READY_TO_SHIP")'>Awaiting shipment</button>
-        <button class="nav-link @(currentTab == "SHIPPED" ? "active" : "")" @onclick='() => ChangeTab("SHIPPED")'>Paid and shipped</button>
-        <button class="nav-link @(currentTab == "DELIVERED" ? "active" : "")" @onclick='() => ChangeTab("DELIVERED")'>Completed</button>
+        <button class="nav-link @(currentTab == "PAID" ? "active" : "")" @onclick='() => ChangeTab("PAID")'>Awaiting shipment</button>
+        <button class="nav-link @(currentTab == "SHIPPED" ? "active" : "")" @onclick='() => ChangeTab("SHIPPED")'>Shipped</button>
+        <button class="nav-link @(currentTab == "DELIVERED" ? "active" : "")" @onclick='() => ChangeTab("DELIVERED")'>Delivered</button>
+        <button class="nav-link @(currentTab == "CANCELLED" ? "active" : "")" @onclick='() => ChangeTab("CANCELLED")'>Cancelled</button>
+        <button class="nav-link @(currentTab == "RETURN_REQUESTED" ? "active" : "")" @onclick='() => ChangeTab("RETURN_REQUESTED")'>Returns</button>
     </div>
 
     @* Search & Filter Section *@
@@ -44,6 +50,15 @@
         </div>
     </div>
 
+    @* Toast notification *@
+    @if (!string.IsNullOrEmpty(toastMessage))
+    {
+        <div class="alert @(toastIsError ? "alert-danger" : "alert-success") m-3 d-flex align-items-center justify-content-between" style="animation: fadeIn 0.3s;">
+            <span>@toastMessage</span>
+            <button type="button" class="btn-close" @onclick='() => toastMessage = null'></button>
+        </div>
+    }
+
     @* Table Content *@
     <div class="seller-hub-table-wrapper">
         @if (isLoading)
@@ -66,36 +81,151 @@
         }
         else
         {
+            <div class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center" style="background: #fafafa;">
+                <span class="fw-bold" style="font-size: 14px;">Results: @(((currentPage - 1) * pageSize) + 1)-@(Math.Min(currentPage * pageSize, totalCount)) of @totalCount (@totalCount orders)</span>
+                <span class="text-muted small">Sort by: Date sold ▾</span>
+            </div>
+
             <table class="seller-hub-table">
                 <thead>
                     <tr>
-                        <th style="width: 150px;">Order number</th>
-                        <th style="width: 150px;">Date</th>
-                        <th style="width: 120px;">Total</th>
-                        <th>Payment status</th>
-                        <th>Order status</th>
-                        <th class="text-end">Actions</th>
+                        <th style="width: 200px;">Actions</th>
+                        <th>Order details</th>
+                        <th style="width: 60px;">Qty</th>
+                        <th style="width: 110px;">Sold for</th>
+                        <th style="width: 110px;">Total</th>
+                        <th style="width: 100px;">Date sold</th>
+                        <th style="width: 100px;">Date paid</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var o in orders)
                     {
+                        var qty = o.Items.Sum(i => i.Quantity);
+                        var soldFor = o.Items.Sum(i => i.PriceAtPurchase * i.Quantity);
                         <tr>
-                            <td class="fw-bold"><a href="/orders/@o.Id">#@o.OrderNumber</a></td>
-                            <td>@o.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
-                            <td class="price-text">@o.TotalAmount.ToString("N0") ₫</td>
-                            <td>
-                                <span class="status-badge @(o.PaymentStatus == "PAID" ? "status-active" : "status-draft")">
-                                    @o.PaymentStatus
-                                </span>
+                            @* Actions column — dispatch info + dropdown *@
+                            <td style="vertical-align: top; padding-top: 10px;">
+                                @if (o.Status == "PAID" && o.ShipByDate.HasValue)
+                                {
+                                    <div style="font-size: 12px; color: #333; font-weight: 600; margin-bottom: 4px;">
+                                        Dispatch by @o.ShipByDate.Value.ToString("dd MMM")
+                                        <span style="font-size: 11px; color: #707070;">at 11:59pm</span>
+                                    </div>
+                                }
+                                @if (o.Status == "SHIPPED" && o.ShippedAt.HasValue)
+                                {
+                                    <div style="font-size: 12px; color: #267500; font-weight: 600; margin-bottom: 4px;">
+                                        Shipped @o.ShippedAt.Value.ToString("dd MMM")
+                                    </div>
+                                }
+                                <div class="dropdown" style="position: relative;">
+                                    <button class="btn-ebay-secondary btn-sm dropdown-toggle-ebay" style="font-size: 12px; padding: 4px 10px;" @onclick="() => ToggleDropdown(o.Id)">
+                                        Actions ▾
+                                    </button>
+                                    @if (openDropdownId == o.Id)
+                                    {
+                                        <div class="ebay-dropdown-menu" @onclick:stopPropagation="true">
+                                            <a class="ebay-dropdown-item" href="/orders/@o.Id">
+                                                <i class="bi bi-eye me-2"></i>View order details
+                                            </a>
+                                            @if (o.Status == "PAID")
+                                            {
+                                                <a class="ebay-dropdown-item" href="/orders/@o.Id">
+                                                    <i class="bi bi-truck me-2"></i>Mark as dispatched
+                                                </a>
+                                                <a class="ebay-dropdown-item" href="/orders/@o.Id">
+                                                    <i class="bi bi-x-circle me-2"></i>Cancel order
+                                                </a>
+                                            }
+                                            @if (o.Status == "SHIPPED")
+                                            {
+                                                <span class="ebay-dropdown-item" style="color: #999; cursor: default;">
+                                                    <i class="bi bi-truck me-2"></i>In transit — awaiting delivery
+                                                </span>
+                                            }
+                                            @if (o.Status == "PENDING_PAYMENT")
+                                            {
+                                                <a class="ebay-dropdown-item" href="/orders/@o.Id">
+                                                    <i class="bi bi-credit-card me-2"></i>Mark as paid
+                                                </a>
+                                            }
+                                        </div>
+                                    }
+                                </div>
                             </td>
-                            <td>
-                                <span class="status-badge @GetStatusClass(o.Status)">@o.Status</span>
+
+                            @* Order details column — order#, buyer, product info *@
+                            <td style="vertical-align: top; padding-top: 10px;">
+                                <div style="font-size: 13px; margin-bottom: 2px;">
+                                    <a href="/orders/@o.Id" style="color: #3665f3; font-weight: 600;">@o.OrderNumber</a>
+                                    <span class="text-muted" style="margin-left: 8px;">@(string.IsNullOrEmpty(o.BuyerName) ? "—" : o.BuyerName)</span>
+                                </div>
+                                @foreach (var item in o.Items)
+                                {
+                                    <div style="font-size: 12px; color: #555; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
+                                        @if (!string.IsNullOrEmpty(item.Variant?.ImageUrl))
+                                        {
+                                            <img src="@item.Variant.ImageUrl" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; border: 1px solid #eee;" alt="" />
+                                        }
+                                        <div>
+                                            <div style="color: #333;">@item.ProductNameSnapshot</div>
+                                            @if (item.Variant?.SkuCode != null)
+                                            {
+                                                <div style="font-size: 11px; color: #999;">SKU: @item.Variant.SkuCode</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                @if (o.Status == "SHIPPED" && !string.IsNullOrEmpty(o.TrackingCode))
+                                {
+                                    <div style="font-size: 11px; color: #3665f3; margin-top: 4px;">
+                                        <i class="bi bi-geo-alt-fill"></i> @o.ShippingCarrier: @o.TrackingCode
+                                    </div>
+                                }
+                                else if (o.Status == "PAID")
+                                {
+                                    <a href="/orders/@o.Id" style="font-size: 11px; color: #3665f3; margin-top: 4px; display: inline-block;">+ Add tracking</a>
+                                }
                             </td>
-                            <td class="text-end">
-                                <button class="btn-ebay-secondary btn-sm" @onclick='() => NavigationManager.NavigateTo($"/orders/{o.Id}")'>
-                                    View details
-                                </button>
+
+                            @* Qty *@
+                            <td class="text-center" style="vertical-align: top; padding-top: 12px;">@qty</td>
+
+                            @* Sold for (item price only) *@
+                            <td class="price-text" style="vertical-align: top; padding-top: 12px;">@soldFor.ToString("N0") ₫</td>
+
+                            @* Total (incl. shipping) *@
+                            <td style="vertical-align: top; padding-top: 12px;">
+                                <span class="price-text fw-bold" style="color: #267500;">@o.TotalAmount.ToString("N0") ₫</span>
+                                @if (o.ShippingFee > 0)
+                                {
+                                    <div style="font-size: 10px; color: #999;">incl. ship @o.ShippingFee.ToString("N0") ₫</div>
+                                }
+                            </td>
+
+                            @* Date sold *@
+                            <td style="vertical-align: top; padding-top: 12px; font-size: 12px;">
+                                @o.CreatedAt.ToString("dd MMM yyyy")
+                                <div style="font-size: 11px; color: #999;">@o.CreatedAt.ToString("HH:mm")</div>
+                            </td>
+
+                            @* Date paid *@
+                            <td style="vertical-align: top; padding-top: 12px; font-size: 12px;">
+                                @if (o.PaidAt.HasValue)
+                                {
+                                    @o.PaidAt.Value.ToString("dd MMM")
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+
+                            @* Status *@
+                            <td style="vertical-align: top; padding-top: 12px;">
+                                <span class="status-badge @GetStatusClass(o.Status)" style="font-size: 11px;">@o.Status</span>
                             </td>
                         </tr>
                     }
@@ -116,6 +246,149 @@
     </div>
 </div>
 
+@* ==================== TEST BUY MODAL ==================== *@
+@if (showTestBuyModal)
+{
+    <div class="modal-overlay" @onclick="CloseTestBuyModal">
+        <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 520px;">
+            <div class="modal-header" style="background: #e53238; color: white; padding: 16px 20px; border-radius: 8px 8px 0 0;">
+                <h5 style="margin: 0; font-weight: 600;"><i class="bi bi-cart-plus"></i> Test Buy — Giả lập mua hàng</h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseTestBuyModal"></button>
+            </div>
+            <div style="padding: 20px;">
+                @if (isLoadingProducts)
+                {
+                    <div class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Đang tải sản phẩm...</p>
+                    </div>
+                }
+                else if (testProducts == null || !testProducts.Any())
+                {
+                    <div class="text-center p-4 text-muted">
+                        <i class="bi bi-box-seam" style="font-size: 40px;"></i>
+                        <p class="mt-2">Không có sản phẩm ACTIVE nào. Hãy tạo listing trước.</p>
+                    </div>
+                }
+                else
+                {
+                    @* Step 1: Chọn sản phẩm *@
+                    <div style="margin-bottom: 16px;">
+                        <label class="form-label fw-bold">1. Chọn sản phẩm</label>
+                        <select class="form-select" @onchange="OnProductSelected">
+                            <option value="">-- Chọn sản phẩm --</option>
+                            @foreach (var p in testProducts)
+                            {
+                                <option value="@p.Id">@p.Name (Tồn: @p.Variants.Sum(v => v.Quantity))</option>
+                            }
+                        </select>
+                    </div>
+
+                    @* Step 2: Chọn variant *@
+                    @if (selectedProduct != null)
+                    {
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label fw-bold">2. Chọn phiên bản (variant)</label>
+                            @if (!selectedProduct.Variants.Any())
+                            {
+                                <p class="text-muted">Sản phẩm không có variant.</p>
+                            }
+                            else
+                            {
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    @foreach (var v in selectedProduct.Variants)
+                                    {
+                                        <div class="@(selectedVariantId == v.Id ? "variant-card selected" : "variant-card")"
+                                             style="padding: 10px 14px; border: 2px solid @(selectedVariantId == v.Id ? "#3665f3" : "#e0e0e0"); border-radius: 8px; cursor: pointer; transition: all 0.2s;"
+                                             @onclick="() => SelectVariant(v)">
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <div>
+                                                    <strong>@v.SkuCode</strong>
+                                                    @if (!string.IsNullOrEmpty(v.Attributes))
+                                                    {
+                                                        <span class="text-muted" style="font-size: 12px; margin-left: 8px;">@v.Attributes</span>
+                                                    }
+                                                </div>
+                                                <div style="text-align: right;">
+                                                    <div class="price-text" style="font-weight: 700; color: #e53238;">@v.Price.ToString("N0") ₫</div>
+                                                    <div style="font-size: 12px; color: @(v.Quantity > 0 ? "#267500" : "#e53238");">
+                                                        Tồn kho: @v.Quantity
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        @* Step 3: Số lượng *@
+                        @if (selectedVariantId != Guid.Empty)
+                        {
+                            <div style="margin-bottom: 16px;">
+                                <label class="form-label fw-bold">3. Số lượng</label>
+                                <input type="number" class="form-control" min="1" max="@selectedVariantQty" @bind="buyQuantity" style="max-width: 120px;" />
+                                <small class="text-muted">Tối đa: @selectedVariantQty</small>
+                            </div>
+
+                            @* Place Order button *@
+                            <button class="btn-ebay-primary w-100" style="background: #e53238; border-color: #e53238; padding: 12px; font-size: 16px; font-weight: 700;"
+                                    disabled="@isPlacingOrder" @onclick="PlaceTestOrder">
+                                @if (isPlacingOrder)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                    <span>Đang xử lý...</span>
+                                }
+                                else
+                                {
+                                    <span><i class="bi bi-bag-check"></i> Place Order</span>
+                                }
+                            </button>
+                        }
+                    }
+
+                    @if (!string.IsNullOrEmpty(modalError))
+                    {
+                        <div class="alert alert-danger mt-3" style="font-size: 13px;">@modalError</div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+        z-index: 1050; animation: fadeIn 0.2s;
+    }
+    .modal-content {
+        background: white; border-radius: 8px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        max-height: 85vh; overflow-y: auto;
+    }
+    @@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .ebay-dropdown-menu {
+        position: absolute; top: 100%; left: 0; z-index: 1000;
+        min-width: 200px; background: white;
+        border: 1px solid #e0e0e0; border-radius: 4px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        padding: 4px 0; margin-top: 2px;
+    }
+    .ebay-dropdown-item {
+        display: block; padding: 8px 16px;
+        font-size: 13px; color: #333; text-decoration: none;
+        white-space: nowrap; cursor: pointer;
+    }
+    .ebay-dropdown-item:hover {
+        background: #f5f5f5; color: #3665f3;
+    }
+    .dropdown-toggle-ebay {
+        cursor: pointer;
+    }
+</style>
+
 @code {
     private IEnumerable<OrderDto>? orders;
     private int totalCount;
@@ -125,6 +398,22 @@
     private string? errorMessage;
     private string currentTab = "ALL";
     private string? searchQuery;
+    private Guid? openDropdownId;
+
+    // Toast
+    private string? toastMessage;
+    private bool toastIsError;
+
+    // Test Buy Modal
+    private bool showTestBuyModal;
+    private bool isLoadingProducts;
+    private bool isPlacingOrder;
+    private string? modalError;
+    private List<ProductDto>? testProducts;
+    private ProductDto? selectedProduct;
+    private Guid selectedVariantId;
+    private int selectedVariantQty;
+    private int buyQuantity = 1;
 
     protected override async Task OnInitializedAsync()
     {
@@ -154,7 +443,7 @@
     private async Task ChangeTab(string tab)
     {
         currentTab = tab;
-        currentPage = 1; // Reset to first page
+        currentPage = 1;
         await LoadOrders();
     }
 
@@ -177,14 +466,122 @@
         await LoadOrders();
     }
 
+    private void ToggleDropdown(Guid orderId)
+    {
+        openDropdownId = openDropdownId == orderId ? null : orderId;
+    }
+
     private string GetStatusClass(string status)
     {
         return status switch
         {
+            "COMPLETED" => "status-active",
             "DELIVERED" => "status-active",
             "SHIPPED" => "status-sold",
+            "PAID" => "status-sold",
+            "PENDING_PAYMENT" => "status-draft",
             "CANCELLED" => "status-draft",
+            "RETURN_REQUESTED" => "status-return",
+            "REFUNDED" => "status-return",
+            "PARTIALLY_REFUNDED" => "status-return",
+            "DISPUTE_OPENED" => "status-dispute",
             _ => "status-sold"
         };
+    }
+
+    // ==================== TEST BUY MODAL ====================
+
+    private async Task OpenTestBuyModal()
+    {
+        showTestBuyModal = true;
+        isLoadingProducts = true;
+        modalError = null;
+        selectedProduct = null;
+        selectedVariantId = Guid.Empty;
+        buyQuantity = 1;
+
+        try
+        {
+            testProducts = await OrderService.GetTestProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            modalError = ex.Message;
+        }
+        finally
+        {
+            isLoadingProducts = false;
+        }
+    }
+
+    private void CloseTestBuyModal()
+    {
+        showTestBuyModal = false;
+    }
+
+    private void OnProductSelected(ChangeEventArgs e)
+    {
+        selectedVariantId = Guid.Empty;
+        buyQuantity = 1;
+        modalError = null;
+
+        if (Guid.TryParse(e.Value?.ToString(), out var productId))
+        {
+            selectedProduct = testProducts?.FirstOrDefault(p => p.Id == productId);
+        }
+        else
+        {
+            selectedProduct = null;
+        }
+    }
+
+    private void SelectVariant(ProductVariantDto variant)
+    {
+        selectedVariantId = variant.Id;
+        selectedVariantQty = variant.Quantity;
+        buyQuantity = 1;
+        modalError = null;
+    }
+
+    private async Task PlaceTestOrder()
+    {
+        if (selectedVariantId == Guid.Empty || buyQuantity <= 0)
+        {
+            modalError = "Vui lòng chọn variant và nhập số lượng.";
+            return;
+        }
+
+        isPlacingOrder = true;
+        modalError = null;
+
+        try
+        {
+            var request = new CreateBuyerTestOrderRequest
+            {
+                IdempotencyKey = Guid.NewGuid().ToString(),
+                VariantId = selectedVariantId,
+                Quantity = buyQuantity,
+                ReceiverInfo = "{\"name\":\"Test Buyer\",\"phone\":\"0901234567\",\"address\":\"123 Test Street, HCM\"}"
+            };
+
+            var message = await OrderService.TestBuyerCheckoutAsync(request);
+
+            // Đóng modal + show toast + reload
+            showTestBuyModal = false;
+            toastMessage = $"✅ {message}";
+            toastIsError = false;
+
+            currentPage = 1;
+            currentTab = "ALL";
+            await LoadOrders();
+        }
+        catch (Exception ex)
+        {
+            modalError = ex.Message;
+        }
+        finally
+        {
+            isPlacingOrder = false;
+        }
     }
 }

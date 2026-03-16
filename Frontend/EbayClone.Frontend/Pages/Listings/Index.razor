@@ -47,6 +47,9 @@
                 <li class="nav-item">
                     <a class="nav-link @(currentTab == "OUT_OF_STOCK" ? "active fw-bold text-danger" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("OUT_OF_STOCK")'>OUT OF STOCK</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link @(currentTab == "ENDED" ? "active fw-bold" : "text-muted")" style="cursor: pointer; @(currentTab == "ENDED" ? "color: #6c757d;" : "")" @onclick='() => ChangeTab("ENDED")'>ENDED</a>
+                </li>
             </ul>
         </div>
         <div class="card-body p-0">
@@ -113,6 +116,8 @@
                                             "DRAFT" => "bg-secondary",
                                             "SCHEDULED" => "bg-info",
                                             "HIDDEN" => "bg-warning text-dark",
+                                            "OUT_OF_STOCK" => "bg-danger",
+                                            "ENDED" => "bg-dark",
                                             _ => "bg-primary"
                                         };
                                     }
@@ -120,9 +125,16 @@
                                 </td>
                                 <td class="py-3 px-4">
                                     <div class="action-group">
-                                        <button class="ebay-btn-outline-sm" @onclick='() => NavigationManager.NavigateTo($"/listings/edit/{p.Id}")'>
-                                            Sửa
-                                        </button>
+                                        @if (p.Status != "ENDED")
+                                        {
+                                            <button class="ebay-btn-outline-sm" @onclick='() => NavigationManager.NavigateTo($"/listings/edit/{p.Id}")'>
+                                                Sửa
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-dark" style="font-size: 11px;">🛑 Đã kết thúc</span>
+                                        }
 
                                         @if (updatingStatusProductId == p.Id)
                                         {
@@ -155,6 +167,16 @@
                                             {
                                                 <button class="ebay-btn-success-sm" @onclick='() => ChangeProductStatus(p, "ACTIVE")' title="Mở bán lại">
                                                     Kích hoạt lại
+                                                </button>
+                                            }
+
+                                            @* Nút Kết thúc Listing → ENDED (ACTIVE, HIDDEN, OUT_OF_STOCK) *@
+                                            @if (currentTab == "ACTIVE" || currentTab == "HIDDEN" || currentTab == "OUT_OF_STOCK")
+                                            {
+                                                <button class="btn btn-sm btn-outline-dark"
+                                                        @onclick='() => ChangeProductStatus(p, "ENDED")'
+                                                        title="Kết thúc listing vĩnh viễn (không thể phục hồi)">
+                                                    🛑 Kết thúc
                                                 </button>
                                             }
 
@@ -230,7 +252,7 @@
 
             return products.Where(p =>
             {
-                var totalStock = p.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
+                var totalStock = p.Variants?.Sum(v => Math.Max(0, v.Quantity)) ?? 0;
 
                 if (currentTab == "OUT_OF_STOCK")
                     return totalStock <= 0 && p.Status == "ACTIVE";

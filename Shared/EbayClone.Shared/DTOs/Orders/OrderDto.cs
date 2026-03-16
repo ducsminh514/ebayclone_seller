@@ -14,6 +14,7 @@ namespace EbayClone.Shared.DTOs.Orders
         public string OrderNumber { get; set; } = string.Empty;
         public Guid ShopId { get; set; }
         public Guid BuyerId { get; set; }
+        public string? BuyerName { get; set; }
 
         public decimal TotalAmount { get; set; }
         public decimal ShippingFee { get; set; }
@@ -31,7 +32,15 @@ namespace EbayClone.Shared.DTOs.Orders
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset? PaidAt { get;  set; }
         public DateTimeOffset? ShippedAt { get;  set; }
+        public DateTimeOffset? DeliveredAt { get; set; }
         public DateTimeOffset? CompletedAt { get;  set; }
+        public DateTimeOffset? CancelledAt { get; set; }
+        
+        public DateTimeOffset? ShipByDate { get; set; }
+        public DateTimeOffset? ReturnDeadline { get; set; }
+        public string? CancelReason { get; set; }
+        public string? CancelRequestedBy { get; set; }
+        
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
         public bool IsEscrowReleased { get; set; }
  

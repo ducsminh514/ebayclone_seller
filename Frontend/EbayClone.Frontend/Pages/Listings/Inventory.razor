@@ -106,9 +106,7 @@
                                 <th class="py-3 px-3 border-0">SKU</th>
                                 <th class="py-3 px-3 border-0">Thuộc tính</th>
                                 <th class="py-3 px-3 border-0 text-end">Giá</th>
-                                <th class="py-3 px-3 border-0 text-center">Kho</th>
-                                <th class="py-3 px-3 border-0 text-center">Đã giữ</th>
-                                <th class="py-3 px-3 border-0 text-center">Còn lại</th>
+                                <th class="py-3 px-3 border-0 text-center">Tồn kho</th>
                                 <th class="py-3 px-3 border-0 text-center">Trạng thái</th>
                                 <th class="py-3 px-3 border-0 text-center" style="width: 200px;">Nhập kho</th>
                             </tr>
@@ -148,8 +146,6 @@
                                         }
                                     </td>
                                     <td class="py-2 px-3 text-end fw-bold" style="font-size: 13px;">@item.Price.ToString("N0") ₫</td>
-                                    <td class="py-2 px-3 text-center" style="font-size: 13px;">@item.Quantity</td>
-                                    <td class="py-2 px-3 text-center" style="font-size: 13px; color: #ff8500;">@item.ReservedQuantity</td>
                                     <td class="py-2 px-3 text-center fw-bold" style="font-size: 14px;">@item.Available</td>
                                     <td class="py-2 px-3 text-center">
                                         <span class="badge @stockBadge.Item1 rounded-pill" style="font-size: 11px;">@stockBadge.Item2</span>
@@ -207,8 +203,7 @@
         public string SkuCode { get; set; } = "";
         public decimal Price { get; set; }
         public int Quantity { get; set; }
-        public int ReservedQuantity { get; set; }
-        public int Available => Math.Max(0, Quantity - ReservedQuantity);
+        public int Available => Math.Max(0, Quantity);
         public string? Attributes { get; set; }
         public Dictionary<string, string>? ParsedAttributes { get; set; }
         public int RestockInput { get; set; } = 0;
@@ -280,7 +275,7 @@
                         SkuCode = v.SkuCode,
                         Price = v.Price,
                         Quantity = v.Quantity,
-                        ReservedQuantity = v.ReservedQuantity,
+
                         Attributes = v.Attributes,
                         ParsedAttributes = TryParseAttributes(v.Attributes)
                     }))
