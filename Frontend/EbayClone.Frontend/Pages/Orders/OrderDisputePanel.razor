@@ -1,0 +1,190 @@
+@using EbayClone.Frontend.Services
+@using EbayClone.Shared.DTOs.Orders
+@inject OrderService OrderService
+
+@* === GĐ5: DISPUTE PANEL === *@
+@if (DisputeInfo?.HasActiveDispute == true)
+{
+    <div class="mt-3" style="border: 2px solid @(DisputeInfo.Status == "RESOLVED_BUYER_WIN" || DisputeInfo.Status == "RESOLVED_SELLER_WIN" ? "#5cb85c" : "#e53238"); border-radius: 8px; overflow: hidden;">
+        @* Header *@
+        <div style="background: @(DisputeInfo.Status == "RESOLVED_BUYER_WIN" || DisputeInfo.Status == "RESOLVED_SELLER_WIN" ? "#eaf7ea" : "#fde8e8"); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                <strong>Dispute — @DisputeInfo.Type (@DisputeInfo.Status)</strong>
+            </div>
+            @if ((DisputeInfo.Status == "OPENED") && DisputeInfo.SellerResponseDeadline.HasValue)
+            {
+                <span class="badge bg-danger">Deadline: @DisputeInfo.SellerResponseDeadline.Value.ToString("MMM dd, HH:mm")</span>
+            }
+        </div>
+
+        <div style="padding: 14px;">
+            @* Buyer info *@
+            <div class="mb-2">
+                <div class="small"><strong>Type:</strong> <span class="badge @(DisputeInfo.Type == "INR" ? "bg-warning text-dark" : "bg-danger")">@(DisputeInfo.Type == "INR" ? "Item Not Received" : "Significantly Not As Described")</span></div>
+                @if (!string.IsNullOrEmpty(DisputeInfo.BuyerMessage))
+                {
+                    <div class="small mt-1"><strong>Buyer:</strong> @DisputeInfo.BuyerMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(DisputeInfo.BuyerEvidenceUrls))
+                {
+                    <div class="small mt-1"><strong>Evidence:</strong> @DisputeInfo.BuyerEvidenceUrls</div>
+                }
+            </div>
+
+            @* === OPENED: Seller respond form === *@
+            @if (DisputeInfo.Status == "OPENED")
+            {
+                <hr class="my-2" />
+                <div class="small fw-bold mb-2">Your response (provide evidence):</div>
+                <div class="mb-2">
+                    <label class="form-label small">Your message:</label>
+                    <textarea class="form-control form-control-sm" rows="2" @bind="sellerMessage" placeholder="Giải thích + bằng chứng..."></textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Evidence URLs (tracking proof, photos):</label>
+                    <input type="text" class="form-control form-control-sm" @bind="evidenceUrls" placeholder="https://tracking..." />
+                </div>
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger py-1 small">@errorMessage</div>
+                }
+                <button class="btn-ebay-primary btn-sm w-100" disabled="@(isSubmitting || string.IsNullOrEmpty(sellerMessage))" @onclick="SubmitRespondDispute">
+                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Submit Evidence 📤
+                </button>
+            }
+
+            @* === SELLER_RESPONDED: Waiting === *@
+            else if (DisputeInfo.Status == "SELLER_RESPONDED")
+            {
+                <hr class="my-2" />
+                <div class="small text-info">
+                    <i class="bi bi-check-circle me-1"></i> Đã phản hồi:
+                </div>
+                @if (!string.IsNullOrEmpty(DisputeInfo.SellerMessage))
+                {
+                    <div class="small mt-1 p-2 bg-light rounded">"@DisputeInfo.SellerMessage"</div>
+                }
+                <div class="small text-muted mt-1">
+                    <i class="bi bi-clock me-1"></i> Chờ buyer quyết định: chấp nhận hoặc escalate lên platform.
+                </div>
+            }
+
+            @* === ESCALATED: Admin mock resolve === *@
+            else if (DisputeInfo.Status == "ESCALATED")
+            {
+                <hr class="my-2" />
+                <div class="small text-warning mb-2">
+                    <i class="bi bi-lightning-fill me-1"></i> Platform đang review (dự kiến ~48h)
+                </div>
+                @if (!string.IsNullOrEmpty(DisputeInfo.SellerMessage))
+                {
+                    <div class="small p-2 bg-light rounded mb-2">Seller evidence: "@DisputeInfo.SellerMessage"</div>
+                }
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger py-1 small">@errorMessage</div>
+                }
+                <div class="d-flex gap-2">
+                    <button class="btn btn-danger btn-sm flex-fill" disabled="@isSubmitting" @onclick='() => ResolveDisputeMock("BUYER_WIN")'>
+                        🟥 Buyer Win (Refund + Defect)
+                    </button>
+                    <button class="btn btn-success btn-sm flex-fill" disabled="@isSubmitting" @onclick='() => ResolveDisputeMock("SELLER_WIN")'>
+                        🟩 Seller Win (Release Funds)
+                    </button>
+                </div>
+                <div class="text-muted small text-center mt-1" style="font-size: 10px;">Mock: Admin platform resolve</div>
+            }
+
+            @* === RESOLVED: Result === *@
+            else if (DisputeInfo.Status == "RESOLVED_BUYER_WIN")
+            {
+                <hr class="my-2" />
+                <div class="small text-danger">
+                    <i class="bi bi-shield-exclamation me-1"></i>
+                    <strong>Buyer win</strong> — Full refund issued. 
+                    @if (DisputeInfo.IsDefect) { <span class="badge bg-danger">Defect recorded</span> }
+                </div>
+                @if (DisputeInfo.ResolvedAt.HasValue)
+                {
+                    <div class="small text-muted mt-1">Resolved: @DisputeInfo.ResolvedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                }
+            }
+            else if (DisputeInfo.Status == "RESOLVED_SELLER_WIN")
+            {
+                <hr class="my-2" />
+                <div class="small text-success">
+                    <i class="bi bi-trophy-fill me-1"></i>
+                    <strong>Seller win</strong> — Funds released. No defect.
+                </div>
+                @if (DisputeInfo.ResolvedAt.HasValue)
+                {
+                    <div class="small text-muted mt-1">Resolved: @DisputeInfo.ResolvedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public DisputeInfo? DisputeInfo { get; set; }
+    [Parameter] public EventCallback OnActionCompleted { get; set; }
+
+    private bool isSubmitting;
+
+    private string sellerMessage = "";
+    private string evidenceUrls = "";
+    private string? errorMessage;
+
+    private async Task SubmitRespondDispute()
+    {
+        if (string.IsNullOrWhiteSpace(sellerMessage))
+        {
+            errorMessage = "Vui lòng nhập message/giải thích.";
+            return;
+        }
+
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            var request = new RespondDisputeRequest
+            {
+                SellerMessage = sellerMessage.Trim(),
+                SellerEvidenceUrls = string.IsNullOrWhiteSpace(evidenceUrls) ? null : evidenceUrls.Trim(),
+                RowVersion = DisputeInfo?.RowVersion ?? Array.Empty<byte>()
+            };
+            await OrderService.RespondDisputeAsync(DisputeInfo!.DisputeId!.Value, request);
+            sellerMessage = "";
+            evidenceUrls = "";
+            await OnActionCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally { isSubmitting = false; }
+    }
+
+    private async Task ResolveDisputeMock(string resolution)
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            var request = new ResolveDisputeRequest
+            {
+                Resolution = resolution,
+                RowVersion = DisputeInfo?.RowVersion ?? Array.Empty<byte>()
+            };
+            await OrderService.ResolveDisputeAsync(DisputeInfo!.DisputeId!.Value, request);
+            await OnActionCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally { isSubmitting = false; }
+    }
+}

@@ -76,11 +76,11 @@
                 <tbody>
                     @foreach (var p in products)
                     {
-                        var totalAvailable = p.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
+                        var totalAvailable = p.Variants?.Sum(v => Math.Max(0, v.Quantity)) ?? 0;
                         var skuCount = p.Variants?.Count ?? 0;
                         var isExpanded = expandedProductIds.Contains(p.Id);
-                        var lowStock = p.Variants?.Count(v => { var a = v.Quantity - v.ReservedQuantity; return a > 0 && a < 5; }) ?? 0;
-                        var outStock = p.Variants?.Count(v => (v.Quantity - v.ReservedQuantity) <= 0) ?? 0;
+                        var lowStock = p.Variants?.Count(v => { return v.Quantity > 0 && v.Quantity < 5; }) ?? 0;
+                        var outStock = p.Variants?.Count(v => v.Quantity <= 0) ?? 0;
 
                         <!-- Product Row -->
                         <tr class="border-bottom inventory-row" style="cursor: pointer;" @onclick="() => ToggleExpand(p.Id)">
@@ -125,9 +125,9 @@
                                         <div class="row g-3">
                                             @foreach (var v in p.Variants)
                                             {
-                                                var available = v.Quantity - v.ReservedQuantity;
+                                                var available = v.Quantity;
                                                 var barColor = available <= 0 ? "#dd1e31" : available < 5 ? "#ff8500" : "#1a7d32";
-                                                var barPercent = v.Quantity > 0 ? (int)Math.Round((double)available / v.Quantity * 100) : 0;
+                                                var barPercent = v.Quantity > 0 ? 100 : 0;
 
                                                 <div class="col-md-6 col-lg-4">
                                                     <div style="background: white; border-radius: 8px; padding: 14px 16px; border: 1px solid var(--border-color); border-left: 3px solid @barColor;">
@@ -157,11 +157,7 @@
                                                         <div class="d-flex justify-content-between mb-2" style="font-size: 12px;">
                                                             <div class="text-center">
                                                                 <div class="fw-bold" style="font-size: 16px;">@v.Quantity</div>
-                                                                <div class="text-muted" style="font-size: 10px;">Tổng kho</div>
-                                                            </div>
-                                                            <div class="text-center" style="border-left: 1px solid #eee; border-right: 1px solid #eee; padding: 0 12px;">
-                                                                <div class="fw-bold" style="font-size: 16px; color: #ff8500;">@v.ReservedQuantity</div>
-                                                                <div class="text-muted" style="font-size: 10px;">Đặt trước</div>
+                                                                <div class="text-muted" style="font-size: 10px;">Tồn kho</div>
                                                             </div>
                                                             <div class="text-center">
                                                                 <div class="fw-bold" style="font-size: 16px; color: @barColor;">@available</div>
@@ -228,10 +224,9 @@
     private int totalSkus => products?.Sum(p => p.Variants?.Count ?? 0) ?? 0;
     private int lowStockSkus => products?.Sum(p => p.Variants?.Count(v =>
     {
-        var avail = v.Quantity - v.ReservedQuantity;
-        return avail > 0 && avail < 5;
+        return v.Quantity > 0 && v.Quantity < 5;
     }) ?? 0) ?? 0;
-    private int outOfStockSkus => products?.Sum(p => p.Variants?.Count(v => (v.Quantity - v.ReservedQuantity) <= 0) ?? 0) ?? 0;
+    private int outOfStockSkus => products?.Sum(p => p.Variants?.Count(v => v.Quantity <= 0) ?? 0) ?? 0;
 
     protected override async Task OnInitializedAsync()
     {

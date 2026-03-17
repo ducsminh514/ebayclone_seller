@@ -1,6 +1,8 @@
 @page "/"
 @using EbayClone.Frontend.Services
 @using EbayClone.Shared.DTOs.Dashboard
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 @inject DashboardService DashboardService
 @inject NavigationManager Navigation
 

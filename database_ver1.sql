@@ -2,7 +2,7 @@
 PROJECT: EBAY CLONE - SELLER HUB MODULE
 DATABASE SYSTEM: SQL SERVER (T-SQL)
 DESCRIPTION: Hệ thống lõi quản lý bán hàng, tồn kho và dòng tiền dành cho Seller.
-UPDATED: 2026-03-15 (Đồng bộ 100% với Domain Entities - Post-Audit Sync)
+UPDATED: 2026-03-15 (Đồng bộ 100% với Domain Entities - Phần 1 Complete)
 =================================================================================
 */
 
@@ -74,21 +74,24 @@ CREATE TABLE [Shops] (
     [RatingAvg] DECIMAL(3, 2) DEFAULT 0,
     [TotalShippingPolicies] INT DEFAULT 0,
     [TotalReturnPolicies] INT DEFAULT 0,
-    [TotalPaymentPolicies] INT DEFAULT 0, -- NEW
-    [MonthlyListingLimit] INT DEFAULT 10,
+    [TotalPaymentPolicies] INT DEFAULT 0,
+    [MonthlyListingLimit] INT DEFAULT 250, -- eBay thật free tier = 250 listings/tháng
     
     -- KYC & Identity Verification
-    [IdentityImageUrl] NVARCHAR(MAX) NULL, -- NEW
-    [IsIdentityVerified] BIT DEFAULT 0, -- NEW
+    [IdentityImageUrl] NVARCHAR(MAX) NULL,
+    [IsIdentityVerified] BIT DEFAULT 0,
     
     -- Managed Payments (Payouts)
-    [BankName] NVARCHAR(MAX) NULL, -- NEW
-    [BankAccountNumber] NVARCHAR(MAX) NULL, -- NEW
-    [BankAccountHolderName] NVARCHAR(MAX) NULL, -- NEW
-    [BankVerificationStatus] NVARCHAR(MAX) DEFAULT 'NotStarted', -- NEW
-    [MicroDepositAmount1] DECIMAL(18, 2) DEFAULT 0, -- NEW
-    [MicroDepositAmount2] DECIMAL(18, 2) DEFAULT 0, -- NEW
-    [BankVerificationAttempts] INT DEFAULT 0, -- NEW
+    [BankName] NVARCHAR(MAX) NULL,
+    [BankAccountNumber] NVARCHAR(MAX) NULL, -- MASKED: chỉ lưu ****6789
+    [BankAccountHolderName] NVARCHAR(MAX) NULL,
+    [BankVerificationStatus] NVARCHAR(MAX) DEFAULT 'NotStarted',
+    [MicroDepositAmount1] DECIMAL(18, 2) DEFAULT 0,
+    [MicroDepositAmount2] DECIMAL(18, 2) DEFAULT 0,
+    [BankVerificationAttempts] INT DEFAULT 0,
+    
+    -- Business Policies Opt-in (eBay: seller phải bật trước khi dùng)
+    [IsPolicyOptedIn] BIT DEFAULT 0,
     
     [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
 );
@@ -96,60 +99,89 @@ CREATE TABLE [Shops] (
 /* BẢNG 5: ShippingPolicies (Chính sách vận chuyển) */
 CREATE TABLE [ShippingPolicies] (
     [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
+    [ShopId] UNIQUEIDENTIFIER NULL REFERENCES [Shops]([Id]), -- NULL = system default
     [Name] NVARCHAR(100) NOT NULL, 
-    [Description] NVARCHAR(MAX) DEFAULT '', -- UPDATED
+    [Description] NVARCHAR(MAX) DEFAULT '',
     [HandlingTimeDays] INT DEFAULT 2,
     [IsDefault] BIT DEFAULT 0,
     
+    -- Free Shipping (eBay: toggle nổi bật trên form)
+    [OfferFreeShipping] BIT DEFAULT 0,
+    
     -- Domestic Shipping
-    [DomesticCostType] NVARCHAR(50) DEFAULT 'Flat', -- NEW
-    [DomesticServicesJson] NVARCHAR(MAX) DEFAULT '[]', -- NEW
+    [DomesticCostType] NVARCHAR(50) DEFAULT 'Flat',
+    [DomesticServicesJson] NVARCHAR(MAX) DEFAULT '[]',
     
     -- International Shipping
-    [IsInternationalShippingAllowed] BIT DEFAULT 0, -- NEW
-    [InternationalCostType] NVARCHAR(50) DEFAULT 'Flat', -- NEW
-    [InternationalServicesJson] NVARCHAR(MAX) DEFAULT '[]', -- NEW
+    [IsInternationalShippingAllowed] BIT DEFAULT 0,
+    [InternationalCostType] NVARCHAR(50) DEFAULT 'Flat',
+    [InternationalServicesJson] NVARCHAR(MAX) DEFAULT '[]',
+    
+    -- Combined Shipping (eBay: giảm giá khi mua nhiều item)
+    [OfferCombinedShippingDiscount] BIT DEFAULT 0,
+    
+    -- Package Details (eBay: template kích thước cho listings)
+    [PackageType] NVARCHAR(50) DEFAULT 'Package',
+    [PackageWeightOz] DECIMAL(18, 2) DEFAULT 0,
+    [PackageDimensionsJson] NVARCHAR(MAX) DEFAULT '{}',
+    
+    -- Handling Time Cutoff (eBay: giờ cutoff, sau giờ này +1 ngày handling)
+    [HandlingTimeCutoff] NVARCHAR(10) DEFAULT '14:00',
     
     -- Preferences
-    [ExcludedLocationsJson] NVARCHAR(MAX) DEFAULT '[]', -- NEW
+    [ExcludedLocationsJson] NVARCHAR(MAX) DEFAULT '[]',
     
-    [IsArchived] BIT DEFAULT 0, -- NEW
-    [RowVersion] ROWVERSION NOT NULL -- CONCURRENCY
+    [IsArchived] BIT DEFAULT 0,
+    [RowVersion] ROWVERSION NOT NULL
 );
 
 /* BẢNG 6: ReturnPolicies (Chính sách đổi trả) */
 CREATE TABLE [ReturnPolicies] (
     [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
+    [ShopId] UNIQUEIDENTIFIER NULL REFERENCES [Shops]([Id]), -- NULL = system default
     [Name] NVARCHAR(100) NOT NULL,
-    [Description] NVARCHAR(MAX) DEFAULT '', -- UPDATED
+    [Description] NVARCHAR(MAX) DEFAULT '',
     
     -- Domestic
-    [IsDomesticAccepted] BIT DEFAULT 0, -- NEW
-    [DomesticReturnDays] INT DEFAULT 30, -- NEW
-    [DomesticShippingPaidBy] NVARCHAR(20) DEFAULT 'BUYER', -- NEW
+    [IsDomesticAccepted] BIT DEFAULT 0,
+    [DomesticReturnDays] INT DEFAULT 30,
+    [DomesticShippingPaidBy] NVARCHAR(20) DEFAULT 'BUYER',
     
     -- International
-    [IsInternationalAccepted] BIT DEFAULT 0, -- NEW
-    [InternationalReturnDays] INT DEFAULT 30, -- NEW
-    [InternationalShippingPaidBy] NVARCHAR(20) DEFAULT 'BUYER', -- NEW
+    [IsInternationalAccepted] BIT DEFAULT 0,
+    [InternationalReturnDays] INT DEFAULT 30,
+    [InternationalShippingPaidBy] NVARCHAR(20) DEFAULT 'BUYER',
     
-    [IsDefault] BIT DEFAULT 0, -- NEW
-    [IsArchived] BIT DEFAULT 0, -- NEW
-    [RowVersion] ROWVERSION NOT NULL -- CONCURRENCY
+    -- Auto-Accept (eBay: tự chấp nhận return request)
+    [AutoAcceptReturns] BIT DEFAULT 0,
+    
+    -- Immediate Refund (eBay: hoàn tiền ngay khi buyer gửi trả)
+    [SendImmediateRefund] BIT DEFAULT 0,
+    
+    -- Return Address (eBay: địa chỉ nhận hàng trả khác shop chính)
+    [ReturnAddressJson] NVARCHAR(MAX) NULL,
+    
+    -- Restocking Fee (eBay: phí restock 0-20%)
+    [RestockingFeePercent] DECIMAL(18, 2) DEFAULT 0,
+    
+    [IsDefault] BIT DEFAULT 0,
+    [IsArchived] BIT DEFAULT 0,
+    [RowVersion] ROWVERSION NOT NULL
 );
 
-/* BẢNG 6.1: PaymentPolicies (Chính sách thanh toán) - NEW TABLE */
+/* BẢNG 6.1: PaymentPolicies (Chính sách thanh toán) */
 CREATE TABLE [PaymentPolicies] (
     [Id] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    [ShopId] UNIQUEIDENTIFIER NOT NULL REFERENCES [Shops]([Id]),
+    [ShopId] UNIQUEIDENTIFIER NULL REFERENCES [Shops]([Id]), -- NULL = system default
     [Name] NVARCHAR(100) NOT NULL,
-    [Description] NVARCHAR(MAX) NULL,
+    [Description] NVARCHAR(250) DEFAULT '',
+    [ImmediatePaymentRequired] BIT DEFAULT 1, -- Buy It Now: require immediate payment
+    [DaysToPayment] INT DEFAULT 4, -- Auction: 2,3,5,7,10 days allowed
+    [PaymentMethod] NVARCHAR(50) DEFAULT 'ManagedPayments',
+    [PaymentInstructions] NVARCHAR(MAX) NULL,
     [IsDefault] BIT DEFAULT 0,
-    [PaymentMethod] NVARCHAR(50) DEFAULT 'eBay Managed Payments',
-    [ImmediatePay] BIT DEFAULT 0,
-    [CreatedAt] DATETIMEOFFSET DEFAULT SYSDATETIMEOFFSET()
+    [IsArchived] BIT DEFAULT 0,
+    [RowVersion] ROWVERSION NOT NULL
 );
 
 -- ==============================================================================
@@ -225,7 +257,7 @@ CREATE TABLE [Orders] (
     [PlatformFee] DECIMAL(18, 2) DEFAULT 0,
     
     [Status] NVARCHAR(50) NOT NULL DEFAULT 'PENDING_PAYMENT' 
-    CONSTRAINT [CK_OrderStatus] CHECK ([Status] IN ('PENDING_PAYMENT', 'READY_TO_SHIP', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED', 'COMPLETED')), -- ADDED COMPLETED
+    CONSTRAINT [CK_OrderStatus] CHECK ([Status] IN ('PENDING_PAYMENT', 'PAID', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'COMPLETED', 'RETURN_REQUESTED', 'RETURN_IN_PROGRESS', 'REFUNDED', 'PARTIALLY_REFUNDED', 'DISPUTE_OPENED')),
     
     [PaymentStatus] NVARCHAR(50) DEFAULT 'UNPAID'
     CONSTRAINT [CK_PaymentStatus] CHECK ([PaymentStatus] IN ('UNPAID', 'PAID', 'REFUNDED')),

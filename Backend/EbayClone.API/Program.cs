@@ -34,8 +34,13 @@ builder.Services.AddScoped<IWalletTransactionRepository, WalletTransactionReposi
 builder.Services.AddScoped<IPolicyRepository, PolicyRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IOrderCancellationRepository, OrderCancellationRepository>();
+builder.Services.AddScoped<IOrderReturnRepository, OrderReturnRepository>();
+builder.Services.AddScoped<IOrderDisputeRepository, OrderDisputeRepository>();
 builder.Services.AddScoped<IDefaultPolicySeeder, DefaultPolicySeeder>();
+builder.Services.AddScoped<ICategorySeeder, CategorySeeder>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<ICreateShopUseCase, CreateShopUseCase>();
@@ -61,18 +66,28 @@ builder.Services.AddScoped<IGetReturnPoliciesUseCase, GetReturnPoliciesUseCase>(
 builder.Services.AddScoped<IGetPaymentPoliciesUseCase, GetPaymentPoliciesUseCase>();
 builder.Services.AddScoped<IDeletePolicyUseCase, DeletePolicyUseCase>();
 builder.Services.AddScoped<ISetDefaultPolicyUseCase, SetDefaultPolicyUseCase>();
+builder.Services.AddScoped<IOptInPolicyUseCase, OptInPolicyUseCase>();
 builder.Services.AddScoped<IUpdateOrderStatusUseCase, UpdateOrderStatusUseCase>();
 builder.Services.AddScoped<IGetOrdersUseCase, GetOrdersUseCase>();
 builder.Services.AddScoped<IGetOrderByIdUseCase, GetOrderByIdUseCase>();
 builder.Services.AddScoped<ICreateTestOrderUseCase, CreateTestOrderUseCase>();
 builder.Services.AddScoped<IReleaseFundsUseCase, ReleaseFundsUseCase>();
+builder.Services.AddScoped<IOpenReturnUseCase, OpenReturnUseCase>();
+builder.Services.AddScoped<IRespondReturnUseCase, RespondReturnUseCase>();
+builder.Services.AddScoped<IRespondPartialOfferUseCase, RespondPartialOfferUseCase>();
+builder.Services.AddScoped<IIssueRefundUseCase, IssueRefundUseCase>();
+builder.Services.AddScoped<IConfirmItemReceivedUseCase, ConfirmItemReceivedUseCase>();
+builder.Services.AddScoped<IOpenDisputeUseCase, OpenDisputeUseCase>();
+builder.Services.AddScoped<IRespondDisputeUseCase, RespondDisputeUseCase>();
+builder.Services.AddScoped<IResolveDisputeUseCase, ResolveDisputeUseCase>();
 builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
 builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
 builder.Services.AddScoped<IGetDashboardStatsUseCase, GetDashboardStatsUseCase>();
 
-// Background Service: tự động kích hoạt sản phẩm SCHEDULED → ACTIVE khi đến giờ
+// Background Services: tự động kích hoạt Listing SCHEDULED và giải ngân Escrow
 builder.Services.AddHostedService<EbayClone.API.BackgroundServices.ScheduledListingActivatorService>();
+builder.Services.AddHostedService<EbayClone.API.BackgroundServices.FundReleaseHostedService>();
 builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
 builder.Services.AddScoped<IGetSellerFinanceUseCase, GetSellerFinanceUseCase>();
 
@@ -223,5 +238,12 @@ app.MapGet("/test-db", async (EbayClone.Infrastructure.Data.EbayDbContext dbCont
     }
 })
 .WithName("TestDatabaseConnection");
+
+// [A7] Seed categories + item specifics khi khởi động (idempotent)
+using (var seedScope = app.Services.CreateScope())
+{
+    var categorySeeder = seedScope.ServiceProvider.GetRequiredService<ICategorySeeder>();
+    await categorySeeder.SeedCategoriesAsync();
+}
 
 app.Run();

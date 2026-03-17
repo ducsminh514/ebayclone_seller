@@ -11,9 +11,14 @@
             <h2 class="ebay-page-title mb-1">Quản Lý Sản Phẩm (My Listings)</h2>
             <p class="text-muted mb-0" style="font-size: 13px;">Xem, sửa, kích hoạt, tạm ẩn hoặc xóa sản phẩm</p>
         </div>
-        <button class="ebay-btn-primary" @onclick='() => NavigationManager.NavigateTo("/listings/create")'>
-            + Tạo Sản Phẩm Mới
-        </button>
+        <div class="d-flex gap-2">
+            <button class="ebay-btn-outline" @onclick='() => NavigationManager.NavigateTo("/listings/inventory")'>
+                📦 Quản lý Tồn kho
+            </button>
+            <button class="ebay-btn-primary" @onclick='() => NavigationManager.NavigateTo("/listings/create")'>
+                + Tạo Sản Phẩm Mới
+            </button>
+        </div>
     </div>
 
     @if (!string.IsNullOrEmpty(successMessage))
@@ -41,6 +46,9 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link @(currentTab == "OUT_OF_STOCK" ? "active fw-bold text-danger" : "text-muted")" style="cursor: pointer" @onclick='() => ChangeTab("OUT_OF_STOCK")'>OUT OF STOCK</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(currentTab == "ENDED" ? "active fw-bold" : "text-muted")" style="cursor: pointer; @(currentTab == "ENDED" ? "color: #6c757d;" : "")" @onclick='() => ChangeTab("ENDED")'>ENDED</a>
                 </li>
             </ul>
         </div>
@@ -108,6 +116,8 @@
                                             "DRAFT" => "bg-secondary",
                                             "SCHEDULED" => "bg-info",
                                             "HIDDEN" => "bg-warning text-dark",
+                                            "OUT_OF_STOCK" => "bg-danger",
+                                            "ENDED" => "bg-dark",
                                             _ => "bg-primary"
                                         };
                                     }
@@ -115,9 +125,16 @@
                                 </td>
                                 <td class="py-3 px-4">
                                     <div class="action-group">
-                                        <button class="ebay-btn-outline-sm" @onclick='() => NavigationManager.NavigateTo($"/listings/edit/{p.Id}")'>
-                                            Sửa
-                                        </button>
+                                        @if (p.Status != "ENDED")
+                                        {
+                                            <button class="ebay-btn-outline-sm" @onclick='() => NavigationManager.NavigateTo($"/listings/edit/{p.Id}")'>
+                                                Sửa
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-dark" style="font-size: 11px;">🛑 Đã kết thúc</span>
+                                        }
 
                                         @if (updatingStatusProductId == p.Id)
                                         {
@@ -150,6 +167,16 @@
                                             {
                                                 <button class="ebay-btn-success-sm" @onclick='() => ChangeProductStatus(p, "ACTIVE")' title="Mở bán lại">
                                                     Kích hoạt lại
+                                                </button>
+                                            }
+
+                                            @* Nút Kết thúc Listing → ENDED (ACTIVE, HIDDEN, OUT_OF_STOCK) *@
+                                            @if (currentTab == "ACTIVE" || currentTab == "HIDDEN" || currentTab == "OUT_OF_STOCK")
+                                            {
+                                                <button class="btn btn-sm btn-outline-dark"
+                                                        @onclick='() => ChangeProductStatus(p, "ENDED")'
+                                                        title="Kết thúc listing vĩnh viễn (không thể phục hồi)">
+                                                    🛑 Kết thúc
                                                 </button>
                                             }
 
@@ -225,7 +252,7 @@
 
             return products.Where(p =>
             {
-                var totalStock = p.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
+                var totalStock = p.Variants?.Sum(v => Math.Max(0, v.Quantity)) ?? 0;
 
                 if (currentTab == "OUT_OF_STOCK")
                     return totalStock <= 0 && p.Status == "ACTIVE";

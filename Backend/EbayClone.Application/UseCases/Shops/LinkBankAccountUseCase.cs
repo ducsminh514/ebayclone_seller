@@ -38,17 +38,30 @@ namespace EbayClone.Application.UseCases.Shops
             }
 
             shop.BankName = request.BankName;
-            shop.BankAccountNumber = request.BankAccountNumber;
+            // SECURITY: Mask bank account number - chỉ lưu 4 số cuối để hiển thị
+            // Production: dùng AES-256 encryption thay vì masking
+            shop.BankAccountNumber = MaskBankAccount(request.BankAccountNumber);
             shop.BankAccountHolderName = request.BankAccountHolderName;
             shop.BankVerificationStatus = "Pending";
 
-            // Giả lập sinh 2 khoản tiền lẻ ngẫu nhiên (Micro-deposits)
-            // Trong thực tế, đây là lệnh gửi sang hệ thống thanh toán
-            shop.MicroDepositAmount1 = (decimal)(Random.Shared.Next(1, 99) / 100.0);
-            shop.MicroDepositAmount2 = (decimal)(Random.Shared.Next(1, 99) / 100.0);
+            // [MVP/DEV] Dùng giá trị cố định khớp với gợi ý trên UI
+            // Production: dùng Random + gửi thông báo qua email/SMS
+            shop.MicroDepositAmount1 = 0.12m;
+            shop.MicroDepositAmount2 = 0.34m;
 
             _shopRepository.Update(shop);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Mask bank account: giữ 4 số cuối, phần còn lại = *.
+        /// VD: "123456789" → "*****6789"
+        /// </summary>
+        private static string MaskBankAccount(string accountNumber)
+        {
+            if (string.IsNullOrWhiteSpace(accountNumber)) return accountNumber;
+            if (accountNumber.Length <= 4) return accountNumber;
+            return new string('*', accountNumber.Length - 4) + accountNumber[^4..];
         }
     }
 }

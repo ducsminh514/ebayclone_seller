@@ -55,7 +55,10 @@ namespace EbayClone.Application.UseCases.Policies
                     IsInternationalAccepted = request.IsInternationalAccepted,
                     InternationalReturnDays = request.InternationalReturnDays,
                     InternationalShippingPaidBy = request.InternationalShippingPaidBy,
-                    
+
+                    AutoAcceptReturns = request.AutoAcceptReturns,
+                    SendImmediateRefund = request.SendImmediateRefund,
+                    ReturnAddressJson = request.ReturnAddressJson,
                     IsDefault = request.IsDefault,
                     IsArchived = false
                 };

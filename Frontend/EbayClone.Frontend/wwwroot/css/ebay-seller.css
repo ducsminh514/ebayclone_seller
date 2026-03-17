@@ -382,3 +382,347 @@
 .timeline-item-ebay.active::before {
     background-color: var(--seller-hub-blue);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WALLET DASHBOARD — WalletPage.razor
+══════════════════════════════════════════════════════════════════════ */
+
+/* Section wrapper */
+.wallet-section {
+    background: white;
+    border: 1px solid var(--seller-hub-border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.wallet-section-header {
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--seller-hub-border);
+    padding-bottom: 12px;
+}
+
+.wallet-section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--seller-hub-text);
+}
+
+/* ── Alert banner ── */
+.wallet-alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+.wallet-alert-danger {
+    background: #fff3f3;
+    border: 1px solid #f5c6cb;
+    color: #842029;
+}
+
+/* ── Balance 3-card grid ── */
+.wallet-balance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.wallet-balance-card {
+    border-radius: 8px;
+    padding: 20px;
+    border: 1px solid var(--seller-hub-border);
+}
+
+.card-available { background: #f0fdf4; border-color: #bbf7d0; }
+.card-pending   { background: #f9fafb; border-color: #e5e7eb; }
+.card-onhold    { background: #fffbeb; border-color: #fde68a; }
+.card-negative  { background: #fff1f2; border-color: #fecdd3; }
+
+.wallet-card-label  { font-size: 12px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.wallet-card-amount { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+.wallet-card-note   { font-size: 12px; color: #888; }
+
+.wallet-total-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 6px;
+    font-size: 14px;
+    margin-bottom: 20px;
+    border: 1px solid var(--seller-hub-border);
+}
+
+.btn-payout-quick {
+    background: var(--seller-hub-blue);
+    color: white;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.btn-payout-quick:hover { background: #003e7a; }
+
+/* ── SellerLevel Panel ── */
+.level-info-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+.level-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.level-info-label {
+    font-size: 12px;
+    color: #888;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.level-info-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--seller-hub-text);
+}
+
+.level-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+}
+.level-badge-top   { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+.level-badge-above { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.level-badge-below { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.level-badge-new   { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+
+.hold-table-wrapper { overflow: auto; }
+
+.hold-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.hold-table th {
+    background: #f9fafb;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 1px solid var(--seller-hub-border);
+    color: #666;
+}
+.hold-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.current-level-row td {
+    background: #eff6ff;
+    font-weight: 600;
+    color: #1e40af;
+}
+
+/* ── Transaction filter bar ── */
+.tx-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 6px;
+    border: 1px solid var(--seller-hub-border);
+}
+
+.tx-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tx-filter-group label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 600;
+}
+
+.btn-filter {
+    background: var(--seller-hub-blue);
+    color: white;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    align-self: flex-end;
+}
+.btn-filter:hover { background: #003e7a; }
+
+.btn-filter-reset {
+    background: white;
+    color: #666;
+    border: 1px solid #ccc;
+    padding: 7px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    align-self: flex-end;
+}
+.btn-filter-reset:hover { background: #f5f5f5; }
+
+/* ── Transaction table extras ── */
+.tx-order-number {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--seller-hub-blue);
+}
+.tx-description {
+    font-size: 12px;
+    color: #666;
+    margin-top: 2px;
+}
+
+.tx-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.tx-badge-income   { background: #dcfce7; color: #166534; }
+.tx-badge-release  { background: #d1fae5; color: #065f46; }
+.tx-badge-refund   { background: #fff7ed; color: #9a3412; }
+.tx-badge-fee      { background: #fee2e2; color: #991b1b; }
+.tx-badge-withdraw { background: #dbeafe; color: #1e40af; }
+.tx-badge-hold     { background: #f3f4f6; color: #374151; }
+.tx-badge-default  { background: #f3f4f6; color: #374151; }
+
+/* ── Pagination ── */
+.tx-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-top: 1px solid var(--seller-hub-border);
+    font-size: 13px;
+    color: #666;
+}
+
+.tx-page-buttons { display: flex; gap: 4px; }
+
+.btn-page {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 6px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-page:hover:not(:disabled) { background: #f0f7ff; border-color: var(--seller-hub-blue); }
+.btn-page.active { background: var(--seller-hub-blue); color: white; border-color: var(--seller-hub-blue); }
+.btn-page:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Empty state ── */
+.tx-empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: #666;
+}
+.tx-empty-state p { margin: 8px 0 0; }
+
+/* ── Payout Panel ── */
+.payout-panel {
+    max-width: 480px;
+}
+
+.payout-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+}
+
+.payout-mock-box {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f0f9ff;
+    border: 1px dashed #93c5fd;
+    border-radius: 8px;
+}
+
+.payout-mock-label {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 14px;
+    color: #1e40af;
+}
+
+.payout-form {
+    display: flex;
+    gap: 10px;
+}
+
+.payout-form input {
+    flex: 1;
+}
+
+.btn-payout {
+    background: var(--seller-hub-blue);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.btn-payout:hover:not(:disabled) { background: #003e7a; }
+.btn-payout:disabled { opacity: 0.5; cursor: default; }
+
+.payout-warning    { margin-top: 10px; font-size: 13px; color: #b45309; }
+.payout-success-msg { margin-top: 10px; font-size: 13px; color: #166534; background: #dcfce7; padding: 8px 12px; border-radius: 4px; }
+.payout-error-msg   { margin-top: 10px; font-size: 13px; color: #991b1b; background: #fee2e2; padding: 8px 12px; border-radius: 4px; }
+
+/* ── Skeleton loader ── */
+.skeleton-card {
+    background: #f9f9f9 !important;
+    border-color: #eee !important;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+.skeleton-line {
+    height: 14px;
+    background: #e8e8e8;
+    border-radius: 4px;
+    display: block;
+}
+.skeleton-line.w-40  { width: 40%; }
+.skeleton-line.w-50  { width: 50%; }
+.skeleton-line.w-75  { width: 75%; }
+.skeleton-line.w-100 { width: 100%; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+}
+

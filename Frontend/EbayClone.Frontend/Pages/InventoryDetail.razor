@@ -56,19 +56,13 @@
                     <div class="text-muted" style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Phân loại (SKU)</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="ebay-card p-3 mb-0 text-center" style="border-left: 4px solid #1a7d32;">
                     <div style="font-size: 32px; font-weight: 800; color: #1a7d32;">@totalAvailable</div>
-                    <div class="text-muted" style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Tổng Available</div>
+                    <div class="text-muted" style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Tổng Tồn Kho</div>
                 </div>
             </div>
-            <div class="col-md-3">
-                <div class="ebay-card p-3 mb-0 text-center" style="border-left: 4px solid #ff8500;">
-                    <div style="font-size: 32px; font-weight: 800; color: #ff8500;">@totalReserved</div>
-                    <div class="text-muted" style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Đang Đặt Trước</div>
-                </div>
-            </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="ebay-card p-3 mb-0 text-center" style="border-left: 4px solid var(--danger-color);">
                     <div style="font-size: 32px; font-weight: 800; color: var(--danger-color);">@outOfStockCount</div>
                     <div class="text-muted" style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Hết Hàng</div>
@@ -96,8 +90,8 @@
             <div class="row g-3">
                 @foreach (var v in product.Variants)
                 {
-                    var available = v.Quantity - v.ReservedQuantity;
-                    var stockPercent = v.Quantity > 0 ? (int)Math.Round((double)available / v.Quantity * 100) : 0;
+                    var available = v.Quantity;
+                    var stockPercent = v.Quantity > 0 ? 100 : 0;
                     var progressColor = available <= 0 ? "#dd1e31" : available < 5 ? "#ff8500" : "#1a7d32";
 
                     <div class="col-md-6 col-lg-4">
@@ -133,15 +127,11 @@
 
                             <!-- Stock Details -->
                             <div class="row g-2 mb-3">
-                                <div class="col-4 text-center">
+                                <div class="col-6 text-center">
                                     <div class="fw-bold" style="font-size: 20px;">@v.Quantity</div>
-                                    <div class="text-muted" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;">Tổng Kho</div>
+                                    <div class="text-muted" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;">Tồn Kho</div>
                                 </div>
-                                <div class="col-4 text-center" style="border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
-                                    <div class="fw-bold" style="font-size: 20px; color: #ff8500;">@v.ReservedQuantity</div>
-                                    <div class="text-muted" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;">Đặt trước</div>
-                                </div>
-                                <div class="col-4 text-center">
+                                <div class="col-6 text-center" style="border-left: 1px solid var(--border-color);">
                                     <div class="fw-bold" style="font-size: 20px; color: @progressColor;">@available</div>
                                     <div class="text-muted" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;">Available</div>
                                 </div>
@@ -201,9 +191,8 @@
 
     // Computed
     private int variantCount => product?.Variants?.Count ?? 0;
-    private int totalAvailable => product?.Variants?.Sum(v => Math.Max(0, v.Quantity - v.ReservedQuantity)) ?? 0;
-    private int totalReserved => product?.Variants?.Sum(v => v.ReservedQuantity) ?? 0;
-    private int outOfStockCount => product?.Variants?.Count(v => (v.Quantity - v.ReservedQuantity) <= 0) ?? 0;
+    private int totalAvailable => product?.Variants?.Sum(v => Math.Max(0, v.Quantity)) ?? 0;
+    private int outOfStockCount => product?.Variants?.Count(v => v.Quantity <= 0) ?? 0;
 
     protected override async Task OnInitializedAsync()
     {

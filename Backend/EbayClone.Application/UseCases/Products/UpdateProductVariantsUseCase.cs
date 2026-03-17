@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -39,6 +39,33 @@ namespace EbayClone.Application.UseCases.Products
             // Load existing variants
             var existingVariants = product.Variants?.ToList() ?? new List<ProductVariant>();
 
+            // [A4] Validate Variation Limits
+            var newVariantCount = request.Variants.Where(v => !v.Id.HasValue).Count();
+            var totalAfterUpdate = existingVariants.Count + newVariantCount;
+            if (totalAfterUpdate > 250)
+                throw new ArgumentException($"Một listing không được vượt quá 250 biến thể (hiện tại sẽ có {totalAfterUpdate}).");
+
+            // [A4] Validate max 5 attrs per variant + max 50 options per attribute
+            foreach (var variantDto in request.Variants)
+            {
+                if (variantDto.Attributes != null && variantDto.Attributes.Count > 5)
+                    throw new ArgumentException($"Biến thể {variantDto.SkuCode} vượt quá giới hạn 5 thuộc tính.");
+            }
+
+            var allAttrs = request.Variants
+                .Where(v => v.Attributes != null)
+                .SelectMany(v => v.Attributes)
+                .GroupBy(kv => kv.Key)
+                .ToList();
+
+            foreach (var attrGroup in allAttrs)
+            {
+                var distinctOptions = attrGroup.Select(kv => kv.Value).Distinct().Count();
+                if (distinctOptions > 50)
+                    throw new ArgumentException(
+                        $"Thuộc tính '{attrGroup.Key}' có {distinctOptions} options, vượt quá giới hạn 50.");
+            }
+
             foreach (var variantDto in request.Variants)
             {
                 if (variantDto.Id.HasValue)
@@ -52,12 +79,24 @@ namespace EbayClone.Application.UseCases.Products
                         variant.ImageUrl = variantDto.ImageUrl;
                         variant.Attributes = JsonSerializer.Serialize(variantDto.Attributes);
                         variant.UpdatedAt = DateTimeOffset.UtcNow;
+
+                        // [A1] Sync relational attributes: xóa cũ → tạo mới
+                        await _productRepository.DeleteVariantAttributeValuesByVariantIdAsync(variant.Id, cancellationToken);
+                        if (variantDto.Attributes != null && variantDto.Attributes.Count > 0)
+                        {
+                            var newValues = variantDto.Attributes.Select(kv => new VariantAttributeValue
+                            {
+                                VariantId = variant.Id,
+                                AttributeName = kv.Key,
+                                AttributeValue = kv.Value
+                            });
+                            await _productRepository.AddVariantAttributeValuesAsync(newValues, cancellationToken);
+                        }
                     }
                 }
                 else
                 {
-                    // Optionally: Add new variant if Id is null
-                    // Note: Quantity defaults to 0 as they must restock later
+                    // Add new variant
                     var newVariant = new ProductVariant
                     {
                         Id = Guid.NewGuid(),
@@ -65,12 +104,24 @@ namespace EbayClone.Application.UseCases.Products
                         SkuCode = variantDto.SkuCode,
                         Price = variantDto.Price,
                         Quantity = 0,
-                        ReservedQuantity = 0,
                         Attributes = JsonSerializer.Serialize(variantDto.Attributes),
                         ImageUrl = variantDto.ImageUrl,
                         CreatedAt = DateTimeOffset.UtcNow
                     };
                     product.Variants?.Add(newVariant);
+
+                    // [A1] Tạo relational attributes cho variant mới
+                    // Note: phải SaveChanges trước để có VariantId, hoặc dùng Id đã generate
+                    if (variantDto.Attributes != null && variantDto.Attributes.Count > 0)
+                    {
+                        var attrValues = variantDto.Attributes.Select(kv => new VariantAttributeValue
+                        {
+                            VariantId = newVariant.Id,
+                            AttributeName = kv.Key,
+                            AttributeValue = kv.Value
+                        });
+                        await _productRepository.AddVariantAttributeValuesAsync(attrValues, cancellationToken);
+                    }
                 }
             }
 

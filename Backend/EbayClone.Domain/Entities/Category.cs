@@ -18,5 +18,6 @@ namespace EbayClone.Domain.Entities
         // Navigation properties
         public Category? Parent { get; set; }
         public ICollection<Category> SubCategories { get; set; } = new List<Category>();
+        public ICollection<CategoryItemSpecific> ItemSpecifics { get; set; } = new List<CategoryItemSpecific>();
     }
 }

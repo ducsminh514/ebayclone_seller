@@ -13,21 +13,26 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<Product?> GetBasicByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task<IEnumerable<Product>> GetProductsByShopIdAsync(Guid shopId, CancellationToken cancellationToken = default);
-        Task<int> GetCountByShopInCurrentMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
         
         Task AddVariantsAsync(IEnumerable<ProductVariant> variants, CancellationToken cancellationToken = default);
+        Task AddVariantAttributeValuesAsync(IEnumerable<VariantAttributeValue> values, CancellationToken cancellationToken = default);
+        Task DeleteVariantAttributeValuesByVariantIdAsync(Guid variantId, CancellationToken cancellationToken = default);
+        Task DeleteVariantAttributeValuesByProductIdAsync(Guid productId, CancellationToken cancellationToken = default);
         Task<ProductVariant?> GetVariantByIdAsync(Guid variantId, CancellationToken cancellationToken = default);
         
         // Optimistic Concurrency Update for Restock
         Task<int> RestockVariantAsync(Guid variantId, int addedQuantity, CancellationToken cancellationToken = default);
         
-        // Fulfillment Atomics
+        // Fulfillment Atomics (single-step deduction model)
         Task<int> DeductStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
-        Task<int> ReleaseReservationAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
-        Task<int> ReserveStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
+        Task<int> RestoreStockAtomicAsync(Guid variantId, int quantity, CancellationToken cancellationToken = default);
         
         // Kiểm tra giới hạn MonthlyListingLimit
         Task<int> CountProductsThisMonthAsync(Guid shopId, CancellationToken cancellationToken = default);
+        
+        // [A5] Item Specifics
+        Task AddProductItemSpecificsAsync(IEnumerable<ProductItemSpecific> specifics, CancellationToken cancellationToken = default);
+        Task DeleteProductItemSpecificsByProductIdAsync(Guid productId, CancellationToken cancellationToken = default);
         
         // Dashboard Stats
         Task<int> CountByStatusAsync(Guid shopId, string status, CancellationToken cancellationToken = default);

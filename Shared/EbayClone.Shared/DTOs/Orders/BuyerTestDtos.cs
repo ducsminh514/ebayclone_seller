@@ -9,4 +9,16 @@ namespace EbayClone.Shared.DTOs.Orders
         public int Quantity { get; set; }
         public string ReceiverInfo { get; set; } = string.Empty;
     }
+
+    public class BuyerCancelRequest
+    {
+        public Guid OrderId { get; set; }
+        public string Reason { get; set; } = "BUYER_ASKED";
+    }
+
+    public class RespondCancelRequest
+    {
+        public bool Accept { get; set; }
+        public string? DeclineNotes { get; set; }
+    }
 }

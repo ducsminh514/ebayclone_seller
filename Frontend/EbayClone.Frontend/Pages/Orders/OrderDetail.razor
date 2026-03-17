@@ -3,6 +3,7 @@
 @using EbayClone.Shared.DTOs.Orders
 @inject OrderService OrderService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 
 <div class="seller-hub-container">
     <div class="seller-hub-header mb-4">
@@ -14,11 +15,16 @@
         <div class="d-flex justify-content-between align-items-end mt-2">
             <div>
                 <h1 class="seller-hub-title mb-1">Order #@order?.OrderNumber</h1>
-                <div class="text-muted small">Placed on @order?.CreatedAt.ToString("MMM dd, yyyy HH:mm")</div>
+                <div class="text-muted small">Placed on @order?.CreatedAt.ToString("MMM dd, yyyy HH:mm")
+                    @if (!string.IsNullOrEmpty(order?.BuyerName))
+                    {
+                        <span class="ms-2">· <i class="bi bi-person-fill"></i> @order.BuyerName</span>
+                    }
+                </div>
             </div>
             <div class="d-flex gap-2">
-                <button class="btn-ebay-secondary btn-sm"><i class="bi bi-printer me-1"></i> Print label</button>
-                <button class="btn-ebay-secondary btn-sm"><i class="bi bi-envelope me-1"></i> Contact buyer</button>
+                <button class="btn-ebay-secondary btn-sm" @onclick="PrintLabel"><i class="bi bi-printer me-1"></i> Print label</button>
+                <button class="btn-ebay-secondary btn-sm" @onclick='() => statusErrorMessage = "💬 Message system chưa triển khai — sẽ xây dựng ở sprint sau."'><i class="bi bi-envelope me-1"></i> Contact buyer</button>
             </div>
         </div>
     </div>
@@ -98,10 +104,84 @@
                             <div class="transaction-date">@order.ShippedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
                         </li>
                         }
+                        @if (order.DeliveredAt.HasValue)
+                        {
+                        <li class="timeline-item-ebay active">
+                            <div><strong>Delivered</strong></div>
+                            <div class="transaction-date">@order.DeliveredAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @* === GĐ5: Return Timeline === *@
+                        @if (returnInfo?.HasActiveReturn == true && returnInfo.RequestedAt.HasValue)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #f5a623;">
+                            <div><strong style="color: #f5a623;">Return requested</strong> — @(returnInfo.Reason ?? "N/A")</div>
+                            <div class="transaction-date">@returnInfo.RequestedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @if (returnInfo?.RespondedAt.HasValue == true)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #3665f3;">
+                            <div><strong style="color: #3665f3;">Seller responded</strong> — @(returnInfo.SellerResponseType ?? "N/A")</div>
+                            <div class="transaction-date">@returnInfo.RespondedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @if (returnInfo?.ReturnShippedAt.HasValue == true)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #3665f3;">
+                            <div><strong>Return shipped back</strong> — @returnInfo.ReturnCarrier @returnInfo.ReturnTrackingCode</div>
+                            <div class="transaction-date">@returnInfo.ReturnShippedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @if (returnInfo?.RefundedAt.HasValue == true)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #5cb85c;">
+                            <div><strong style="color: #5cb85c;">Refunded</strong> — @(returnInfo.RefundAmount?.ToString("N0") ?? "0") ₫ @(returnInfo.DeductionAmount > 0 ? $"(Deduction: {returnInfo.DeductionAmount?.ToString("N0")} ₫)" : "")</div>
+                            <div class="transaction-date">@returnInfo.RefundedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @* === GĐ5: Dispute Timeline === *@
+                        @if (disputeInfo?.HasActiveDispute == true && disputeInfo.OpenedAt.HasValue)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #e53238;">
+                            <div><strong style="color: #e53238;">Dispute opened</strong> — @(disputeInfo.Type == "INR" ? "Item Not Received" : "Not As Described")</div>
+                            <div class="transaction-date">@disputeInfo.OpenedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @if (disputeInfo?.SellerRespondedAt.HasValue == true)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #3665f3;">
+                            <div><strong style="color: #3665f3;">Dispute — Seller responded</strong></div>
+                            <div class="transaction-date">@disputeInfo.SellerRespondedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @if (disputeInfo?.EscalatedAt.HasValue == true)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #f5a623;">
+                            <div><strong style="color: #f5a623;">Dispute escalated</strong> — Under platform review</div>
+                            <div class="transaction-date">@disputeInfo.EscalatedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @if (disputeInfo?.ResolvedAt.HasValue == true)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: @(disputeInfo.Status == "RESOLVED_BUYER_WIN" ? "#e53238" : "#5cb85c");">
+                            <div><strong style="color: @(disputeInfo.Status == "RESOLVED_BUYER_WIN" ? "#e53238" : "#5cb85c");">
+                                Dispute resolved — @(disputeInfo.Status == "RESOLVED_BUYER_WIN" ? "Buyer win (Defect)" : "Seller win")
+                            </strong></div>
+                            <div class="transaction-date">@disputeInfo.ResolvedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
+                        @if (order.CancelledAt.HasValue)
+                        {
+                        <li class="timeline-item-ebay" style="border-left-color: #e53238;">
+                            <div><strong style="color: #e53238;">Cancelled</strong> — @(order.CancelReason ?? "N/A")</div>
+                            <div class="transaction-date">@order.CancelledAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                        }
                         @if (order.CompletedAt.HasValue)
                         {
                         <li class="timeline-item-ebay active">
-                            <div><strong>Order completed</strong></div>
+                            <div><strong>Order completed</strong> — Funds released</div>
                             <div class="transaction-date">@order.CompletedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
                         </li>
                         }
@@ -127,45 +207,249 @@
                     <div class="d-grid gap-2">
                         @if (order.Status == "PENDING_PAYMENT")
                         {
-                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("READY_TO_SHIP")' disabled="@isUpdating">
-                                Mark as paid
+                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("PAID")' disabled="@isUpdating">
+                                <i class="bi bi-credit-card me-1"></i> Mark as paid
                             </button>
-                            <button class="btn-ebay-secondary" @onclick='() => UpdateStatus("CANCELLED")' disabled="@isUpdating">
-                                Cancel order
-                            </button>
-                        }
-                        else if (order.Status == "READY_TO_SHIP")
-                        {
-                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("PROCESSING")' disabled="@isUpdating">
-                                Print shipping label
+                            <button class="btn-ebay-secondary" @onclick="OpenCancelModal" disabled="@isUpdating">
+                                <i class="bi bi-x-circle me-1"></i> Cancel order
                             </button>
                         }
-                        else if (order.Status == "PROCESSING")
+                        else if (order.Status == "PAID")
                         {
-                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("SHIPPED")' disabled="@isUpdating">
-                                Dispatch order
+                            <button class="btn-ebay-primary" @onclick="OpenShipModal" disabled="@isUpdating">
+                                <i class="bi bi-truck me-1"></i> Ship order
                             </button>
+                            <button class="btn-ebay-secondary" @onclick="OpenCancelModal" disabled="@isUpdating">
+                                <i class="bi bi-x-circle me-1"></i> Cancel order
+                            </button>
+                            @if (order.ShipByDate.HasValue)
+                            {
+                                <div class="alert alert-warning py-2 text-center small mt-1 mb-0">
+                                    <i class="bi bi-clock"></i> Ship by: @order.ShipByDate.Value.ToString("MMM dd, yyyy")
+                                </div>
+                            }
                         }
                         else if (order.Status == "SHIPPED")
                         {
-                            <button class="btn-ebay-primary" @onclick='() => UpdateStatus("DELIVERED")' disabled="@isUpdating">
-                                Confirm delivery
-                            </button>
+                            <div class="alert alert-info mt-2 py-2 text-center small">
+                                <i class="bi bi-truck me-1"></i> In transit — Awaiting carrier confirmation
+                                @if (!string.IsNullOrEmpty(order.TrackingCode))
+                                {
+                                    <div class="mt-1" style="font-size: 11px;">Tracking: <strong>@order.ShippingCarrier</strong> — @order.TrackingCode</div>
+                                }
+                            </div>
                         }
                         else if (order.Status == "DELIVERED")
                         {
-                            <div class="alert alert-success mt-2 py-2 text-center small">Order completed!</div>
+                            <div class="alert alert-success mt-2 py-2 text-center small">
+                                <i class="bi bi-check-circle-fill me-1"></i> Delivered!
+                                @if (order.ReturnDeadline.HasValue)
+                                {
+                                    <div class="mt-1" style="font-size: 11px;">Return window ends: @order.ReturnDeadline.Value.ToString("MMM dd, yyyy")</div>
+                                }
+                            </div>
                         }
                         else if (order.Status == "CANCELLED")
                         {
-                            <div class="alert alert-secondary mt-2 py-2 text-center small">Order cancelled.</div>
+                            <div class="alert alert-secondary mt-2 py-2 small">
+                                <i class="bi bi-x-circle-fill me-1"></i> Cancelled
+                                @if (!string.IsNullOrEmpty(order.CancelReason))
+                                {
+                                    <div class="mt-1" style="font-size: 11px;">Reason: @order.CancelReason</div>
+                                }
+                            </div>
+                        }
+                        else if (order.Status == "RETURN_REQUESTED")
+                        {
+                            <div class="alert alert-warning mt-2 py-2 text-center small">
+                                <i class="bi bi-arrow-return-left me-1"></i> Return requested
+                                @if (returnInfo?.SellerResponseDeadline.HasValue == true)
+                                {
+                                    <div class="mt-1" style="font-size: 11px;">Respond by: <strong>@returnInfo.SellerResponseDeadline.Value.ToString("MMM dd, HH:mm")</strong></div>
+                                }
+                            </div>
+                        }
+                        else if (order.Status == "RETURN_IN_PROGRESS")
+                        {
+                            <div class="alert alert-info mt-2 py-2 text-center small">
+                                <i class="bi bi-box-seam me-1"></i> Return in progress — Buyer shipping item back
+                                @if (!string.IsNullOrEmpty(returnInfo?.ReturnTrackingCode))
+                                {
+                                    <div class="mt-1" style="font-size: 11px;">Tracking: <strong>@returnInfo?.ReturnCarrier</strong> — @returnInfo?.ReturnTrackingCode</div>
+                                }
+                            </div>
+                        }
+                        else if (order.Status == "REFUNDED" || order.Status == "PARTIALLY_REFUNDED")
+                        {
+                            <div class="alert alert-info mt-2 py-2 text-center small">
+                                <i class="bi bi-cash-stack me-1"></i> @order.Status
+                            </div>
+                        }
+                        else if (order.Status == "DISPUTE_OPENED")
+                        {
+                            <div class="alert alert-danger mt-2 py-2 text-center small">
+                                <i class="bi bi-exclamation-triangle me-1"></i> Dispute opened
+                            </div>
+                        }
+                        else if (order.Status == "COMPLETED")
+                        {
+                            <div class="alert alert-success mt-2 py-2 text-center small">
+                                <i class="bi bi-trophy me-1"></i> Completed — Funds released
+                            </div>
                         }
                     </div>
                     @if (!string.IsNullOrEmpty(statusErrorMessage))
                     {
                         <div class="mt-2 text-danger small">@statusErrorMessage</div>
                     }
+
+                    @* === CANCEL REQUEST ALERT (buyer đã request) === *@
+                    @if (cancelRequestInfo?.HasPendingRequest == true)
+                    {
+                        <div class="alert alert-warning mt-3 py-2" style="border-left: 4px solid #f5a623;">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-bell-fill me-2 text-warning"></i>
+                                <strong>Buyer yêu cầu hủy đơn</strong>
+                            </div>
+                            <div class="small">
+                                <div><strong>Lý do:</strong> @cancelRequestInfo.Reason</div>
+                                <div><strong>Thời gian:</strong> @cancelRequestInfo.RequestedAt?.ToString("MMM dd, HH:mm")</div>
+                                <div class="text-danger"><strong>Deadline phản hồi:</strong> @cancelRequestInfo.ResponseDeadline?.ToString("MMM dd, HH:mm")</div>
+                            </div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-success btn-sm flex-fill" disabled="@isUpdating" @onclick="AcceptCancelRequest">
+                                    <i class="bi bi-check-circle me-1"></i> Accept (Cancel + Refund)
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm flex-fill" disabled="@isUpdating" @onclick="DeclineCancelRequest">
+                                    <i class="bi bi-x-circle me-1"></i> Decline
+                                </button>
+                            </div>
+                        </div>
+                    }
+
+                    @* === GĐ5: RETURN PANEL (component riêng) === *@
+                    <OrderReturnPanel ReturnInfo="returnInfo" OrderTotalAmount="@(order?.TotalAmount ?? 0)" OnActionCompleted="ReloadGD5Data" />
                 </div>
+
+                    @* === GĐ5: DISPUTE PANEL (component riêng) === *@
+                    <OrderDisputePanel DisputeInfo="disputeInfo" OnActionCompleted="ReloadGD5Data" />
+
+                @* === 🟨 BUYER MOCK TEST PANEL === *@
+                @{
+                    var showMock = order.Status == "PAID" || order.Status == "PENDING_PAYMENT" 
+                        || order.Status == "SHIPPED" || order.Status == "DELIVERED"
+                        || order.Status == "RETURN_REQUESTED" || order.Status == "RETURN_IN_PROGRESS"
+                        || order.Status == "DISPUTE_OPENED";
+                }
+                @if (showMock)
+                {
+                    <div class="summary-card mb-4" style="border: 2px dashed #f5a623; background: #fffdf5;">
+                        <h2 class="order-section-title" style="color: #f5a623;"><i class="bi bi-person-fill"></i> 🟨 Mock Actions (Test only)</h2>
+                        <p class="small text-muted mb-2">Giả lập hành vi buyer/hệ thống (chỉ dùng cho test)</p>
+                        <div class="d-grid gap-2">
+                            @if (order.Status == "PAID" || order.Status == "PENDING_PAYMENT")
+                            {
+                                <button class="btn btn-outline-warning btn-sm w-100" 
+                                        disabled="@(isUpdating || cancelRequestInfo?.HasPendingRequest == true)"
+                                        @onclick="BuyerMockCancelRequest">
+                                    <i class="bi bi-x-circle me-1"></i> 🟨 Buyer: Request Cancel
+                                </button>
+                                @if (cancelRequestInfo?.HasPendingRequest == true)
+                                {
+                                    <div class="text-muted small mt-1 text-center"><i class="bi bi-clock"></i> Đang chờ seller phản hồi...</div>
+                                }
+                            }
+                            @if (order.Status == "SHIPPED")
+                            {
+                                <button class="btn btn-outline-success btn-sm w-100" disabled="@isUpdating"
+                                        @onclick='() => UpdateStatus("DELIVERED")'>
+                                    <i class="bi bi-box-seam me-1"></i> ⚙️ System: Carrier Confirm Delivery
+                                </button>
+                                <div class="text-muted small text-center" style="font-size: 11px;">Giả lập: carrier xác nhận đã giao thành công</div>
+                            }
+                            @if (order.Status == "DELIVERED")
+                            {
+                                <button class="btn btn-outline-primary btn-sm w-100" disabled="@isUpdating"
+                                        @onclick="MockReleaseFunds">
+                                    <i class="bi bi-trophy me-1"></i> ⚙️ System: Auto-Complete (Release Funds)
+                                </button>
+                                <div class="text-muted small text-center" style="font-size: 11px;">Giả lập: hết return window → giải ngân → COMPLETED</div>
+
+                                @* --- GĐ5: Open Return form --- *@
+                                @if (returnInfo?.HasActiveReturn != true && disputeInfo?.HasActiveDispute != true)
+                                {
+                                <hr class="my-2" />
+                                <div class="small fw-bold mb-1"><i class="bi bi-arrow-return-left"></i> 🟨 Buyer: Open Return</div>
+                                <select class="form-select form-select-sm mb-1" @bind="mockReturnReason">
+                                    <option value="">-- Chọn lý do --</option>
+                                    <option value="NOT_AS_DESCRIBED">Not as described</option>
+                                    <option value="DAMAGED">Damaged in transit</option>
+                                    <option value="WRONG_ITEM">Wrong item sent</option>
+                                    <option value="CHANGED_MIND">Changed mind</option>
+                                </select>
+                                <input type="text" class="form-control form-control-sm mb-1" @bind="mockReturnMessage" placeholder="Buyer message (optional)" />
+                                <button class="btn btn-outline-warning btn-sm w-100" disabled="@(isUpdating || string.IsNullOrEmpty(mockReturnReason))" @onclick="MockOpenReturn">
+                                    <i class="bi bi-arrow-return-left me-1"></i> 🟨 Submit Return Request
+                                </button>
+
+                                @* --- GĐ5: Open Dispute form --- *@
+                                <hr class="my-2" />
+                                <div class="small fw-bold mb-1"><i class="bi bi-exclamation-triangle"></i> 🟨 Buyer: Open Dispute</div>
+                                <select class="form-select form-select-sm mb-1" @bind="mockDisputeType">
+                                    <option value="">-- Chọn loại --</option>
+                                    <option value="INR">INR — Item Not Received</option>
+                                    <option value="SNAD">SNAD — Significantly Not As Described</option>
+                                </select>
+                                <input type="text" class="form-control form-control-sm mb-1" @bind="mockDisputeMessage" placeholder="Buyer message (evidence...)" />
+                                <button class="btn btn-outline-danger btn-sm w-100" disabled="@(isUpdating || string.IsNullOrEmpty(mockDisputeType))" @onclick="MockOpenDispute">
+                                    <i class="bi bi-exclamation-triangle me-1"></i> 🟨 Submit Dispute
+                                </button>
+                                }
+                                else
+                                {
+                                    <hr class="my-2" />
+                                    <div class="small text-muted text-center">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        @if (returnInfo?.HasActiveReturn == true) { <span>Đang có Return request — xử lý xong mới mở thêm.</span> }
+                                        else if (disputeInfo?.HasActiveDispute == true) { <span>Đang có Dispute — xử lý xong mới mở thêm.</span> }
+                                    </div>
+                                }
+                            }
+
+                            @* --- GĐ5: Ship Return (buyer gửi hàng lại) --- *@
+                            @if (returnInfo?.HasActiveReturn == true && (returnInfo.Status == "ACCEPTED"))
+                            {
+                                <hr class="my-2" />
+                                <div class="small fw-bold mb-1"><i class="bi bi-truck"></i> 🟨 Buyer: Ship Return Back</div>
+                                <div class="row g-1 mb-1">
+                                    <div class="col-6">
+                                        <input type="text" class="form-control form-control-sm" @bind="mockReturnCarrier" placeholder="Carrier" />
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="text" class="form-control form-control-sm" @bind="mockReturnTracking" placeholder="Tracking#" />
+                                    </div>
+                                </div>
+                                <button class="btn btn-outline-info btn-sm w-100" disabled="@(isUpdating || string.IsNullOrEmpty(mockReturnCarrier))" @onclick="MockShipReturn">
+                                    <i class="bi bi-truck me-1"></i> 🟨 Ship Return
+                                </button>
+                            }
+
+                            @* --- GĐ5: Escalate Dispute (buyer escalate) --- *@
+                            @if (disputeInfo?.HasActiveDispute == true && disputeInfo.Status == "SELLER_RESPONDED")
+                            {
+                                <hr class="my-2" />
+                                <button class="btn btn-outline-danger btn-sm w-100" disabled="@isUpdating" @onclick="MockEscalateDispute">
+                                    <i class="bi bi-lightning me-1"></i> 🟨 Buyer: Escalate Dispute to Platform
+                                </button>
+                                <div class="text-muted small text-center" style="font-size: 10px;">Buyer không đồng ý seller → escalate lên eBay</div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(mockError))
+                        {
+                            <div class="alert alert-danger mt-2 py-1 small">@mockError</div>
+                        }
+                    </div>
+                }
 
                 <!-- TỔNG KẾT TIỀN -->
                 <div class="summary-card mb-4">
@@ -235,6 +519,109 @@
     }
 </div>
 
+@* ==================== MODAL: SHIP ORDER ==================== *@
+@if (showShipModal)
+{
+    <div class="modal-overlay" @onclick="CloseShipModal">
+        <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 460px;">
+            <div class="modal-header" style="background: #3665f3; color: white; padding: 14px 20px; border-radius: 8px 8px 0 0;">
+                <h5 style="margin: 0; font-weight: 600;"><i class="bi bi-truck"></i> Ship Order</h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseShipModal"></button>
+            </div>
+            <div style="padding: 20px;">
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label fw-bold">Shipping carrier <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="shipCarrier">
+                        <option value="">-- Chọn hãng vận chuyển --</option>
+                        <option value="GiaoHangNhanh">Giao Hàng Nhanh (GHN)</option>
+                        <option value="GiaoHangTietKiem">Giao Hàng Tiết Kiệm (GHTK)</option>
+                        <option value="JT_Express">J&T Express</option>
+                        <option value="Viettel_Post">Viettel Post</option>
+                        <option value="VNPost">VN Post</option>
+                        <option value="Ninja_Van">Ninja Van</option>
+                        <option value="SPX_Express">Shopee Express (SPX)</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label class="form-label fw-bold">Tracking number <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" placeholder="VD: GHN123456789" @bind="shipTrackingCode" />
+                </div>
+                @if (!string.IsNullOrEmpty(shipError))
+                {
+                    <div class="alert alert-danger py-2 small">@shipError</div>
+                }
+                <button class="btn-ebay-primary w-100" style="padding: 10px; font-weight: 600;" disabled="@isUpdating" @onclick="SubmitShipOrder">
+                    @if (isUpdating)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="bi bi-send me-1"></i> Confirm Shipment
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ==================== MODAL: CANCEL ORDER ==================== *@
+@if (showCancelModal)
+{
+    <div class="modal-overlay" @onclick="CloseCancelModal">
+        <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 460px;">
+            <div class="modal-header" style="background: #e53238; color: white; padding: 14px 20px; border-radius: 8px 8px 0 0;">
+                <h5 style="margin: 0; font-weight: 600;"><i class="bi bi-x-circle"></i> Cancel Order</h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseCancelModal"></button>
+            </div>
+            <div style="padding: 20px;">
+                <div class="alert alert-warning py-2 small mb-3">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    <strong>Lưu ý:</strong> Cancel OUT_OF_STOCK sẽ bị tính defect.
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label class="form-label fw-bold">Lý do hủy <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="cancelReason">
+                        <option value="">-- Chọn lý do --</option>
+                        <option value="BUYER_ASKED">Buyer yêu cầu hủy</option>
+                        <option value="OUT_OF_STOCK">Hết hàng</option>
+                        <option value="BUYER_HASNT_PAID">Buyer chưa thanh toán</option>
+                        <option value="ADDRESS_ISSUE">Địa chỉ có vấn đề</option>
+                        <option value="SELLER_CANT_SHIP">Seller không thể giao hàng</option>
+                        <option value="OTHER">Lý do khác</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label class="form-label fw-bold">Ghi chú (tùy chọn)</label>
+                    <textarea class="form-control" rows="3" placeholder="Ghi chú thêm..." @bind="cancelNotes"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(cancelError))
+                {
+                    <div class="alert alert-danger py-2 small">@cancelError</div>
+                }
+                <button class="btn-ebay-primary w-100" style="padding: 10px; font-weight: 600; background: #e53238; border-color: #e53238;" disabled="@isUpdating" @onclick="SubmitCancelOrder">
+                    @if (isUpdating)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="bi bi-x-circle me-1"></i> Confirm Cancellation
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+        z-index: 1050; animation: fadeIn 0.2s;
+    }
+    .modal-content {
+        background: white; border-radius: 8px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        max-height: 85vh; overflow-y: auto;
+    }
+    @@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+</style>
+
 @code {
     [Parameter]
     public Guid OrderId { get; set; }
@@ -244,10 +631,84 @@
     private string? errorMessage;
     private string? statusErrorMessage;
     private bool isUpdating = false;
+    private CancelRequestInfo? cancelRequestInfo;
+
+    // GĐ5: Data (load từ API, truyền vào components)
+    private ReturnInfo? returnInfo;
+    private DisputeInfo? disputeInfo;
+
+    // GĐ5: Mock variables
+    private string mockReturnReason = "";
+    private string mockReturnMessage = "";
+    private string mockReturnCarrier = "";
+    private string mockReturnTracking = "";
+    private string mockDisputeType = "";
+    private string mockDisputeMessage = "";
+    private string? mockError;
+
+    // Ship Modal
+    private bool showShipModal;
+    private string shipCarrier = "";
+    private string shipTrackingCode = "";
+    private string? shipError;
+
+    // Cancel Modal
+    private bool showCancelModal;
+    private string cancelReason = "";
+    private string cancelNotes = "";
+    private string? cancelError;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadOrder();
+        await LoadCancelRequest();
+        await LoadReturnInfo();
+        await LoadDisputeInfo();
+    }
+
+    private async Task LoadDisputeInfo()
+    {
+        try
+        {
+            if (order != null && (order.Status == "DISPUTE_OPENED" || order.Status == "REFUNDED"
+                || order.Status == "COMPLETED" || order.Status == "DELIVERED"
+                || order.Status == "RETURN_REQUESTED" || order.Status == "RETURN_IN_PROGRESS"))
+            {
+                disputeInfo = await OrderService.GetActiveDisputeAsync(OrderId);
+            }
+            else { disputeInfo = null; }
+        }
+        catch { disputeInfo = null; }
+    }
+
+    private async Task LoadReturnInfo()
+    {
+        try
+        {
+            if (order != null && (order.Status == "RETURN_REQUESTED" || order.Status == "RETURN_IN_PROGRESS"
+                || order.Status == "REFUNDED" || order.Status == "PARTIALLY_REFUNDED" || order.Status == "DELIVERED"))
+            {
+                returnInfo = await OrderService.GetActiveReturnAsync(OrderId);
+            }
+            else { returnInfo = null; }
+        }
+        catch { returnInfo = null; }
+    }
+
+    private async Task LoadCancelRequest()
+    {
+        try
+        {
+            if (order != null && (order.Status == "PAID" || order.Status == "PENDING_PAYMENT"))
+            {
+                cancelRequestInfo = await OrderService.GetCancelRequestAsync(OrderId);
+            }
+            else
+            {
+                cancelRequestInfo = null;
+            }
+        }
+        catch { cancelRequestInfo = null; }
     }
 
     private async Task LoadOrder()
@@ -272,6 +733,168 @@
         }
     }
 
+    // ==================== SHIP MODAL ====================
+
+    private void OpenShipModal()
+    {
+        shipCarrier = "";
+        shipTrackingCode = "";
+        shipError = null;
+        showShipModal = true;
+    }
+
+    private void CloseShipModal() => showShipModal = false;
+
+    private async Task SubmitShipOrder()
+    {
+        if (string.IsNullOrWhiteSpace(shipCarrier))
+        {
+            shipError = "Vui lòng chọn hãng vận chuyển.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(shipTrackingCode))
+        {
+            shipError = "Vui lòng nhập mã vận đơn.";
+            return;
+        }
+
+        try
+        {
+            isUpdating = true;
+            shipError = null;
+
+            var request = new UpdateOrderStatusRequest
+            {
+                NewStatus = "SHIPPED",
+                RowVersion = order!.RowVersion,
+                ShippingCarrier = shipCarrier,
+                TrackingCode = shipTrackingCode.Trim()
+            };
+
+            await OrderService.UpdateOrderStatusAsync(OrderId, request);
+            showShipModal = false;
+            await LoadOrder();
+        }
+        catch (Exception ex)
+        {
+            shipError = ex.Message;
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    // ==================== CANCEL MODAL ====================
+
+    private void OpenCancelModal()
+    {
+        cancelReason = "";
+        cancelNotes = "";
+        cancelError = null;
+        showCancelModal = true;
+    }
+
+    private void CloseCancelModal() => showCancelModal = false;
+
+    private async Task SubmitCancelOrder()
+    {
+        if (string.IsNullOrWhiteSpace(cancelReason))
+        {
+            cancelError = "Vui lòng chọn lý do hủy.";
+            return;
+        }
+
+        try
+        {
+            isUpdating = true;
+            cancelError = null;
+
+            var request = new UpdateOrderStatusRequest
+            {
+                NewStatus = "CANCELLED",
+                RowVersion = order!.RowVersion,
+                CancelReason = cancelReason,
+                CancelRequestedBy = "SELLER",
+                CancelNotes = string.IsNullOrWhiteSpace(cancelNotes) ? null : cancelNotes.Trim()
+            };
+
+            await OrderService.UpdateOrderStatusAsync(OrderId, request);
+            showCancelModal = false;
+            await LoadOrder();
+        }
+        catch (Exception ex)
+        {
+            cancelError = ex.Message;
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    // ==================== CANCEL REQUEST FLOW ====================
+
+    private async Task BuyerMockCancelRequest()
+    {
+        try
+        {
+            isUpdating = true;
+            statusErrorMessage = null;
+            await OrderService.BuyerCancelRequestAsync(new BuyerCancelRequest { OrderId = OrderId });
+            await LoadCancelRequest();
+        }
+        catch (Exception ex)
+        {
+            statusErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    private async Task AcceptCancelRequest()
+    {
+        try
+        {
+            isUpdating = true;
+            statusErrorMessage = null;
+            await OrderService.RespondCancelRequestAsync(OrderId, new RespondCancelRequest { Accept = true });
+            await LoadOrder();
+            await LoadCancelRequest();
+        }
+        catch (Exception ex)
+        {
+            statusErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    private async Task DeclineCancelRequest()
+    {
+        try
+        {
+            isUpdating = true;
+            statusErrorMessage = null;
+            await OrderService.RespondCancelRequestAsync(OrderId, new RespondCancelRequest { Accept = false });
+            await LoadCancelRequest();
+        }
+        catch (Exception ex)
+        {
+            statusErrorMessage = ex.Message;
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    // ==================== SIMPLE STATUS UPDATE ====================
+
     private async Task UpdateStatus(string newStatus)
     {
         try
@@ -282,12 +905,11 @@
             var request = new UpdateOrderStatusRequest 
             { 
                 NewStatus = newStatus,
-                ShippingCarrier = newStatus == "SHIPPED" ? "GiaoHangNhanh" : null,
-                TrackingCode = newStatus == "SHIPPED" ? "GHN" + DateTime.Now.Ticks.ToString().Substring(10) : null
+                RowVersion = order!.RowVersion
             };
 
             await OrderService.UpdateOrderStatusAsync(OrderId, request);
-            await LoadOrder(); // Refresh the data to trace state change
+            await LoadOrder();
         }
         catch (Exception ex)
         {
@@ -306,14 +928,129 @@
         {
             var info = System.Text.Json.JsonDocument.Parse(jsonInfo);
             var root = info.RootElement;
-            var name = root.TryGetProperty("FullName", out var n) ? n.GetString() : "";
-            var phone = root.TryGetProperty("Phone", out var p) ? p.GetString() : "";
-            var addr = root.TryGetProperty("Address", out var a) ? a.GetString() : "";
+            var name = root.TryGetProperty("FullName", out var n) ? n.GetString() 
+                     : root.TryGetProperty("name", out var n2) ? n2.GetString() : "";
+            var phone = root.TryGetProperty("Phone", out var p) ? p.GetString() 
+                      : root.TryGetProperty("phone", out var p2) ? p2.GetString() : "";
+            var addr = root.TryGetProperty("Address", out var a) ? a.GetString() 
+                     : root.TryGetProperty("address", out var a2) ? a2.GetString() : "";
             return $"{name} - {phone} - {addr}".Trim('-', ' ');
         }
         catch
         {
-            return jsonInfo; // Fallback if not valid JSON
+            return jsonInfo;
         }
+    }
+
+    private async Task PrintLabel()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private async Task MockReleaseFunds()
+    {
+        try
+        {
+            isUpdating = true;
+            statusErrorMessage = null;
+            await OrderService.ReleaseFundsAsync();
+            await LoadOrder();
+        }
+        catch (Exception ex)
+        {
+            statusErrorMessage = $"Release funds error: {ex.Message}";
+        }
+        finally
+        {
+            isUpdating = false;
+        }
+    }
+
+    // ==================== GĐ5: CALLBACK TỪ COMPONENTS ====================
+
+    private async Task ReloadGD5Data()
+    {
+        await LoadOrder();
+        await LoadReturnInfo();
+        await LoadDisputeInfo();
+    }
+
+    // ==================== GĐ5: MOCK HANDLERS ====================
+
+    private async Task MockOpenReturn()
+    {
+        try
+        {
+            isUpdating = true;
+            mockError = null;
+            var request = new OpenReturnRequest
+            {
+                OrderId = OrderId,
+                Reason = mockReturnReason,
+                BuyerMessage = string.IsNullOrWhiteSpace(mockReturnMessage) ? null : mockReturnMessage.Trim()
+            };
+            await OrderService.OpenReturnAsync(request);
+            mockReturnReason = "";
+            mockReturnMessage = "";
+            await ReloadGD5Data();
+        }
+        catch (Exception ex) { mockError = ex.Message; }
+        finally { isUpdating = false; }
+    }
+
+    private async Task MockShipReturn()
+    {
+        if (returnInfo?.ReturnId == null) return;
+        try
+        {
+            isUpdating = true;
+            mockError = null;
+            var request = new ShipReturnRequest
+            {
+                Carrier = mockReturnCarrier.Trim(),
+                TrackingCode = mockReturnTracking.Trim()
+            };
+            await OrderService.ShipReturnBackAsync(returnInfo.ReturnId.Value, request);
+            mockReturnCarrier = "";
+            mockReturnTracking = "";
+            await ReloadGD5Data();
+        }
+        catch (Exception ex) { mockError = ex.Message; }
+        finally { isUpdating = false; }
+    }
+
+    private async Task MockOpenDispute()
+    {
+        try
+        {
+            isUpdating = true;
+            mockError = null;
+            var request = new OpenDisputeRequest
+            {
+                OrderId = OrderId,
+                Type = mockDisputeType,
+                BuyerMessage = string.IsNullOrWhiteSpace(mockDisputeMessage) ? null : mockDisputeMessage.Trim()
+            };
+            await OrderService.OpenDisputeAsync(request);
+            mockDisputeType = "";
+            mockDisputeMessage = "";
+            await ReloadGD5Data();
+        }
+        catch (Exception ex) { mockError = ex.Message; }
+        finally { isUpdating = false; }
+    }
+
+    private async Task MockEscalateDispute()
+    {
+        if (disputeInfo?.DisputeId == null) return;
+        try
+        {
+            isUpdating = true;
+            mockError = null;
+            await OrderService.EscalateDisputeAsync(disputeInfo.DisputeId.Value);
+            await ReloadGD5Data();
+        }
+        catch (Exception ex) { mockError = ex.Message; }
+        finally { isUpdating = false; }
     }
 }

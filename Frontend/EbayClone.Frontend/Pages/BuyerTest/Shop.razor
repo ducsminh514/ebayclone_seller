@@ -44,7 +44,7 @@
                             @if (prod.Variants != null && prod.Variants.Any())
                             {
                                 var variant = prod.Variants.First(); // Lấy variant đầu tiên để test
-                                var availableStock = variant.Quantity - variant.ReservedQuantity;
+                                var availableStock = variant.Quantity;
                                 
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <span class="fs-5 text-primary fw-bold">@variant.Price.ToString("N0") đ</span>
@@ -58,7 +58,7 @@
                                     }
                                 </div>
                                 <div class="small text-muted mb-3">
-                                    (Tổng tồn: @variant.Quantity | Đang giữ: @variant.ReservedQuantity)
+                                    (Tổng tồn: @variant.Quantity)
                                 </div>
 
                                 <button class="btn btn-primary w-100" 
@@ -144,7 +144,7 @@
             await BuyerService.CheckoutAsync(request);
             successMessage = "Mua hàng thành công! Đơn hàng đã được tạo với trạng thái PENDING_PAYMENT. Bạn có thể duyệt tiếp bên luồng Seller.";
             
-            await LoadProducts(); // Load lại để thấy Available Stock giảm do ReservedQuantity tăng
+            await LoadProducts(); // Load lại để thấy Quantity giảm do DeductStock
         }
         catch (Exception ex)
         {

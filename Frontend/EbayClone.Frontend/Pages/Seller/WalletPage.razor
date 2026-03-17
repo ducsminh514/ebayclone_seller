@@ -1,0 +1,523 @@
+@page "/seller/wallet"
+@using EbayClone.Frontend.Services
+@inject WalletService WalletService
+@inject NavigationManager Navigation
+
+<div class="seller-hub-container">
+
+    <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+    <div class="seller-hub-header">
+        <h1 class="seller-hub-title">💰 Ví của tôi</h1>
+        @if (summary != null && summary.WalletUpdatedAt.HasValue)
+        {
+            <span class="text-muted" style="font-size:13px;">
+                Cập nhật lúc @summary.WalletUpdatedAt.Value.ToLocalTime().ToString("HH:mm dd/MM/yyyy")
+            </span>
+        }
+    </div>
+
+    <!-- ══ SECTION 1: BALANCE OVERVIEW ═══════════════════════════════ -->
+    @if (isLoadingSummary)
+    {
+        <div class="wallet-balance-grid">
+            @for (int i = 0; i < 3; i++)
+            {
+                <div class="wallet-balance-card skeleton-card">
+                    <div class="skeleton-line w-50"></div>
+                    <div class="skeleton-line w-75 mt-2" style="height:36px;"></div>
+                    <div class="skeleton-line w-40 mt-2"></div>
+                </div>
+            }
+        </div>
+    }
+    else if (summary != null)
+    {
+        <!-- Cảnh báo ví âm -->
+        @if (summary.IsNegativeBalance)
+        {
+            <div class="wallet-alert wallet-alert-danger">
+                ⚠️ Ví của bạn đang âm: <strong>@summary.AvailableBalance.ToString("N0") đ</strong>.
+                Tiền sẽ được bù trừ từ đơn hàng tiếp theo.
+            </div>
+        }
+
+        <div class="wallet-balance-grid">
+            <!-- Khả dụng -->
+            <div class="wallet-balance-card @(summary.IsNegativeBalance ? "card-negative" : "card-available")">
+                <div class="wallet-card-label">Khả dụng</div>
+                <div class="wallet-card-amount @(summary.IsNegativeBalance ? "text-danger" : "text-success")">
+                    @FormatMoney(summary.AvailableBalance)
+                </div>
+                <div class="wallet-card-note">Có thể rút ngay</div>
+            </div>
+            <!-- Đang xử lý -->
+            <div class="wallet-balance-card card-pending">
+                <div class="wallet-card-label">🕐 Đang giữ (Escrow)</div>
+                <div class="wallet-card-amount text-secondary">
+                    @FormatMoney(summary.PendingBalance)
+                </div>
+                <div class="wallet-card-note">Chờ hết thời gian hold</div>
+            </div>
+            <!-- Đang hold -->
+            <div class="wallet-balance-card card-onhold">
+                <div class="wallet-card-label">🔒 Bị tạm khóa</div>
+                <div class="wallet-card-amount text-warning">
+                    @FormatMoney(summary.OnHoldBalance)
+                </div>
+                <div class="wallet-card-note">
+                    @if (summary.OnHoldBalance > 0)
+                    {
+                        <span>Dispute/Return chưa giải quyết</span>
+                    }
+                    else
+                    {
+                        <span>Không có tiền bị tạm khóa</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="wallet-total-bar">
+            <span>Tổng số dư: <strong>@FormatMoney(summary.TotalBalance)</strong> @summary.Currency</span>
+            <button class="btn-payout-quick" @onclick='() => ScrollToSection("payout-section")'>
+                Rút tiền →
+            </button>
+        </div>
+    }
+
+    <!-- ══ SECTION 2: SELLER LEVEL & HOLD INFO ═══════════════════════ -->
+    @if (summary != null)
+    {
+        <div class="wallet-section">
+            <div class="wallet-section-header">
+                <h2 class="wallet-section-title">📋 Cấp Độ Tài Khoản</h2>
+            </div>
+
+            <div class="seller-level-panel">
+                <div class="level-info-grid">
+                    <div class="level-info-item">
+                        <span class="level-info-label">Cấp độ hiện tại</span>
+                        <span class="level-badge @GetLevelBadgeClass(summary.SellerLevel)">
+                            @GetLevelIcon(summary.SellerLevel) @summary.SellerLevel.Replace("_", " ")
+                        </span>
+                    </div>
+                    <div class="level-info-item">
+                        <span class="level-info-label">Thời gian hold</span>
+                        <span class="level-info-value">
+                            @(summary.HoldDays == 0 ? "Giải ngân ngay" : $"{summary.HoldDays} ngày sau giao hàng")
+                        </span>
+                    </div>
+                    <div class="level-info-item">
+                        <span class="level-info-label">Tổng giao dịch</span>
+                        <span class="level-info-value">@summary.TotalTransactions đơn</span>
+                    </div>
+                    <div class="level-info-item">
+                        <span class="level-info-label">Defect (lỗi)</span>
+                        <span class="level-info-value @(summary.DefectCount > 0 ? "text-danger" : "text-success")">
+                            @summary.DefectCount
+                        </span>
+                    </div>
+                    <div class="level-info-item">
+                        <span class="level-info-label">Tổng doanh số</span>
+                        <span class="level-info-value">@FormatMoney(summary.TotalSalesAmount) đ</span>
+                    </div>
+                </div>
+
+                <div class="hold-table-wrapper">
+                    <table class="hold-table">
+                        <thead>
+                            <tr>
+                                <th>Cấp độ</th>
+                                <th>Thời gian hold</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="@(summary.SellerLevel == "NEW" ? "current-level-row" : "")">
+                                <td>🆕 NEW</td>
+                                <td>21 ngày @(summary.SellerLevel == "NEW" ? "← bạn đang ở đây" : "")</td>
+                            </tr>
+                            <tr class="@(summary.SellerLevel == "BELOW_STANDARD" ? "current-level-row" : "")">
+                                <td>⬇️ BELOW STANDARD</td>
+                                <td>14 ngày @(summary.SellerLevel == "BELOW_STANDARD" ? "← bạn đang ở đây" : "")</td>
+                            </tr>
+                            <tr class="@(summary.SellerLevel == "ABOVE_STANDARD" ? "current-level-row" : "")">
+                                <td>🏅 ABOVE STANDARD</td>
+                                <td>3 ngày @(summary.SellerLevel == "ABOVE_STANDARD" ? "← bạn đang ở đây" : "")</td>
+                            </tr>
+                            <tr class="@(summary.SellerLevel == "TOP_RATED" ? "current-level-row" : "")">
+                                <td>⭐ TOP RATED</td>
+                                <td>0 ngày (giải ngân ngay) @(summary.SellerLevel == "TOP_RATED" ? "← bạn đang ở đây" : "")</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ══ SECTION 3: TRANSACTION HISTORY ════════════════════════════ -->
+    <div class="wallet-section">
+        <div class="wallet-section-header">
+            <h2 class="wallet-section-title">📜 Lịch Sử Giao Dịch</h2>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="tx-filter-bar">
+            <div class="tx-filter-group">
+                <label>Loại:</label>
+                <select @onchange="OnTypeFilterChange" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="ORDER_INCOME">🟢 Bán hàng</option>
+                    <option value="ESCROW_RELEASE">🟢 Giải ngân</option>
+                    <option value="REFUND">🟠 Hoàn tiền</option>
+                    <option value="PLATFORM_FEE">🔴 Phí sàn</option>
+                    <option value="WITHDRAW">🔵 Rút tiền</option>
+                    <option value="DISPUTE_HOLD">🔒 Dispute Hold</option>
+                </select>
+            </div>
+            <div class="tx-filter-group">
+                <label>Từ ngày:</label>
+                <input type="date" class="form-control form-control-sm"
+                       @onchange="OnFromDateChange" />
+            </div>
+            <div class="tx-filter-group">
+                <label>Đến ngày:</label>
+                <input type="date" class="form-control form-control-sm"
+                       @onchange="OnToDateChange" />
+            </div>
+            <button class="btn-filter" @onclick="LoadTransactions">Lọc</button>
+            <button class="btn-filter-reset" @onclick="ResetFilters">Xóa bộ lọc</button>
+        </div>
+
+        <!-- Table -->
+        @if (isLoadingTx)
+        {
+            <div class="seller-hub-table-wrapper">
+                <table class="seller-hub-table">
+                    <thead>
+                        <tr><th>Ngày</th><th>Đơn / Mô tả</th><th>Loại</th><th class="text-end">Số tiền</th><th class="text-end">Số dư sau</th></tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < 5; i++)
+                        {
+                            <tr>
+                                <td><div class="skeleton-line w-75"></div></td>
+                                <td><div class="skeleton-line w-100"></div></td>
+                                <td><div class="skeleton-line w-50"></div></td>
+                                <td><div class="skeleton-line w-50"></div></td>
+                                <td><div class="skeleton-line w-50"></div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else if (txResult.Items.Count == 0)
+        {
+            <div class="tx-empty-state">
+                <div style="font-size:48px;">📭</div>
+                <p><strong>Chưa có giao dịch nào</strong></p>
+                <p class="text-muted">Hoàn thành đơn hàng đầu tiên để bắt đầu thấy lịch sử tiền.</p>
+            </div>
+        }
+        else
+        {
+            <div class="seller-hub-table-wrapper">
+                <table class="seller-hub-table">
+                    <thead>
+                        <tr>
+                            <th>Ngày</th>
+                            <th>Đơn / Mô tả</th>
+                            <th>Loại</th>
+                            <th class="text-end">Số tiền</th>
+                            <th class="text-end">Số dư sau CT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tx in txResult.Items)
+                        {
+                            <tr>
+                                <td class="transaction-date">
+                                    @tx.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(tx.OrderNumber))
+                                    {
+                                        <div class="tx-order-number">Đơn #@tx.OrderNumber</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(tx.Description))
+                                    {
+                                        <div class="tx-description">@tx.Description</div>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="tx-badge @GetTxBadgeClass(tx.Type)">
+                                        @GetTxIcon(tx.Type) @GetTxLabel(tx.Type)
+                                    </span>
+                                </td>
+                                <td class="text-end @(tx.Amount >= 0 ? "amount-positive" : "amount-negative")">
+                                    @(tx.Amount >= 0 ? "+" : "")@tx.Amount.ToString("N0") đ
+                                </td>
+                                <td class="text-end text-muted" style="font-size:13px;">
+                                    @tx.BalanceAfter.ToString("N0") đ
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="tx-pagination">
+                <span class="tx-total-count">Tổng: @txResult.Total giao dịch</span>
+                <div class="tx-page-buttons">
+                    <button class="btn-page" disabled="@(currentPage <= 1)"
+                            @onclick="() => GoToPage(currentPage - 1)">←</button>
+                    @for (int p = Math.Max(1, currentPage - 2); p <= Math.Min(txResult.TotalPages, currentPage + 2); p++)
+                    {
+                        int pageNum = p;
+                        <button class="btn-page @(pageNum == currentPage ? "active" : "")"
+                                @onclick="() => GoToPage(pageNum)">@pageNum</button>
+                    }
+                    <button class="btn-page" disabled="@(currentPage >= txResult.TotalPages)"
+                            @onclick="() => GoToPage(currentPage + 1)">→</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- ══ SECTION 4: PAYOUT PANEL ════════════════════════════════════ -->
+    <div class="wallet-section" id="payout-section">
+        <div class="wallet-section-header">
+            <h2 class="wallet-section-title">💳 Rút Tiền</h2>
+        </div>
+
+        <div class="payout-panel">
+            @if (summary != null)
+            {
+                <div class="payout-info-row">
+                    <span>Số dư khả dụng:</span>
+                    <strong class="@(summary.IsNegativeBalance ? "text-danger" : "text-success")">
+                        @FormatMoney(summary.AvailableBalance) đ
+                    </strong>
+                </div>
+                @if (!string.IsNullOrEmpty(summary.BankName))
+                {
+                    <div class="payout-info-row">
+                        <span>Ngân hàng:</span>
+                        <strong>@summary.BankName @summary.BankAccountMasked</strong>
+                    </div>
+                }
+                <div class="payout-info-row">
+                    <span>⚠️ Tiền Đang giữ và Đang xử lý không rút được.</span>
+                </div>
+
+                <div class="payout-mock-box">
+                    <div class="payout-mock-label">🎭 Mock Payout (Test)</div>
+                    <div class="payout-form">
+                        <input type="number"
+                               class="form-control"
+                               placeholder="Số tiền muốn rút (đ)"
+                               min="1"
+                               max="@summary.AvailableBalance"
+                               @bind="payoutAmount"
+                               disabled="@(summary.AvailableBalance <= 0)" />
+                        <button class="btn-payout"
+                                @onclick="HandlePayout"
+                                disabled="@(payoutAmount <= 0 || payoutAmount > summary.AvailableBalance || isProcessingPayout || summary.AvailableBalance <= 0)">
+                            @(isProcessingPayout ? "Đang xử lý..." : "Yêu cầu rút tiền")
+                        </button>
+                    </div>
+                    @if (summary.AvailableBalance <= 0)
+                    {
+                        <div class="payout-warning">Không có số dư khả dụng để rút.</div>
+                    }
+                    @if (!string.IsNullOrEmpty(payoutMessage))
+                    {
+                        <div class="@(payoutSuccess ? "payout-success-msg" : "payout-error-msg")">
+                            @payoutMessage
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="payout-warning">Không tải được thông tin ví.</div>
+            }
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private WalletSummaryDto? summary;
+    private WalletPagedResult txResult = new();
+    private bool isLoadingSummary = true;
+    private bool isLoadingTx = true;
+    private bool isProcessingPayout = false;
+
+    // Filter state
+    private int     currentPage    = 1;
+    private string? filterType     = null;
+    private DateTimeOffset? filterFrom = null;
+    private DateTimeOffset? filterTo   = null;
+
+    // Payout form
+    private decimal payoutAmount   = 0;
+    private string? payoutMessage  = null;
+    private bool    payoutSuccess  = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Gọi song song 2 API để giảm thời gian chờ
+        var summaryTask = WalletService.GetSummaryAsync();
+        var txTask      = WalletService.GetTransactionsAsync(1, 10);
+
+        await Task.WhenAll(summaryTask, txTask);
+
+        summary  = summaryTask.Result;
+        txResult = txTask.Result ?? new WalletPagedResult();
+
+        isLoadingSummary = false;
+        isLoadingTx      = false;
+    }
+
+    private async Task LoadTransactions()
+    {
+        isLoadingTx = true;
+        txResult    = await WalletService.GetTransactionsAsync(
+            currentPage, 10, filterType, filterFrom, filterTo);
+        isLoadingTx = false;
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadTransactions();
+    }
+
+    // Khi thay dổi type filter, chỉ lưu state, chưa load
+    // (user click "Lọc" mới gọi API — tránh gọi liên tục khi đụng dropdown)
+    private void OnTypeFilterChange(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        // Empty string = user chọn "Tất cả" → clear filter
+        filterType  = string.IsNullOrEmpty(val) ? null : val;
+        currentPage = 1;
+    }
+
+    private void OnFromDateChange(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var d))
+            filterFrom = new DateTimeOffset(d, TimeSpan.FromHours(7));
+        else
+            filterFrom = null;
+    }
+
+    private void OnToDateChange(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var d))
+            // To end of day: người dùng chọn 17/3 → bao gồm hết 17/3
+            filterTo = new DateTimeOffset(d.AddDays(1).AddTicks(-1), TimeSpan.FromHours(7));
+        else
+            filterTo = null;
+    }
+
+    private async Task ResetFilters()
+    {
+        filterType  = null;
+        filterFrom  = null;
+        filterTo    = null;
+        currentPage = 1;
+        await LoadTransactions();
+    }
+
+    private async Task HandlePayout()
+    {
+        if (payoutAmount <= 0 || summary == null) return;
+        if (payoutAmount > summary.AvailableBalance)
+        {
+            payoutMessage = "Số tiền vượt quá số dư khả dụng.";
+            payoutSuccess = false;
+            return;
+        }
+
+        isProcessingPayout = true;
+        payoutMessage      = null;
+        StateHasChanged();
+
+        var result = await WalletService.RequestPayoutAsync(payoutAmount);
+        isProcessingPayout = false;
+
+        if (!string.IsNullOrEmpty(result.Message))
+        {
+            payoutMessage = result.Message;
+            payoutSuccess = true;
+            payoutAmount  = 0;
+            // Reload để cập nhật số dư
+            summary = await WalletService.GetSummaryAsync();
+            await LoadTransactions();
+        }
+        else
+        {
+            payoutMessage = result.Error ?? "Rút tiền thất bại. Vui lòng thử lại.";
+            payoutSuccess = false;
+        }
+    }
+
+    private void ScrollToSection(string id) { /* JS interop nếu cần */ }
+
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    private string FormatMoney(decimal amount)
+        => amount.ToString("N0");
+
+    private string GetLevelBadgeClass(string level) => level switch
+    {
+        "TOP_RATED"      => "level-badge-top",
+        "ABOVE_STANDARD" => "level-badge-above",
+        "BELOW_STANDARD" => "level-badge-below",
+        _                => "level-badge-new"
+    };
+
+    private string GetLevelIcon(string level) => level switch
+    {
+        "TOP_RATED"      => "⭐",
+        "ABOVE_STANDARD" => "🏅",
+        "BELOW_STANDARD" => "⬇️",
+        _                => "🆕"
+    };
+
+    private string GetTxBadgeClass(string type) => type switch
+    {
+        "ORDER_INCOME"   => "tx-badge-income",
+        "ESCROW_RELEASE" => "tx-badge-release",
+        "REFUND"         => "tx-badge-refund",
+        "PLATFORM_FEE"   => "tx-badge-fee",
+        "WITHDRAW"       => "tx-badge-withdraw",
+        "DISPUTE_HOLD"   => "tx-badge-hold",
+        _                => "tx-badge-default"
+    };
+
+    private string GetTxIcon(string type) => type switch
+    {
+        "ORDER_INCOME"   => "🟢",
+        "ESCROW_RELEASE" => "🟢",
+        "REFUND"         => "🟠",
+        "PLATFORM_FEE"   => "🔴",
+        "WITHDRAW"       => "🔵",
+        "DISPUTE_HOLD"   => "🔒",
+        _                => "⚪"
+    };
+
+    private string GetTxLabel(string type) => type switch
+    {
+        "ORDER_INCOME"   => "Bán hàng",
+        "ESCROW_RELEASE" => "Giải ngân",
+        "REFUND"         => "Hoàn tiền",
+        "PLATFORM_FEE"   => "Phí sàn",
+        "WITHDRAW"       => "Rút tiền",
+        "DISPUTE_HOLD"   => "Dispute Hold",
+        _                => type
+    };
+}
