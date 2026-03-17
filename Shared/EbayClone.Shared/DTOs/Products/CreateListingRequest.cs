@@ -15,7 +15,8 @@ namespace EbayClone.Shared.DTOs.Products
         public Guid? PaymentPolicyId { get; set; }
 
         [Required(ErrorMessage = "Product name is required.")]
-        [StringLength(255, MinimumLength = 3, ErrorMessage = "Product name must be between 3 and 255 characters.")]
+        // [eBay Rule] Title tối đa 80 ký tự (bao gồm dấu cách) — chuẩn eBay Cassini
+        [StringLength(80, MinimumLength = 3, ErrorMessage = "Tiêu đề phải từ 3 đến 80 ký tự.")]
         public string Name { get; set; } = string.Empty;
 
         public string? Description { get; set; }
@@ -39,7 +40,8 @@ namespace EbayClone.Shared.DTOs.Products
         public decimal? AutoAcceptPrice { get; set; }   // Tự chấp nhận offer ≥ X
         public decimal? AutoDeclinePrice { get; set; }  // Tự từ chối offer < Y
         
-        [StringLength(80)]
+        // [eBay Rule] Subtitle tối đa 55 ký tự — eBay charge phí $1.50-$3.00/lần list
+        [StringLength(55, ErrorMessage = "Phụ đề (Subtitle) không được vượt quá 55 ký tự.")]
         public string? Subtitle { get; set; }
 
         // Ảnh sản phẩm

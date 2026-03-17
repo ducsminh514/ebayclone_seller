@@ -1,0 +1,156 @@
+@page "/listings/start"
+@attribute [Authorize]
+@using EbayClone.Frontend.Services
+@using EbayClone.Frontend.Shared
+@inject NavigationManager NavigationManager
+@inject CategoryService CategoryService
+
+<PageTitle>Start Your Listing — eBay Seller Hub</PageTitle>
+
+<div style="min-height: 100vh; background: #f3f4f6; display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px;">
+    <div style="width: 100%; max-width: 680px;">
+
+        @* ─── Header ─── *@
+        <div style="text-align: center; margin-bottom: 40px;">
+            <h1 style="font-size: 28px; font-weight: 700; color: #111; margin-bottom: 8px;">
+                Start your listing
+            </h1>
+            <p style="font-size: 15px; color: #666;">
+                Tell us what you're selling — we'll find the right category for you.
+            </p>
+        </div>
+
+        @* ─── Search Box ─── *@
+        <div style="background: #fff; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 28px 32px; margin-bottom: 32px;">
+            <div class="input-group" style="box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-radius: 12px; overflow: hidden;">
+                <input type="text"
+                       class="form-control"
+                       placeholder="Enter product name, UPC, ISBN, MPN..."
+                       style="padding: 14px 18px; font-size: 16px; border: 2px solid #e0e0e0; border-right: none; border-radius: 12px 0 0 12px; outline: none;"
+                       @bind="keyword"
+                       @bind:event="oninput"
+                       @onkeydown="HandleKeyDown"
+                       disabled="@isSearching" />
+                <button class="btn btn-primary"
+                        @onclick="HandleSearch"
+                        disabled="@(isSearching || string.IsNullOrWhiteSpace(keyword))"
+                        style="padding: 0 28px; border-radius: 0 12px 12px 0; border: none; background: linear-gradient(135deg, #3867d6, #1a6bbf); min-width: 60px;">
+                    @if (isSearching)
+                    {
+                        <span class="spinner-border spinner-border-sm text-white"></span>
+                    }
+                    else
+                    {
+                        <span style="font-size: 18px;">🔍</span>
+                    }
+                </button>
+            </div>
+
+            @* Loading hint *@
+            @if (isSearching)
+            {
+                <div style="margin-top: 12px; text-align: center; font-size: 13px; color: #1a6bbf; font-weight: 500;">
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                    Finding the best category for "@keyword"...
+                </div>
+            }
+            else
+            {
+                <div style="margin-top: 10px; font-size: 12px; color: #999; text-align: center;">
+                    Use keywords like: <strong>brand</strong>, <strong>model</strong>, or identifiers like
+                    <strong>ISBN</strong>, <strong>MPN</strong>, <strong>UPC</strong>
+                </div>
+            }
+        </div>
+
+        @* ─── 3 Steps Preview ─── *@
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px;">
+            @{
+                var steps = new[]
+                {
+                    ("📝", "STEP 1", "Share item details", "Use keywords or unique identifiers.", true),
+                    ("🔍", "STEP 2", "Choose category", "We'll suggest the best category for you.", false),
+                    ("✅", "STEP 3", "Edit and list", "Fill details, set price, shipping, publish.", false),
+                };
+            }
+            @foreach (var (icon, stepLabel, title, desc, active) in steps)
+            {
+                <div style="background: #fff; border-radius: 12px; padding: 20px 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); border-top: 3px solid @(active ? "#1a6bbf" : "#e0e0e0");">
+                    <div style="font-size: 24px; margin-bottom: 8px;">@icon</div>
+                    <div style="font-size: 10px; font-weight: 700; color: @(active ? "#1a6bbf" : "#999"); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+                        @stepLabel
+                    </div>
+                    <div style="font-size: 14px; font-weight: 600; color: #222; margin-bottom: 4px;">@title</div>
+                    <div style="font-size: 12px; color: #777; line-height: 1.4;">@desc</div>
+                </div>
+            }
+        </div>
+
+        @* ─── Quick Actions ─── *@
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+            <button class="btn btn-outline-secondary btn-sm" @onclick="BrowseAllCategories"
+                    style="border-radius: 20px; padding: 8px 20px; font-size: 13px;">
+                Browse all categories
+            </button>
+            <a href="/listings" class="btn btn-light btn-sm"
+               style="border-radius: 20px; padding: 8px 20px; font-size: 13px; color: #555;">
+                ← Back to Listings
+            </a>
+        </div>
+    </div>
+</div>
+
+@* ─── Modal: Category & Condition picker ─── *@
+<CategoryConditionModal @ref="categoryModal" OnConfirmed="HandleCategoryConditionConfirmed" />
+
+@code {
+    private string keyword = string.Empty;
+    private CategoryConditionModal? categoryModal;
+    private bool isSearching = false;
+
+    private async Task HandleSearch()
+    {
+        if (string.IsNullOrWhiteSpace(keyword)) return;
+
+        isSearching = true;
+        StateHasChanged();
+
+        try
+        {
+            // ─── AI chạy TRƯỚC, blocking ───
+            // Gọi AI suggest và CHỜ kết quả trước khi mở modal
+            var aiSuggestions = await CategoryService.SuggestCategoriesAiAsync(keyword.Trim());
+            var suggestionList = aiSuggestions.ToList();
+
+            // Mở modal với kết quả AI đã có sẵn
+            // Modal nhận suggestions → nếu có: hiện suggestions screen
+            // Nếu rỗng: hiện treeview (manual browse)
+            if (categoryModal != null)
+                await categoryModal.OpenWithSuggestionsAsync(keyword.Trim(), suggestionList);
+        }
+        finally
+        {
+            isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await HandleSearch();
+    }
+
+    private async Task BrowseAllCategories()
+    {
+        // Bỏ qua AI → mở thẳng treeview
+        if (categoryModal != null)
+            await categoryModal.OpenWithSuggestionsAsync(string.Empty, new());
+    }
+
+    private void HandleCategoryConditionConfirmed(CategoryConditionModal.CategoryConditionResult result)
+    {
+        var url = $"/listings/create?categoryId={result.CategoryId}&condition={Uri.EscapeDataString(result.Condition)}&conditionDesc={Uri.EscapeDataString(result.ConditionDescription)}";
+        NavigationManager.NavigateTo(url);
+    }
+}
