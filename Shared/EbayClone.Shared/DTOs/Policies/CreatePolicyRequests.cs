@@ -16,6 +16,9 @@ namespace EbayClone.Shared.DTOs.Policies
 
         public bool IsDefault { get; set; } = false;
 
+        // Free Shipping
+        public bool OfferFreeShipping { get; set; } = false;
+
         // Domestic
         [Required]
         public string DomesticCostType { get; set; } = "Flat";
@@ -25,6 +28,18 @@ namespace EbayClone.Shared.DTOs.Policies
         public bool IsInternationalShippingAllowed { get; set; } = false;
         public string InternationalCostType { get; set; } = "Flat";
         public List<InternationalShippingServiceDto> InternationalServices { get; set; } = new();
+
+        // Combined Shipping Discount
+        public bool OfferCombinedShippingDiscount { get; set; } = false;
+
+        // Package Details
+        public string PackageType { get; set; } = "Package";
+        [Range(0, 70 * 16, ErrorMessage = "Package weight max 70 lbs (1120 oz)")]
+        public decimal PackageWeightOz { get; set; } = 0;
+        public string PackageDimensionsJson { get; set; } = "{}";
+
+        // Handling cutoff
+        public string HandlingTimeCutoff { get; set; } = "14:00";
 
         // Preferences
         public List<string> ExcludedLocations { get; set; } = new();
@@ -52,6 +67,16 @@ namespace EbayClone.Shared.DTOs.Policies
 
         [RegularExpression("BUYER|SELLER", ErrorMessage = "Chỉ chấp nhận BUYER hoặc SELLER")]
         public string InternationalShippingPaidBy { get; set; } = "BUYER";
+
+        // Auto-Accept Returns
+        public bool AutoAcceptReturns { get; set; } = false;
+
+        // Send Immediate Refund
+        public bool SendImmediateRefund { get; set; } = false;
+
+        // Return Address (JSON: { name, street, city, state, zip, country })
+        public string? ReturnAddressJson { get; set; }
+
     }
 
     public class CreatePaymentPolicyRequest

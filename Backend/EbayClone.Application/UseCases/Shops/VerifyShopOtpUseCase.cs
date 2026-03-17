@@ -67,13 +67,17 @@ namespace EbayClone.Application.UseCases.Shops
                 _shopRepository.Update(shop);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
  
-                // Khởi tạo ví rỗng cho Shop
-                var wallet = new SellerWallet
+                // Khởi tạo ví rỗng cho Shop (chỉ khi chưa có)
+                var existingWallet = await _walletRepository.GetByShopIdAsync(shop.Id, cancellationToken);
+                if (existingWallet == null)
                 {
-                    ShopId = shop.Id
-                };
-                await _walletRepository.AddAsync(wallet, cancellationToken);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    var wallet = new SellerWallet
+                    {
+                        ShopId = shop.Id
+                    };
+                    await _walletRepository.AddAsync(wallet, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
  
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
  

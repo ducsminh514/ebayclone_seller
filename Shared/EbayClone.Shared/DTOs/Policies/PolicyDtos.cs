@@ -24,6 +24,9 @@ namespace EbayClone.Shared.DTOs.Policies
         public string Description { get; set; } = string.Empty;
         public int HandlingTimeDays { get; set; }
         public bool IsDefault { get; set; }
+
+        // Free Shipping
+        public bool OfferFreeShipping { get; set; }
         
         // Domestic
         public string DomesticCostType { get; set; } = "Flat";
@@ -33,6 +36,17 @@ namespace EbayClone.Shared.DTOs.Policies
         public bool IsInternationalShippingAllowed { get; set; } = false;
         public string InternationalCostType { get; set; } = "Flat";
         public List<InternationalShippingServiceDto> InternationalServices { get; set; } = new();
+
+        // Combined Shipping
+        public bool OfferCombinedShippingDiscount { get; set; }
+
+        // Package Details
+        public string PackageType { get; set; } = "Package";
+        public decimal PackageWeightOz { get; set; }
+        public string PackageDimensionsJson { get; set; } = "{}";
+
+        // Handling Cutoff
+        public string HandlingTimeCutoff { get; set; } = "14:00";
         
         // Preferences
         public List<string> ExcludedLocations { get; set; } = new();
@@ -53,6 +67,12 @@ namespace EbayClone.Shared.DTOs.Policies
         public bool IsInternationalAccepted { get; set; }
         public int InternationalReturnDays { get; set; }
         public string InternationalShippingPaidBy { get; set; } = string.Empty;
+
+        public bool AutoAcceptReturns { get; set; }
+        public bool SendImmediateRefund { get; set; }
+        public string? ReturnAddressJson { get; set; }
+
+
 
         public bool IsDefault { get; set; }
 

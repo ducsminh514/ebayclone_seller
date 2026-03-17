@@ -13,10 +13,27 @@ namespace EbayClone.Domain.Entities
         public Guid? PaymentPolicyId { get; set; }
         
         public string Name { get; set; } = string.Empty;
+        public string? Subtitle { get; set; }
         public string? Description { get; set; }
         public string? Brand { get; set; }
+
+        // ========== [A2] Condition ở Product level (KHÔNG phải Variant) ==========
+        // Values: "New", "New Other", "Open Box", "Seller Refurbished", "Used", "For Parts"
+        // Tất cả variants cùng 1 listing phải cùng condition.
+        public string Condition { get; set; } = "New";
+        public string? ConditionDescription { get; set; } // Mô tả chi tiết (vết xước, thiếu PK...)
+
+        // ========== [A3] Listing Format & Offer ==========
+        // "FIXED_PRICE" hoặc "AUCTION"
+        // Nếu có Variations → BẮT BUỘC FIXED_PRICE (validate ở Application layer)
+        public string ListingFormat { get; set; } = "FIXED_PRICE";
+        public bool AllowOffers { get; set; } = false;
+        public decimal? AutoAcceptPrice { get; set; }   // Tự chấp nhận offer ≥ X
+        public decimal? AutoDeclinePrice { get; set; }  // Tự từ chối offer < Y
+
+        // ========== Status & Scheduling ==========
+        // Values: DRAFT, ACTIVE, SCHEDULED, OUT_OF_STOCK, HIDDEN, ENDED
         public string Status { get; set; } = "DRAFT";
-        // Thời điểm hẹn giờ đăng bán (chỉ dùng khi Status = SCHEDULED)
         public DateTimeOffset? ScheduledAt { get; set; }
         public decimal? BasePrice { get; set; }
         public string? ReferenceId { get; set; } // SKU or External Reference
@@ -42,5 +59,25 @@ namespace EbayClone.Domain.Entities
         public ReturnPolicy? ReturnPolicy { get; set; }
         public PaymentPolicy? PaymentPolicy { get; set; }
         public ICollection<ProductVariant> Variants { get; set; } = new List<ProductVariant>();
+        public ICollection<ProductItemSpecific> ItemSpecifics { get; set; } = new List<ProductItemSpecific>();
+
+        // ========== [A6] Domain Logic: Auto OUT_OF_STOCK ==========
+        /// <summary>
+        /// Khi tất cả variants hết hàng → tự chuyển OUT_OF_STOCK (giữ SEO ranking).
+        /// Khi restock → tự phục hồi ACTIVE.
+        /// </summary>
+        public void CheckAndUpdateStockStatus()
+        {
+            if (Status == "ACTIVE" && Variants.Count > 0 && 
+                Variants.All(v => v.Quantity <= 0))
+            {
+                Status = "OUT_OF_STOCK";
+            }
+            else if (Status == "OUT_OF_STOCK" && 
+                     Variants.Any(v => v.Quantity > 0))
+            {
+                Status = "ACTIVE";
+            }
+        }
     }
 }

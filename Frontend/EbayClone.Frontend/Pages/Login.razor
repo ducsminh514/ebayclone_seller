@@ -1,4 +1,4 @@
-﻿@page "/login"
+@page "/login"
 @layout EmptyLayout
 @inject EbayClone.Frontend.Services.AuthService AuthService
 @inject NavigationManager NavigationManager
@@ -71,7 +71,7 @@
         </div>
 
         <div class="stay-signed-in">
-            <input type="checkbox" id="stay" />
+            <input type="checkbox" id="stay" @bind="staySignedIn" />
             <label for="stay">Stay signed in</label>
         </div>
     </div>
@@ -231,6 +231,7 @@
 @code {
     private LoginRequest model = new();
     private bool isSubmitting = false;
+    private bool staySignedIn = false;
     private string? errorMessage;
 
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
@@ -246,13 +247,19 @@
             
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             var hasShopClaim = authState.User.FindFirst("HasShop")?.Value;
+            var isVerifiedClaim = authState.User.FindFirst("IsVerified")?.Value;
 
-            if (bool.TryParse(hasShopClaim, out bool hasShop) && hasShop)
+            bool hasShop = bool.TryParse(hasShopClaim, out bool hs) && hs;
+            bool isVerified = bool.TryParse(isVerifiedClaim, out bool iv) && iv;
+
+            if (hasShop && isVerified)
             {
+                // Shop đã hoàn thành onboarding → dashboard
                 NavigationManager.NavigateTo("/");
             }
             else
             {
+                // Chưa có shop HOẶC có shop nhưng chưa verify xong → tiếp tục onboarding
                 NavigationManager.NavigateTo("/onboarding");
             }
         }

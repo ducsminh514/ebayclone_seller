@@ -34,6 +34,7 @@ namespace EbayClone.Infrastructure.Repositories
         public async Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return await _context.Orders
+                .Include(o => o.Buyer)
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Variant)
                 .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
@@ -44,6 +45,7 @@ namespace EbayClone.Infrastructure.Repositories
             return await _context.Orders
                 .AsNoTracking()
                 .Where(o => o.ShopId == shopId)
+                .Include(o => o.Buyer)
                 .Include(o => o.Items)
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync(cancellationToken);
@@ -74,6 +76,7 @@ namespace EbayClone.Infrastructure.Repositories
             var totalCount = await query.CountAsync(cancellationToken);
             
             var items = await query
+                .Include(o => o.Buyer)
                 .Include(o => o.Items)
                 .OrderByDescending(o => o.CreatedAt)
                 .Skip((pageNumber - 1) * pageSize)
@@ -106,19 +109,34 @@ namespace EbayClone.Infrastructure.Repositories
         {
             var cutoffDate = DateTimeOffset.UtcNow.AddDays(-days);
             return await _context.Orders
-                .Where(o => o.ShopId == shopId && (o.Status == "READY_TO_SHIP" || o.Status == "SHIPPED" || o.Status == "DELIVERED") && o.CreatedAt >= cutoffDate)
+                .Where(o => o.ShopId == shopId 
+                    && (o.Status == "PAID" || o.Status == "SHIPPED" || o.Status == "DELIVERED" || o.Status == "COMPLETED") 
+                    && o.CreatedAt >= cutoffDate)
                 .SumAsync(o => o.TotalAmount, cancellationToken);
         }
-        
+        /// <summary>
+        /// Lấy các đơn DELIVERED đủ điều kiện giải ngân dựa theo Shop.SellerLevel.
+        /// Hold period: NEW=21 ngày, BELOW_STANDARD=14, ABOVE_STANDARD=3, TOP_RATED=0.
+        /// </summary>
         public async Task<IEnumerable<Order>> GetOrdersEligibleForFundReleaseAsync(CancellationToken cancellationToken = default)
         {
-            // eBay Policy: Release after 3-7 days. 
-            // For Demo/Dev: Release after 1 minute of DELIVERED status.
-            var cutoff = DateTimeOffset.UtcNow.AddMinutes(-1); 
-            
-            return await _context.Orders
-                .Where(o => o.Status == "DELIVERED" && o.CompletedAt <= cutoff && !o.IsEscrowReleased) 
+            var now = DateTimeOffset.UtcNow;
+
+            // Load DELIVERED + !IsEscrowReleased, kèm Shop để tính GetHoldDays()
+            var candidates = await _context.Orders
+                .Include(o => o.Shop)
+                .Where(o => o.Status == "DELIVERED" && !o.IsEscrowReleased && o.DeliveredAt.HasValue)
                 .ToListAsync(cancellationToken);
+
+            // Filter theo hold period của từng seller level (in-memory sau khi đã load)
+            return candidates.Where(o =>
+            {
+                if (o.Shop == null) return false;
+                int holdDays = o.Shop.GetHoldDays();
+                // TOP_RATED = 0 ngày → release ngay khi DeliveredAt <= now
+                var releaseAt = o.DeliveredAt!.Value.AddDays(holdDays);
+                return now >= releaseAt;
+            });
         }
     }
 }

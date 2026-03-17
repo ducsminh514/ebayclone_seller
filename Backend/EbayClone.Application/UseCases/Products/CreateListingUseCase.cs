@@ -21,34 +21,119 @@ namespace EbayClone.Application.UseCases.Products
         private readonly IProductRepository _productRepository;
         private readonly IShopRepository _shopRepository;
         private readonly IPolicyRepository _policyRepository;
+        private readonly ICategoryRepository _categoryRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateListingUseCase(
             IProductRepository productRepository,
             IShopRepository shopRepository,
             IPolicyRepository policyRepository,
+            ICategoryRepository categoryRepository,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
             _shopRepository = shopRepository;
             _policyRepository = policyRepository;
+            _categoryRepository = categoryRepository;
             _unitOfWork = unitOfWork;
         }
 
         public async Task<Guid> ExecuteAsync(Guid shopId, CreateListingRequest request, CancellationToken cancellationToken = default)
         {
+            // [C1] Validate Title length (3-255 ký tự — chuẩn eBay)
+            if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length < 3 || request.Name.Length > 255)
+                throw new ArgumentException("Tiêu đề sản phẩm (Title) phải từ 3 đến 255 ký tự.");
+
+            // [C1] Validate Subtitle length (max 80 ký tự — eBay charge phí phụ cho subtitle)
+            if (!string.IsNullOrEmpty(request.Subtitle) && request.Subtitle.Length > 80)
+                throw new ArgumentException("Phụ đề (Subtitle) không được vượt quá 80 ký tự.");
+
+            // [CRITICAL-1] Validate PrimaryImageUrl là bắt buộc (eBay không cho đăng không ảnh)
+            if (string.IsNullOrWhiteSpace(request.PrimaryImageUrl))
+                throw new ArgumentException("Ảnh bìa (Primary Image) là bắt buộc. Vui lòng upload ít nhất 1 ảnh sản phẩm.");
+
+            // [WARNING-4] Validate ImageUrls max 5 ảnh phụ
+            if (request.ImageUrls != null && request.ImageUrls.Count > 5)
+                throw new ArgumentException("Chỉ được upload tối đa 5 ảnh phụ.");
+
+            // [C2] Validate Condition whitelist (chuẩn eBay 2024)
+            var validConditions = new[] { "New", "New Other", "Open Box", "Seller Refurbished", "Used", "For Parts" };
+            if (!validConditions.Contains(request.Condition))
+                throw new ArgumentException($"Condition không hợp lệ. Giá trị cho phép: {string.Join(", ", validConditions)}");
+
             if (request.Variants == null || request.Variants.Count == 0)
                 throw new ArgumentException("At least one variant is required");
 
-            // Kiểm tra giới hạn đăng bài hàng tháng (MonthlyListingLimit)
-            var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
-            if (shop != null)
+            // [A3] Validate ListingFormat
+            var validFormats = new[] { "FIXED_PRICE", "AUCTION" };
+            if (!validFormats.Contains(request.ListingFormat))
+                throw new ArgumentException($"ListingFormat phải là FIXED_PRICE hoặc AUCTION.");
+
+            // [A3] Auction + Variations = forbidden (quy tắc eBay)
+            if (request.ListingFormat == "AUCTION" && request.Variants.Count > 1)
+                throw new ArgumentException("Listing dạng AUCTION không hỗ trợ nhiều variations. Chỉ được 1 variant duy nhất.");
+
+            // [A3] Validate Best Offer logic
+            if (request.AutoAcceptPrice.HasValue && request.AutoDeclinePrice.HasValue
+                && request.AutoAcceptPrice <= request.AutoDeclinePrice)
+                throw new ArgumentException("AutoAcceptPrice phải lớn hơn AutoDeclinePrice.");
+
+            // [A4] Validate Variation Limits
+            if (request.Variants.Count > 250)
+                throw new ArgumentException("Một listing không được vượt quá 250 biến thể (variations).");
+
+            // [A4] Validate max 50 distinct options per attribute
+            var allAttributes = request.Variants
+                .Where(v => v.Attributes != null)
+                .SelectMany(v => v.Attributes)
+                .GroupBy(kv => kv.Key)
+                .ToList();
+
+            foreach (var attrGroup in allAttributes)
             {
-                var countThisMonth = await _productRepository.CountProductsThisMonthAsync(shopId, cancellationToken);
-                if (countThisMonth >= shop.MonthlyListingLimit)
-                    throw new InvalidOperationException(
-                        $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
+                var distinctOptions = attrGroup.Select(kv => kv.Value).Distinct().Count();
+                if (distinctOptions > 50)
+                    throw new ArgumentException(
+                        $"Thuộc tính '{attrGroup.Key}' có {distinctOptions} options, vượt quá giới hạn 50 options/attribute.");
             }
+
+            // [FIX-1] Validate SkuCode unique per listing
+            var skuCodes = request.Variants.Select(v => v.SkuCode).ToList();
+            var duplicateSkus = skuCodes.GroupBy(s => s).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (duplicateSkus.Any())
+                throw new ArgumentException($"SkuCode bị trùng trong cùng listing: {string.Join(", ", duplicateSkus)}. Mỗi biến thể phải có SKU riêng biệt.");
+
+            // [FIX-2] Validate duplicate attribute keys per variant
+            // [WARNING-3] Validate variant Attributes không được empty
+            foreach (var vReq in request.Variants)
+            {
+                if (vReq.Attributes == null || !vReq.Attributes.Any())
+                    throw new ArgumentException($"Biến thể '{vReq.SkuCode}' phải có ít nhất 1 thuộc tính (VD: Color - Red, Size - M).");
+
+                var duplicateKeys = vReq.Attributes.Keys
+                    .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
+                if (duplicateKeys.Any())
+                    throw new ArgumentException($"Biến thể '{vReq.SkuCode}' có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
+            }
+
+            // [CRITICAL-2] Validate CategoryId tồn tại trong DB
+            var category = await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken);
+            if (category == null)
+                throw new ArgumentException($"Danh mục với Id '{request.CategoryId}' không tồn tại.");
+
+            // [WARNING-5] Validate Shop tồn tại — không skip MonthlyListingLimit nếu shop không tìm thấy
+            var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+            if (shop == null)
+                throw new UnauthorizedAccessException("Shop không tồn tại hoặc token không hợp lệ.");
+
+            // Kiểm tra giới hạn đăng bài hàng tháng (MonthlyListingLimit)
+            var countThisMonth = await _productRepository.CountProductsThisMonthAsync(shopId, cancellationToken);
+            if (countThisMonth >= shop.MonthlyListingLimit)
+                throw new InvalidOperationException(
+                    $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
 
             // Fallback to defaults if not provided
             var shippingPolicyId = request.ShippingPolicyId;
@@ -92,10 +177,17 @@ namespace EbayClone.Application.UseCases.Products
                     CategoryId = request.CategoryId,
                     ShippingPolicyId = shippingPolicyId,
                     ReturnPolicyId = returnPolicyId,
-                    PaymentPolicyId = paymentPolicyId, // Added missing PaymentPolicyId mapping
+                    PaymentPolicyId = paymentPolicyId,
                     Name = request.Name,
                     Description = request.Description,
                     Brand = request.Brand,
+                    Condition = request.Condition,                   // [A2]
+                    ConditionDescription = request.ConditionDescription, // [A2]
+                    ListingFormat = request.ListingFormat,            // [A3]
+                    AllowOffers = request.AllowOffers,                // [A3]
+                    AutoAcceptPrice = request.AutoAcceptPrice,        // [A3]
+                    AutoDeclinePrice = request.AutoDeclinePrice,      // [A3]
+                    Subtitle = request.Subtitle,                     // [A3]
                     PrimaryImageUrl = primaryImg,
                     ImageUrls = imageUrlsJson,
                     ScheduledAt = request.ScheduledAt,
@@ -127,7 +219,6 @@ namespace EbayClone.Application.UseCases.Products
                         Price = vReq.Price,
                         Attributes = attributesJson,
                         Quantity = vReq.Quantity, // Total physical stock
-                        ReservedQuantity = 0,
                         ImageUrl = vReq.ImageUrl,
                         WeightGram = vReq.WeightGram
                     };
@@ -139,7 +230,46 @@ namespace EbayClone.Application.UseCases.Products
                 await _productRepository.AddVariantsAsync(variantsToSave, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-                // 4. Commit toàn bộ thay đổi thành 1 khối vững chắc
+                // 3b. [A1] Tạo VariantAttributeValue relational entries
+                // [FIX-3] Dùng request.Attributes trực tiếp thay vì parse lại từ JSON
+                // → đảm bảo JSON và relational luôn từ cùng 1 nguồn data
+                var attributeValues = new List<VariantAttributeValue>();
+                for (int i = 0; i < variantsToSave.Count; i++)
+                {
+                    var savedVariant = variantsToSave[i];
+                    var originalRequest = request.Variants[i];
+                    if (originalRequest.Attributes == null || !originalRequest.Attributes.Any()) continue;
+                    foreach (var kv in originalRequest.Attributes)
+                    {
+                        attributeValues.Add(new VariantAttributeValue
+                        {
+                            VariantId = savedVariant.Id,
+                            AttributeName = kv.Key,
+                            AttributeValue = kv.Value
+                        });
+                    }
+                }
+                if (attributeValues.Count > 0)
+                {
+                    await _productRepository.AddVariantAttributeValuesAsync(attributeValues, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
+                // 4. [A5] Save Item Specifics
+                if (request.ItemSpecifics != null && request.ItemSpecifics.Count > 0)
+                {
+                    var specifics = request.ItemSpecifics.Select(s => new ProductItemSpecific
+                    {
+                        ProductId = product.Id,
+                        Name = s.Name,
+                        Value = s.Value
+                    }).ToList();
+
+                    await _productRepository.AddProductItemSpecificsAsync(specifics, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
+                // 5. Commit toàn bộ thay đổi thành 1 khối vững chắc
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
                 return product.Id;

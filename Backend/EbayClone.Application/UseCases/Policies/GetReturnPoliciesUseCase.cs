@@ -36,6 +36,9 @@ namespace EbayClone.Application.UseCases.Policies
                 IsInternationalAccepted = p.IsInternationalAccepted,
                 InternationalReturnDays = p.InternationalReturnDays,
                 InternationalShippingPaidBy = p.InternationalShippingPaidBy,
+                AutoAcceptReturns = p.AutoAcceptReturns,
+                SendImmediateRefund = p.SendImmediateRefund,
+                ReturnAddressJson = p.ReturnAddressJson,
                 IsDefault = p.IsDefault,
                 RowVersion = p.RowVersion
             }).OrderByDescending(p => p.IsDefault).ThenBy(p => p.Name).ToList();

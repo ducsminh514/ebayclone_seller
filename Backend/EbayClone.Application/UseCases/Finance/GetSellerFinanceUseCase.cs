@@ -39,6 +39,7 @@ namespace EbayClone.Application.UseCases.Finance
                 WalletId = wallet.Id,
                 AvailableBalance = wallet.AvailableBalance,
                 PendingBalance = wallet.PendingBalance,
+                OnHoldBalance = wallet.OnHoldBalance,
                 Currency = wallet.Currency,
                 RecentTransactions = transactions.Select(t => new WalletTransactionDto
                 {

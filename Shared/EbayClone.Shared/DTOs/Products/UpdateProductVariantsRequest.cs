@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
@@ -24,5 +24,11 @@ namespace EbayClone.Shared.DTOs.Products
         public Dictionary<string, string> Attributes { get; set; } = new();
 
         public string? ImageUrl { get; set; }
+
+        [Range(0, int.MaxValue, ErrorMessage = "Quantity cannot be negative.")]
+        public int Quantity { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Weight must be at least 1 gram.")]
+        public int? WeightGram { get; set; }
     }
 }

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using EbayClone.Infrastructure.Data;
 using EbayClone.Domain.Entities;
+using EbayClone.Application.Interfaces.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,10 +14,12 @@ namespace EbayClone.API.Controllers
     public class CategoriesController : ControllerBase
     {
         private readonly EbayDbContext _context;
+        private readonly ICategoryRepository _categoryRepository;
 
-        public CategoriesController(EbayDbContext context)
+        public CategoriesController(EbayDbContext context, ICategoryRepository categoryRepository)
         {
             _context = context;
+            _categoryRepository = categoryRepository;
         }
 
         [HttpGet]
@@ -24,32 +27,44 @@ namespace EbayClone.API.Controllers
         {
             try
             {
-                var categories = await _context.Categories.ToListAsync();
-                
-                // Tự động Seed dữ liệu mẫu nếu bảng Categories rỗng
-                if (!categories.Any())
-                {
-                    categories = new System.Collections.Generic.List<Category>
-                    {
-                        new Category { Id = Guid.NewGuid(), Name = "Điện Thoại & Phụ Kiện", Slug = "dien-thoai-phu-kien",
-                            AttributeHints = "[\"Màu sắc\",\"Dung lượng RAM\",\"Bộ nhớ\",\"Phần mềm\"]" },
-                        new Category { Id = Guid.NewGuid(), Name = "Thời Trang Nam", Slug = "thoi-trang-nam",
-                            AttributeHints = "[\"Màu sắc\",\"Chuội Size\",\"Chất liệu\"]" },
-                        new Category { Id = Guid.NewGuid(), Name = "Thời Trang Nữ", Slug = "thoi-trang-nu",
-                            AttributeHints = "[\"Màu sắc\",\"Chuội Size\",\"Kiểu dáng\"]" },
-                        new Category { Id = Guid.NewGuid(), Name = "Nhà Cửa & Đời Sống", Slug = "nha-cua-doi-song",
-                            AttributeHints = "[\"Màu sắc\",\"Chất liệu\",\"Kích thước\"]" },
-                        new Category { Id = Guid.NewGuid(), Name = "Máy Tính & Laptop", Slug = "may-tinh-laptop",
-                            AttributeHints = "[\"CPU\",\"RAM\",\"Ố đĩa\",\"Màu sắc\",\"Màn hình\"]" },
-                        new Category { Id = Guid.NewGuid(), Name = "Thể Thao & Dã Ngoại", Slug = "the-thao-da-ngoai",
-                            AttributeHints = "[\"Màu sắc\",\"Size\",\"Chất liệu\"]" },
-                    };
-                    
-                    await _context.Categories.AddRangeAsync(categories);
-                    await _context.SaveChangesAsync();
-                }
+                // Không inline seed ở đây — CategorySeeder chạy ở app startup
+                var categories = await _context.Categories
+                    .Where(c => c.IsActive)
+                    .ToListAsync();
 
-                return Ok(categories.Where(c => c.IsActive).Select(c => new { c.Id, c.Name, c.Slug, c.AttributeHints }));
+                return Ok(categories.Select(c => new 
+                { 
+                    c.Id, 
+                    c.Name, 
+                    c.Slug, 
+                    c.ParentId,           // [A7] Hỗ trợ FE hiển thị category tree
+                    c.AttributeHints 
+                }));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Error = ex.Message });
+            }
+        }
+
+        // [A5] Endpoint mới: Lấy Item Specifics theo Category
+        // FE cần gọi khi seller chọn category → hiện form nhập required/recommended fields
+        [HttpGet("{id:guid}/item-specifics")]
+        public async Task<IActionResult> GetItemSpecificsByCategory(Guid id, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var specifics = await _categoryRepository.GetItemSpecificsByCategoryIdAsync(id, cancellationToken);
+                
+                return Ok(specifics.Select(s => new
+                {
+                    s.Id,
+                    s.CategoryId,
+                    s.Name,
+                    s.Requirement, // "REQUIRED", "RECOMMENDED", "OPTIONAL"
+                    s.SuggestedValues,
+                    s.SortOrder
+                }));
             }
             catch (Exception ex)
             {
@@ -67,13 +82,15 @@ namespace EbayClone.API.Controllers
                     Id = Guid.NewGuid(),
                     Name = request.Name,
                     Slug = request.Slug,
+                    ParentId = request.ParentId,
                     IsActive = true
                 };
 
                 _context.Categories.Add(category);
                 await _context.SaveChangesAsync();
 
-                return CreatedAtAction(nameof(GetCategories), new { id = category.Id }, new { category.Id, category.Name, category.Slug });
+                return CreatedAtAction(nameof(GetCategories), new { id = category.Id }, 
+                    new { category.Id, category.Name, category.Slug, category.ParentId });
             }
             catch (Exception ex)
             {
@@ -95,7 +112,7 @@ namespace EbayClone.API.Controllers
                     category.AttributeHints = request.AttributeHints;
 
                 await _context.SaveChangesAsync();
-                return Ok(new { category.Id, category.Name, category.Slug, category.AttributeHints });
+                return Ok(new { category.Id, category.Name, category.Slug, category.ParentId, category.AttributeHints });
             }
             catch (Exception ex)
             {
@@ -129,6 +146,7 @@ namespace EbayClone.API.Controllers
         public string Name { get; set; } = string.Empty;
         public string Slug { get; set; } = string.Empty;
         public string? AttributeHints { get; set; }
+        public Guid? ParentId { get; set; }
     }
 
     public class UpdateCategoryDto : CreateCategoryDto

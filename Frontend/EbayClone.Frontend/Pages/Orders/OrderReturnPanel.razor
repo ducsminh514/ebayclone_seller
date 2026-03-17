@@ -1,0 +1,306 @@
+@using EbayClone.Frontend.Services
+@using EbayClone.Shared.DTOs.Orders
+@inject OrderService OrderService
+
+@* === GĐ5: RETURN PANEL === *@
+@if (ReturnInfo?.HasActiveReturn == true)
+{
+    <div class="mt-3" style="border: 2px solid @(ReturnInfo.Status == "REQUESTED" ? "#f5a623" : ReturnInfo.Status == "IN_PROGRESS" ? "#3665f3" : ReturnInfo.Status == "PARTIAL_OFFERED" ? "#e67e22" : "#5cb85c"); border-radius: 8px; overflow: hidden;">
+        @* Header *@
+        <div style="background: @(ReturnInfo.Status == "REQUESTED" ? "#fff8e6" : ReturnInfo.Status == "IN_PROGRESS" ? "#e8f0fe" : ReturnInfo.Status == "PARTIAL_OFFERED" ? "#fef3e2" : "#eaf7ea"); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <i class="bi @(ReturnInfo.Status == "REQUESTED" ? "bi-arrow-return-left" : ReturnInfo.Status == "IN_PROGRESS" ? "bi-box-arrow-in-left" : "bi-check-circle-fill") me-1"></i>
+                <strong>Return — @ReturnInfo.Status</strong>
+            </div>
+            @if (ReturnInfo.Status == "REQUESTED" && ReturnInfo.SellerResponseDeadline.HasValue)
+            {
+                <span class="badge bg-danger">Deadline: @ReturnInfo.SellerResponseDeadline.Value.ToString("MMM dd, HH:mm")</span>
+            }
+        </div>
+
+        <div style="padding: 14px;">
+            @* Buyer info *@
+            <div class="mb-2">
+                <div class="small"><strong>Reason:</strong> <span class="badge bg-secondary">@ReturnInfo.Reason</span></div>
+                @if (!string.IsNullOrEmpty(ReturnInfo.BuyerMessage))
+                {
+                    <div class="small mt-1"><strong>Buyer:</strong> @ReturnInfo.BuyerMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(ReturnInfo.ReturnShippingPaidBy))
+                {
+                    <div class="small mt-1"><strong>Return shipping:</strong> @ReturnInfo.ReturnShippingPaidBy pays</div>
+                }
+            </div>
+
+            @* === REQUESTED: Seller respond form === *@
+            @if (ReturnInfo.Status == "REQUESTED")
+            {
+                <hr class="my-2" />
+                <div class="small fw-bold mb-2">Your response:</div>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <button class="btn btn-sm @(respondType == "ACCEPT_RETURN" ? "btn-success" : "btn-outline-success")" @onclick='() => respondType = "ACCEPT_RETURN"'>
+                        ✅ Accept Return
+                    </button>
+                    <button class="btn btn-sm @(respondType == "FULL_REFUND_KEEP_ITEM" ? "btn-primary" : "btn-outline-primary")" @onclick='() => respondType = "FULL_REFUND_KEEP_ITEM"'>
+                        💰 Full Refund + Keep
+                    </button>
+                    <button class="btn btn-sm @(respondType == "PARTIAL_REFUND" ? "btn-warning" : "btn-outline-warning")" @onclick='() => respondType = "PARTIAL_REFUND"'>
+                        📊 Partial Refund
+                    </button>
+                    @if (ReturnInfo.Reason == "CHANGED_MIND")
+                    {
+                        <button class="btn btn-sm @(respondType == "DECLINE" ? "btn-danger" : "btn-outline-danger")" @onclick='() => respondType = "DECLINE"'>
+                            ❌ Decline
+                        </button>
+                    }
+                </div>
+                @if (respondType == "PARTIAL_REFUND")
+                {
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Partial refund amount (đ):</label>
+                        <input type="number" class="form-control form-control-sm" @bind="partialAmount" min="1" max="@OrderTotalAmount" />
+                    </div>
+                }
+                <div class="mb-2">
+                    <label class="form-label small">Message (optional):</label>
+                    <input type="text" class="form-control form-control-sm" @bind="sellerMessage" placeholder="Phản hồi cho buyer..." />
+                </div>
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger py-1 small">@errorMessage</div>
+                }
+                <button class="btn-ebay-primary btn-sm w-100" disabled="@(isSubmitting || string.IsNullOrEmpty(respondType))" @onclick="SubmitRespondReturn">
+                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Submit Response
+                </button>
+            }
+
+            @* === IN_PROGRESS: Buyer đã ship lại → Seller issue refund === *@
+            else if (ReturnInfo.Status == "IN_PROGRESS")
+            {
+                <hr class="my-2" />
+                @if (!string.IsNullOrEmpty(ReturnInfo.ReturnCarrier))
+                {
+                    <div class="small mb-2">
+                        <strong>Return tracking:</strong> @ReturnInfo.ReturnCarrier — @ReturnInfo.ReturnTrackingCode
+                    </div>
+                }
+                <div class="small fw-bold mb-2">Issue Refund (after inspection):</div>
+                <div class="mb-2">
+                    <label class="form-label small">Khấu trừ — Deduction (đ, max 50%):</label>
+                    <input type="number" class="form-control form-control-sm" @bind="deductionAmount" min="0" max="@(OrderTotalAmount * 0.5m)" />
+                    <div class="small text-muted mt-1">Nhập 0 nếu hoàn full. Khấu trừ khi hàng bị hao mòn/thiếu phụ kiện.</div>
+                </div>
+                <div class="mb-2 p-2 bg-light rounded">
+                    <div class="small"><strong>Tổng đơn:</strong> @OrderTotalAmount.ToString("N0") ₫</div>
+                    <div class="small"><strong>Khấu trừ:</strong> @deductionAmount.ToString("N0") ₫</div>
+                    <div class="small text-success fw-bold"><strong>→ Hoàn buyer:</strong> @((OrderTotalAmount - deductionAmount).ToString("N0")) ₫</div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Deduction reason:</label>
+                    <input type="text" class="form-control form-control-sm" @bind="deductionReason" placeholder="VD: Hàng bị trầy xước khi trả lại" />
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" @bind="restoreStock" id="restoreStockCheck" />
+                    <label class="form-check-label small" for="restoreStockCheck">Restore stock (hàng return OK)</label>
+                </div>
+                @if (!string.IsNullOrEmpty(refundError))
+                {
+                    <div class="alert alert-danger py-1 small">@refundError</div>
+                }
+                <button class="btn-ebay-primary btn-sm w-100" disabled="@isSubmitting" @onclick="SubmitIssueRefund">
+                    @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Issue Refund ✅
+                </button>
+            }
+
+            @* === REFUNDED / PARTIALLY_REFUNDED: Completed === *@
+            else if (ReturnInfo.Status == "REFUNDED" || ReturnInfo.Status == "PARTIALLY_REFUNDED")
+            {
+                <hr class="my-2" />
+                <div class="small text-success">
+                    <i class="bi bi-check-circle-fill me-1"></i>
+                    Refunded: <strong>@ReturnInfo.RefundAmount?.ToString("N0") đ</strong>
+                    @if (ReturnInfo.DeductionAmount > 0)
+                    {
+                        <span class="text-muted"> (Deduction: @ReturnInfo.DeductionAmount?.ToString("N0") đ — @ReturnInfo.DeductionReason)</span>
+                    }
+                </div>
+                @if (ReturnInfo.RefundedAt.HasValue)
+                {
+                    <div class="small text-muted mt-1">Refunded at: @ReturnInfo.RefundedAt.Value.ToString("MMM dd, yyyy HH:mm")</div>
+                }
+            }
+
+            @* === ACCEPTED/DECLINED: Info === *@
+            else if (ReturnInfo.Status == "ACCEPTED")
+            {
+                <hr class="my-2" />
+                <div class="small text-info">
+                    <i class="bi bi-clock me-1"></i> Return accepted — waiting for buyer to ship back.
+                </div>
+            }
+            else if (ReturnInfo.Status == "PARTIAL_OFFERED")
+            {
+                <hr class="my-2" />
+                <div class="p-2 rounded" style="background: #fef3e2;">
+                    <div class="small fw-bold mb-1">💰 Seller đã offer partial refund:</div>
+                    <div class="small"><strong>Offer:</strong> @ReturnInfo.PartialOfferAmount?.ToString("N0") đ / @OrderTotalAmount.ToString("N0") đ</div>
+                    @if (!string.IsNullOrEmpty(ReturnInfo.SellerMessage))
+                    {
+                        <div class="small mt-1"><strong>Seller:</strong> @ReturnInfo.SellerMessage</div>
+                    }
+                </div>
+                <div class="small text-muted my-2">🎭 Mock: Buyer chọn Accept hoặc Reject offer này</div>
+                @if (!string.IsNullOrEmpty(partialOfferError))
+                {
+                    <div class="alert alert-danger py-1 small">@partialOfferError</div>
+                }
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm flex-fill" disabled="@isSubmitting" @onclick="() => RespondPartialOffer(true)">
+                        @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        ✅ Buyer Accept
+                    </button>
+                    <button class="btn btn-danger btn-sm flex-fill" disabled="@isSubmitting" @onclick="() => RespondPartialOffer(false)">
+                        @if (isSubmitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        ❌ Buyer Reject
+                    </button>
+                </div>
+            }
+
+            @* === DECLINED: Info === *@
+            else if (ReturnInfo.Status == "DECLINED")
+            {
+                <hr class="my-2" />
+                <div class="small text-danger">
+                    <i class="bi bi-x-circle me-1"></i> Return declined.
+                    @if (!string.IsNullOrEmpty(ReturnInfo.SellerMessage))
+                    {
+                        <span> — @ReturnInfo.SellerMessage</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public ReturnInfo? ReturnInfo { get; set; }
+    [Parameter] public decimal OrderTotalAmount { get; set; }
+    [Parameter] public EventCallback OnActionCompleted { get; set; }
+
+    private bool isSubmitting;
+
+    // Respond form
+    private string respondType = "";
+    private string sellerMessage = "";
+    private decimal partialAmount = 0;
+    private string? errorMessage;
+
+    // IssueRefund form
+    private decimal refundAmount = 0;
+    private decimal deductionAmount = 0;
+    private string deductionReason = "";
+    private bool restoreStock = true;
+    private string? refundError;
+
+    // Partial offer buyer response
+    private string? partialOfferError;
+
+    private async Task SubmitRespondReturn()
+    {
+        if (string.IsNullOrEmpty(respondType))
+        {
+            errorMessage = "Vui lòng chọn kiểu phản hồi.";
+            return;
+        }
+        if (respondType == "PARTIAL_REFUND" && partialAmount <= 0)
+        {
+            errorMessage = "Vui lòng nhập số tiền partial refund.";
+            return;
+        }
+
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            var request = new RespondReturnRequest
+            {
+                ResponseType = respondType,
+                SellerMessage = string.IsNullOrWhiteSpace(sellerMessage) ? null : sellerMessage.Trim(),
+                PartialRefundAmount = respondType == "PARTIAL_REFUND" ? partialAmount : null,
+                RowVersion = ReturnInfo?.RowVersion ?? Array.Empty<byte>()
+            };
+            await OrderService.RespondReturnAsync(ReturnInfo!.ReturnId!.Value, request);
+            respondType = "";
+            sellerMessage = "";
+            partialAmount = 0;
+            await OnActionCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally { isSubmitting = false; }
+    }
+
+    private async Task RespondPartialOffer(bool accept)
+    {
+        try
+        {
+            isSubmitting = true;
+            partialOfferError = null;
+            await OrderService.RespondPartialOfferAsync(
+                ReturnInfo!.ReturnId!.Value, 
+                accept ? "ACCEPT" : "REJECT");
+            await OnActionCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            partialOfferError = ex.Message;
+        }
+        finally { isSubmitting = false; }
+    }
+
+    private async Task SubmitIssueRefund()
+    {
+        // Auto-calculate: Refund = Total - Deduction
+        refundAmount = OrderTotalAmount - deductionAmount;
+
+        if (refundAmount <= 0 && deductionAmount <= 0)
+        {
+            refundError = "Vui lòng nhập deduction amount (hoặc để 0 để hoàn full).";
+            return;
+        }
+        if (deductionAmount < 0)
+        {
+            refundError = "Deduction không được âm.";
+            return;
+        }
+
+        try
+        {
+            isSubmitting = true;
+            refundError = null;
+            var request = new IssueRefundRequest
+            {
+                RefundAmount = refundAmount,
+                DeductionAmount = deductionAmount,
+                DeductionReason = string.IsNullOrWhiteSpace(deductionReason) ? null : deductionReason.Trim(),
+                RestoreStock = restoreStock,
+                RowVersion = ReturnInfo?.RowVersion ?? Array.Empty<byte>()
+            };
+            await OrderService.IssueRefundAsync(ReturnInfo!.ReturnId!.Value, request);
+            refundAmount = 0;
+            deductionAmount = 0;
+            deductionReason = "";
+            restoreStock = true;
+            await OnActionCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            refundError = ex.Message;
+        }
+        finally { isSubmitting = false; }
+    }
+}

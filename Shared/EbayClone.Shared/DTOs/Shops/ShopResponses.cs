@@ -20,6 +20,7 @@ namespace EbayClone.Shared.DTOs.Shops
         public string? BankVerificationStatus { get; set; }
         public int BankVerificationAttempts { get; set; }
         public bool IsVerified { get; set; }
+        public bool IsPolicyOptedIn { get; set; }
         public int MonthlyListingLimit { get; set; }
     }
 

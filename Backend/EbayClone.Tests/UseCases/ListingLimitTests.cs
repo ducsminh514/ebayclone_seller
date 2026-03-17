@@ -14,12 +14,14 @@ namespace EbayClone.Tests.UseCases
     {
         private readonly Mock<IProductRepository> _productRepositoryMock;
         private readonly Mock<IShopRepository> _shopRepositoryMock;
+        private readonly Mock<IPolicyRepository> _policyRepositoryMock;
         private readonly Mock<IUnitOfWork> _unitOfWorkMock;
 
         public ListingLimitTests()
         {
             _productRepositoryMock = new Mock<IProductRepository>();
             _shopRepositoryMock = new Mock<IShopRepository>();
+            _policyRepositoryMock = new Mock<IPolicyRepository>();
             _unitOfWorkMock = new Mock<IUnitOfWork>();
         }
 
@@ -31,12 +33,13 @@ namespace EbayClone.Tests.UseCases
             var shop = new Shop { Id = shopId, MonthlyListingLimit = 250 };
             
             _shopRepositoryMock.Setup(r => r.GetByIdAsync(shopId, It.IsAny<CancellationToken>())).ReturnsAsync(shop);
-            _productRepositoryMock.Setup(r => r.GetCountByShopInCurrentMonthAsync(shopId, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(10); // Limit reached
+            _productRepositoryMock.Setup(r => r.CountProductsThisMonthAsync(shopId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(250); // Limit reached (= MonthlyListingLimit)
 
             var useCase = new CreateListingUseCase(
                 _productRepositoryMock.Object,
                 _shopRepositoryMock.Object,
+                _policyRepositoryMock.Object,
                 _unitOfWorkMock.Object);
 
             var request = new CreateListingRequest 

@@ -24,34 +24,41 @@
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
-        if (user.Identity?.IsAuthenticated == true)
+
+        var uri = new Uri(url);
+        var currentPath = uri.AbsolutePath.ToLowerInvariant();
+
+        // Route công khai - không cần auth
+        if (currentPath == "/login" || currentPath == "/register" || currentPath.StartsWith("/verify-email"))
+            return;
+
+        // User CHƯA đăng nhập → redirect về /login
+        if (user.Identity?.IsAuthenticated != true)
         {
-            var hasShopStr = user.FindFirst("HasShop")?.Value;
-            bool hasShop = false;
-            bool.TryParse(hasShopStr, out hasShop);
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
 
-            var uri = new Uri(url);
-            var currentPath = uri.AbsolutePath.ToLowerInvariant();
+        // User ĐÃ đăng nhập → kiểm tra onboarding status
+        var hasShopStr = user.FindFirst("HasShop")?.Value;
+        var isVerifiedStr = user.FindFirst("IsVerified")?.Value;
+        bool hasShop = bool.TryParse(hasShopStr, out bool hs) && hs;
+        bool isVerified = bool.TryParse(isVerifiedStr, out bool iv) && iv;
 
-            // Những Route công khai hoặc Layout khác (nhưng ta cũng nên phòng hờ)
-            if (currentPath == "/login" || currentPath == "/register" || currentPath.StartsWith("/verify-email"))
-                return;
-
-            if (!hasShop)
+        if (!hasShop || !isVerified)
+        {
+            // Chưa có shop HOẶC có shop nhưng chưa hoàn thành onboarding → ÉP vô /onboarding
+            if (currentPath != "/onboarding")
             {
-                // Nếu User chưa có Shop, ÉP BUỘC chỉ được vô /onboarding
-                if (currentPath != "/onboarding")
-                {
-                    NavigationManager.NavigateTo("/onboarding");
-                }
+                NavigationManager.NavigateTo("/onboarding");
             }
-            else
+        }
+        else
+        {
+            // Shop đã verified hoàn tất → không cho vào /onboarding nữa
+            if (currentPath == "/onboarding")
             {
-                // Nếu User CÓ Shop rồi, nhưng lại đi lạc vào màn /onboarding, Ép về Overview
-                if (currentPath == "/onboarding")
-                {
-                    NavigationManager.NavigateTo("/");
-                }
+                NavigationManager.NavigateTo("/");
             }
         }
     }

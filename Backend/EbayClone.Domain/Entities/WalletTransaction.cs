@@ -15,10 +15,12 @@ namespace EbayClone.Domain.Entities
         }
 
         public decimal Amount { get; set; }
-        public string Type { get; set; } = string.Empty; // 'ORDER_INCOME', 'WITHDRAW', 'REFUND', 'PLATFORM_FEE'
+        public string Type { get; set; } = string.Empty; // 'ORDER_INCOME', 'ESCROW_RELEASE', 'REFUND', 'PLATFORM_FEE', 'WITHDRAW', 'DISPUTE_HOLD'
         public string Status { get; set; } = "COMPLETED"; // 'PENDING', 'COMPLETED', 'CANCELLED'
         public Guid? ReferenceId { get; set; }
         public string? ReferenceType { get; set; }
+        /// <summary>Mã đơn hàng hiển thị (VD: "EB20240317-0001") — để FE show "Đơn #...". Null nếu là WITHDRAW/PAYOUT.</summary>
+        public string? OrderNumber { get; set; }
         public string? Description { get; set; }
         
         public decimal BalanceAfter { get; set; }

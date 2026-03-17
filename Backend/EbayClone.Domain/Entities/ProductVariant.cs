@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace EbayClone.Domain.Entities
 {
@@ -10,15 +11,12 @@ namespace EbayClone.Domain.Entities
         public string SkuCode { get; set; } = string.Empty;
         public decimal Price { get; set; }
         
-        // Attributes JSON string
+        // [A1] Giữ JSON snapshot cho quick read (denormalized)
+        // Query/filter dùng AttributeValues relational collection bên dưới
         public string? Attributes { get; set; }
         
-        // Inventory
+        // Inventory — single-step deduction (không dùng ReservedQuantity nữa)
         public int Quantity { get; set; } = 0;
-        public int ReservedQuantity { get; set; } = 0;
-        
-        // Computed stock will be configured in EF Core or readonly property
-        public int AvailableStock { get; private set; }
         
         public string? ImageUrl { get; set; }
         public int? WeightGram { get; set; }
@@ -32,33 +30,27 @@ namespace EbayClone.Domain.Entities
 
         // Navigation
         public Product? Product { get; set; }
+        public ICollection<VariantAttributeValue> AttributeValues { get; set; } = new List<VariantAttributeValue>();
         
         /// <summary>
-        /// Domain Logic: Chống bán lố (Overselling)
+        /// Domain Logic: Trừ kho trực tiếp khi đơn hàng được thanh toán (1 bước duy nhất).
+        /// Dùng với ExecuteUpdateAsync ở Repository level để đảm bảo atomic + chống race condition.
         /// </summary>
-        public void ReserveStock(int quantity)
+        public void DeductStock(int quantity)
         {
-            if (AvailableStock < quantity)
-                throw new InvalidOperationException("Not enough available stock to reserve.");
-            ReservedQuantity += quantity;
-        }
-
-        public void DeductStockAndReleaseReservation(int quantity)
-        {
-            if (ReservedQuantity < quantity)
-                throw new InvalidOperationException("Cannot deduct more than reserved.");
             if (Quantity < quantity)
-                throw new InvalidOperationException("Cannot deduct stock below zero.");
-                
-            ReservedQuantity -= quantity;
+                throw new InvalidOperationException($"Không đủ hàng tồn kho. Hiện có: {Quantity}, yêu cầu: {quantity}.");
             Quantity -= quantity;
         }
 
-        public void ReleaseReservation(int quantity)
+        /// <summary>
+        /// Domain Logic: Hoàn kho khi cancel/return.
+        /// </summary>
+        public void RestoreStock(int quantity)
         {
-            if (ReservedQuantity < quantity)
-                throw new InvalidOperationException("Cannot release more than reserved.");
-            ReservedQuantity -= quantity;
+            if (quantity <= 0)
+                throw new ArgumentException("Số lượng hoàn phải > 0.");
+            Quantity += quantity;
         }
     }
 }

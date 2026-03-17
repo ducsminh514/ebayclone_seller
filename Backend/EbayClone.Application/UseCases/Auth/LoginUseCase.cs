@@ -1,4 +1,4 @@
-﻿using EbayClone.Shared.DTOs.Auth;
+using EbayClone.Shared.DTOs.Auth;
 using EbayClone.Application.Interfaces.Repositories;
 using System;
 using System.Threading.Tasks;
@@ -23,7 +23,13 @@ namespace EbayClone.Application.UseCases.Auth
 
         public async Task<LoginResultDto> ExecuteAsync(LoginRequest request)
         {
+            // C2 FIX: Tìm user bằng Email trước, nếu không có thì fallback sang Username
+            // eBay thật: cho phép login bằng email HOẶC username
             var user = await _userRepository.GetByEmailAsync(request.Email);
+            if (user == null)
+            {
+                user = await _userRepository.GetByUsernameAsync(request.Email);
+            }
             if (user == null)
             {
                 throw new UnauthorizedAccessException("Invalid credentials.");
@@ -46,7 +52,9 @@ namespace EbayClone.Application.UseCases.Auth
             {
                 UserId = user.Id.ToString(),
                 Username = !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName.Trim() : user.Username,
+                Role = user.Role,
                 HasShop = shop != null,
+                IsVerified = shop?.IsVerified ?? false,
                 ShopId = shop?.Id
             };
         }

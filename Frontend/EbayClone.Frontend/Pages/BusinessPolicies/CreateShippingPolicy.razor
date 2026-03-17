@@ -41,7 +41,20 @@
             <MudItem><MudText Typo="Typo.caption" Style="color: #707070;">@(_model.Description?.Length ?? 0)/250</MudText></MudItem>
         </MudGrid>
 
-        <MudCheckBox @bind-Value="_model.IsDefault" Label="Set as default shipping policy" Color="Color.Primary" Class="mb-8" />
+        <MudCheckBox @bind-Value="_model.IsDefault" Label="Set as default shipping policy" Color="Color.Primary" Class="mb-4" />
+
+        <!-- OFFER FREE SHIPPING -->
+        <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-6" Style="border-color: #E5E5E5; border-radius: 12px;">
+            <MudGrid Justify="Justify.SpaceBetween" Class="align-center">
+                <MudItem>
+                    <MudText Typo="Typo.body1" Style="font-weight: bold; color: #111820;">Offer free shipping</MudText>
+                    <MudText Typo="Typo.body2" Style="color: #707070;">Free shipping increases buyer confidence and improves search ranking.</MudText>
+                </MudItem>
+                <MudItem>
+                    <MudSwitch @bind-Value="_model.OfferFreeShipping" Color="Color.Primary" Size="Size.Large" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
 
         <!-- DOMESTIC SHIPPING SECTION -->
         <MudText Typo="Typo.subtitle1" Class="fw-bolder mt-8 mb-4" Style="font-weight: 900; letter-spacing: 0.5px;">DOMESTIC SHIPPING</MudText>
@@ -63,22 +76,35 @@
                 {
                     @foreach (var svc in _model.DomesticServices)
                     {
-                        <div class="pa-4 mb-3" style="border: 1px solid #efefef; border-radius: 8px; background-color: white;">
+                        var isFirst = svc == _model.DomesticServices.First();
+                        <div class="pa-4 mb-3" style="border: 1px solid @(isFirst && _model.OfferFreeShipping ? "#3665F3" : "#efefef"); border-radius: 8px; background-color: white;">
                             <MudGrid AlignItems="AlignItems.Center">
-                                <MudItem xs="6">
+                                <MudItem xs="5">
                                     <MudText Typo="Typo.body2" Style="font-weight: bold;">@svc.ServiceName</MudText>
+                                    @if (isFirst && _model.OfferFreeShipping)
+                                    {
+                                        <MudText Typo="Typo.caption" Style="color: #3665F3;">⭐ Primary service — Free shipping applied</MudText>
+                                    }
                                 </MudItem>
                                 <MudItem xs="2">
-                                    <MudTextField @bind-Value="svc.Cost" Label="Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" />
+                                    @if (svc.IsFreeShipping)
+                                    {
+                                        <MudTextField Value="@("Free")" Label="Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="true" />
+                                    }
+                                    else
+                                    {
+                                        <MudNumericField @bind-Value="svc.Cost" Label="Cost" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" Min="0m" />
+                                    }
                                 </MudItem>
                                 <MudItem xs="3">
-                                    <MudTextField @bind-Value="svc.AdditionalItemCost" Label="Each add'l" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" />
+                                    <MudNumericField @bind-Value="svc.AdditionalItemCost" Label="Each add'l" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentText="$" Disabled="@svc.IsFreeShipping" Min="0m" />
                                 </MudItem>
-                                <MudItem xs="1" Class="d-flex justify-end">
+                                <MudItem xs="2" Class="d-flex justify-end gap-2">
+                                    <MudCheckBox @bind-Value="svc.IsFreeShipping" Color="Color.Primary" Dense="true" Style="margin: 0;" />
                                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => _model.DomesticServices.Remove(svc))" Size="Size.Small" />
                                 </MudItem>
-                                <MudItem xs="12" Class="mt-n2">
-                                    <MudCheckBox @bind-Value="svc.IsFreeShipping" Label="Free shipping" Color="Color.Primary" Dense="true" />
+                                <MudItem xs="12" Class="mt-n3">
+                                    <MudText Typo="Typo.caption" Style="color: #707070;">@(svc.IsFreeShipping ? "Free shipping for buyer" : $"Buyer pays ${svc.Cost:N2}")</MudText>
                                 </MudItem>
                             </MudGrid>
                         </div>
@@ -166,6 +192,45 @@
                 <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" />
             </div>
         </div>
+
+        <!-- COMBINED SHIPPING DISCOUNT -->
+        <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-6" Style="border-color: #E5E5E5; border-radius: 12px;">
+            <MudGrid Justify="Justify.SpaceBetween" Class="align-center">
+                <MudItem>
+                    <MudText Typo="Typo.body1" Style="font-weight: bold; color: #111820;">Combined shipping discount</MudText>
+                    <MudText Typo="Typo.body2" Style="color: #707070;">Offer reduced shipping when buyer purchases multiple items.</MudText>
+                </MudItem>
+                <MudItem>
+                    <MudSwitch @bind-Value="_model.OfferCombinedShippingDiscount" Color="Color.Primary" Size="Size.Large" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <!-- PACKAGE DETAILS -->
+        <MudText Typo="Typo.subtitle1" Class="fw-bolder mt-8 mb-4" Style="font-weight: 900; letter-spacing: 0.5px;">PACKAGE DETAILS</MudText>
+        
+        <MudGrid Spacing="4" Class="mb-6">
+            <MudItem xs="12" sm="4">
+                <MudSelect @bind-Value="_model.PackageType" Label="Package type" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Package")" >Package / thick envelope</MudSelectItem>
+                    <MudSelectItem Value="@("LargePackage")" >Large package</MudSelectItem>
+                    <MudSelectItem Value="@("Letter")" >Letter</MudSelectItem>
+                    <MudSelectItem Value="@("LargeEnvelope")" >Large envelope / flat</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_model.PackageWeightOz" Label="Weight (oz)" Variant="Variant.Outlined" Min="0" Format="N1" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect @bind-Value="_model.HandlingTimeCutoff" Label="Handling cutoff time" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("10:00")" >10:00 AM</MudSelectItem>
+                    <MudSelectItem Value="@("12:00")" >12:00 PM</MudSelectItem>
+                    <MudSelectItem Value="@("14:00")" >2:00 PM (default)</MudSelectItem>
+                    <MudSelectItem Value="@("16:00")" >4:00 PM</MudSelectItem>
+                    <MudSelectItem Value="@("18:00")" >6:00 PM</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
     </div>
 
     <!-- Phập mông trống -->
@@ -232,17 +297,28 @@
     {
         try 
         {
+            // eBay Logic: OfferFreeShipping → auto set IsFreeShipping cho service đầu tiên
+            if (_model.OfferFreeShipping && _model.DomesticServices.Any())
+            {
+                _model.DomesticServices.First().IsFreeShipping = true;
+            }
+
             var request = new CreateShippingPolicyRequest
             {
                 Name = _model.Name,
                 Description = _model.Description,
                 HandlingTimeDays = _model.HandlingTimeDays,
                 IsDefault = _model.IsDefault,
+                OfferFreeShipping = _model.OfferFreeShipping,
                 DomesticCostType = _model.DomesticCostType,
                 DomesticServices = _model.DomesticServices,
                 IsInternationalShippingAllowed = _model.IsInternationalShippingAllowed,
                 InternationalCostType = _model.InternationalCostType,
                 InternationalServices = _model.InternationalServices,
+                OfferCombinedShippingDiscount = _model.OfferCombinedShippingDiscount,
+                PackageType = _model.PackageType,
+                PackageWeightOz = _model.PackageWeightOz,
+                HandlingTimeCutoff = _model.HandlingTimeCutoff,
                 ExcludedLocations = _model.ExcludedLocations
             };
 
@@ -266,6 +342,7 @@
         public string Description { get; set; } = string.Empty;
 
         public bool IsDefault { get; set; }
+        public bool OfferFreeShipping { get; set; }
         public int HandlingTimeDays { get; set; } = 2;
         public string DomesticCostType { get; set; } = "Flat";
         public List<ShippingServiceDto> DomesticServices { get; set; } = new();
@@ -273,6 +350,11 @@
         public bool IsInternationalShippingAllowed { get; set; }
         public string InternationalCostType { get; set; } = "Flat";
         public List<InternationalShippingServiceDto> InternationalServices { get; set; } = new();
+
+        public bool OfferCombinedShippingDiscount { get; set; }
+        public string PackageType { get; set; } = "Package";
+        public decimal PackageWeightOz { get; set; }
+        public string HandlingTimeCutoff { get; set; } = "14:00";
 
         public List<string> ExcludedLocations { get; set; } = new();
     }
