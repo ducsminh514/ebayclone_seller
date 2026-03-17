@@ -8,6 +8,7 @@ namespace EbayClone.Shared.DTOs.Finance
         public Guid WalletId { get; set; }
         public decimal AvailableBalance { get; set; }
         public decimal PendingBalance { get; set; }
+        public decimal OnHoldBalance { get; set; }
         public string Currency { get; set; } = "VND";
         public List<WalletTransactionDto> RecentTransactions { get; set; } = new();
     }

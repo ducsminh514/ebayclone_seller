@@ -30,6 +30,7 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<OrderReturn> OrderReturns { get; set; }
         public DbSet<OrderCancellation> OrderCancellations { get; set; }
         public DbSet<OrderDispute> OrderDisputes { get; set; }
+        public DbSet<EscrowHold> EscrowHolds { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -203,6 +204,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.ReturnCarrier).HasMaxLength(100);
                 entity.Property(e => e.RefundAmount).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.DeductionAmount).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.PartialOfferAmount).HasColumnType("decimal(18, 2)");
                 entity.HasIndex(e => e.OrderId);
                 entity.HasIndex(e => e.Status); // Performance: filter by return status
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
@@ -257,7 +259,19 @@ namespace EbayClone.Infrastructure.Data
                 entity.HasOne(w => w.Shop).WithOne().HasForeignKey<SellerWallet>(w => w.ShopId);
                 entity.Property(e => e.AvailableBalance).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.PendingBalance).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.OnHoldBalance).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
+            });
+
+            // EscrowHolds
+            modelBuilder.Entity<EscrowHold>(entity => {
+                entity.HasOne(e => e.Shop).WithMany().HasForeignKey(e => e.ShopId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Order).WithMany().HasForeignKey(e => e.OrderId).OnDelete(DeleteBehavior.Restrict);
+                entity.Property(e => e.Amount).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("HOLDING");
+                entity.Property(e => e.ResolveNote).HasMaxLength(255);
+                entity.HasIndex(e => new { e.ShopId, e.Status }); // Query: all holds for a shop
+                entity.HasIndex(e => e.HoldReleasesAt); // Background job: release expired holds
             });
 
             // WalletTransactions

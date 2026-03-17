@@ -62,8 +62,14 @@ namespace EbayClone.Application.UseCases.Orders
                         var walletRefund = await _walletRepository.GetByShopIdAsync(order.ShopId, cancellationToken);
                         if (walletRefund != null)
                         {
-                            walletRefund.DeductPending(order.TotalAmount);
+                            var (fromOnHold, fromPending, fromAvailable) = walletRefund.ProcessRefund(order.TotalAmount);
                             _walletRepository.Update(walletRefund);
+
+                            var sources = new System.Collections.Generic.List<string>();
+                            if (fromOnHold > 0) sources.Add($"Hold: -{fromOnHold:N0}");
+                            if (fromPending > 0) sources.Add($"Pending: -{fromPending:N0}");
+                            if (fromAvailable > 0) sources.Add($"Available: -{fromAvailable:N0}");
+                            var balanceNote = sources.Count > 0 ? $" ({string.Join(", ", sources)})" : "";
 
                             await _txRepository.AddAsync(new WalletTransaction
                             {
@@ -72,8 +78,8 @@ namespace EbayClone.Application.UseCases.Orders
                                 Type = "REFUND",
                                 ReferenceId = order.Id,
                                 ReferenceType = "ORDER_DISPUTE",
-                                Description = $"Hoàn tiền dispute (Buyer win) — Đơn #{order.OrderNumber}. Defect +1.",
-                                BalanceAfter = walletRefund.PendingBalance
+                                Description = $"Hoàn tiền dispute (Buyer win) — Đơn #{order.OrderNumber}. Defect +1.{balanceNote}",
+                                BalanceAfter = walletRefund.PendingBalance + walletRefund.AvailableBalance + walletRefund.OnHoldBalance
                             }, cancellationToken);
                         }
                         break;
@@ -86,7 +92,7 @@ namespace EbayClone.Application.UseCases.Orders
                         if (walletRelease != null)
                         {
                             decimal profit = order.TotalAmount - order.PlatformFee;
-                            walletRelease.ReleaseEscrow(order.TotalAmount, profit);
+                            walletRelease.ProcessRelease(order.TotalAmount, profit);
                             _walletRepository.Update(walletRelease);
 
                             await _txRepository.AddAsync(new WalletTransaction
@@ -97,7 +103,7 @@ namespace EbayClone.Application.UseCases.Orders
                                 ReferenceId = order.Id,
                                 ReferenceType = "ORDER_DISPUTE",
                                 Description = $"Giải ngân dispute (Seller win) — Đơn #{order.OrderNumber}. Thực nhận: {profit:N0} đ.",
-                                BalanceAfter = walletRelease.AvailableBalance
+                                BalanceAfter = walletRelease.TotalBalance
                             }, cancellationToken);
                         }
 

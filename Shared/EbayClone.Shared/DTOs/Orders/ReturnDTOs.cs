@@ -41,4 +41,11 @@ namespace EbayClone.Shared.DTOs.Orders
 
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
+
+    // --- Buyer mock: Accept/Reject partial refund offer ---
+    public class RespondPartialOfferRequest
+    {
+        /// <summary>"ACCEPT" hoặc "REJECT"</summary>
+        public string BuyerDecision { get; set; } = string.Empty;
+    }
 }

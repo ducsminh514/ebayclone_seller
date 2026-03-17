@@ -244,6 +244,97 @@ namespace EbayClone.API.Controllers
             }
         }
 
+        // ==================== GĐ5: GET RETURN/DISPUTE INFO ====================
+
+        /// <summary>
+        /// GET active return request cho 1 order (nếu có).
+        /// </summary>
+        [HttpGet("{orderId}/return")]
+        public async Task<IActionResult> GetActiveReturn(
+            Guid orderId,
+            [FromServices] EbayClone.Application.Interfaces.Repositories.IOrderReturnRepository returnRepo,
+            [FromServices] EbayClone.Application.Interfaces.Repositories.IOrderRepository orderRepo)
+        {
+            var shopId = GetShopId();
+            if (!shopId.HasValue) return StatusCode(403, new { Error = "Account not authorized." });
+
+            var order = await orderRepo.GetByIdAsync(orderId);
+            if (order == null || order.ShopId != shopId.Value)
+                return NotFound(new { Error = "Order not found." });
+
+            var ret = await returnRepo.GetActiveByOrderIdAsync(orderId);
+            if (ret == null)
+                return Ok(new { HasActiveReturn = false });
+
+            return Ok(new
+            {
+                HasActiveReturn = true,
+                ReturnId = ret.Id,
+                ret.Status,
+                ret.Reason,
+                ret.BuyerMessage,
+                ret.PhotoUrls,
+                ret.SellerResponseType,
+                ret.SellerMessage,
+                ret.RefundAmount,
+                ret.DeductionAmount,
+                ret.DeductionReason,
+                ret.PartialOfferAmount,
+                ret.ReturnTrackingCode,
+                ret.ReturnCarrier,
+                ret.ReturnShippingPaidBy,
+                ret.IsStockRestored,
+                ret.RequestedAt,
+                ret.RespondedAt,
+                ret.ReturnShippedAt,
+                ret.ReturnReceivedAt,
+                ret.RefundedAt,
+                ret.SellerResponseDeadline,
+                ret.RowVersion
+            });
+        }
+
+        /// <summary>
+        /// GET active dispute cho 1 order (nếu có).
+        /// </summary>
+        [HttpGet("{orderId}/dispute")]
+        public async Task<IActionResult> GetActiveDispute(
+            Guid orderId,
+            [FromServices] EbayClone.Application.Interfaces.Repositories.IOrderDisputeRepository disputeRepo,
+            [FromServices] EbayClone.Application.Interfaces.Repositories.IOrderRepository orderRepo)
+        {
+            var shopId = GetShopId();
+            if (!shopId.HasValue) return StatusCode(403, new { Error = "Account not authorized." });
+
+            var order = await orderRepo.GetByIdAsync(orderId);
+            if (order == null || order.ShopId != shopId.Value)
+                return NotFound(new { Error = "Order not found." });
+
+            var dispute = await disputeRepo.GetActiveByOrderIdAsync(orderId);
+            if (dispute == null)
+                return Ok(new { HasActiveDispute = false });
+
+            return Ok(new
+            {
+                HasActiveDispute = true,
+                DisputeId = dispute.Id,
+                dispute.Type,
+                dispute.Status,
+                dispute.BuyerMessage,
+                dispute.BuyerEvidenceUrls,
+                dispute.SellerMessage,
+                dispute.SellerEvidenceUrls,
+                dispute.Resolution,
+                dispute.IsDefect,
+                dispute.OpenedAt,
+                dispute.SellerRespondedAt,
+                dispute.EscalatedAt,
+                dispute.ResolvedAt,
+                dispute.SellerResponseDeadline,
+                dispute.RowVersion
+            });
+        }
+
         // ==================== GĐ5A: RETURN/REFUND FLOW ====================
 
         /// <summary>
@@ -290,6 +381,24 @@ namespace EbayClone.API.Controllers
             catch (UnauthorizedAccessException ex) { return StatusCode(403, new { Error = ex.Message }); }
         }
 
+        /// <summary>
+        /// Buyer mock: Accept/Reject partial refund offer từ seller
+        /// </summary>
+        [HttpPut("returns/{returnId}/respond-partial")]
+        public async Task<IActionResult> RespondPartialOffer(
+            Guid returnId,
+            [FromBody] RespondPartialOfferRequest request,
+            [FromServices] IRespondPartialOfferUseCase respondPartialOfferUseCase)
+        {
+            try
+            {
+                await respondPartialOfferUseCase.ExecuteAsync(returnId, request.BuyerDecision);
+                return Ok(new { Message = $"Buyer đã {request.BuyerDecision} partial refund offer." });
+            }
+            catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
+        }
+
         // ==================== GĐ5C: DISPUTE/CASE FLOW ====================
 
         /// <summary>
@@ -319,7 +428,7 @@ namespace EbayClone.API.Controllers
         /// Buyer win → REFUNDED + defect. Seller win → COMPLETED + funds release.
         /// </summary>
         [HttpPost("disputes/{disputeId}/resolve")]
-        [Authorize(Roles = "ADMIN")]
+        // TODO: Production → [Authorize(Roles = "ADMIN")] — hiện mock cho seller test
         public async Task<IActionResult> ResolveDispute(
             Guid disputeId,
             [FromBody] ResolveDisputeRequest request,

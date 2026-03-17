@@ -49,7 +49,7 @@ namespace EbayClone.Application.UseCases.Orders
                         decimal profit = order.TotalAmount - order.PlatformFee;
                         
                         // Chuyển từ Pending sang Available, khấu trừ Platform Fee
-                        wallet.ReleaseEscrow(totalDebit, profit);
+                        wallet.ProcessRelease(totalDebit, profit);
                         _walletRepository.Update(wallet);
 
                         // Ghi log giải ngân
@@ -61,7 +61,7 @@ namespace EbayClone.Application.UseCases.Orders
                             ReferenceId = order.Id,
                             ReferenceType = "ORDER",
                             Description = $"Giải ngân đơn hàng #{order.OrderNumber}. Thực nhận: {profit:N0} đ (Phí sàn: {order.PlatformFee:N0} đ)",
-                            BalanceAfter = wallet.AvailableBalance
+                            BalanceAfter = wallet.TotalBalance
                         }, cancellationToken);
 
                         // Cập nhật trạng thái đơn hàng thành COMPLETED để tránh giải ngân lặp lại

@@ -99,7 +99,7 @@ namespace EbayClone.Application.UseCases.Orders
                                 ReferenceId = order.Id,
                                 ReferenceType = "ORDER",
                                 Description = $"Tạm giữ {order.TotalAmount:N0} đ (Escrow) từ đơn hàng #{order.OrderNumber}",
-                                BalanceAfter = walletPaid.PendingBalance
+                                BalanceAfter = walletPaid.TotalBalance
                             }, cancellationToken);
                         }
                         break;
@@ -163,8 +163,14 @@ namespace EbayClone.Application.UseCases.Orders
                             var walletRefund = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
                             if (walletRefund != null)
                             {
-                                walletRefund.DeductPending(order.TotalAmount);
+                                var (fromOnHold, fromPending, fromAvailable) = walletRefund.ProcessRefund(order.TotalAmount);
                                 _walletRepository.Update(walletRefund);
+
+                                var sources = new System.Collections.Generic.List<string>();
+                                if (fromOnHold > 0) sources.Add($"Hold: -{fromOnHold:N0}");
+                                if (fromPending > 0) sources.Add($"Pending: -{fromPending:N0}");
+                                if (fromAvailable > 0) sources.Add($"Available: -{fromAvailable:N0}");
+                                var balanceNote = sources.Count > 0 ? $" ({string.Join(", ", sources)})" : "";
 
                                 await _walletTransactionRepository.AddAsync(new WalletTransaction
                                 {
@@ -173,8 +179,8 @@ namespace EbayClone.Application.UseCases.Orders
                                     Type = "REFUND",
                                     ReferenceId = order.Id,
                                     ReferenceType = "ORDER",
-                                    Description = $"Hoàn tiền tạm giữ {order.TotalAmount:N0} đ cho Buyer (Hủy đơn #{order.OrderNumber})",
-                                    BalanceAfter = walletRefund.PendingBalance
+                                    Description = $"Hoàn tiền tạm giữ {order.TotalAmount:N0} đ cho Buyer (Hủy đơn #{order.OrderNumber}){balanceNote}",
+                                    BalanceAfter = walletRefund.PendingBalance + walletRefund.AvailableBalance + walletRefund.OnHoldBalance
                                 }, cancellationToken);
                             }
                         }

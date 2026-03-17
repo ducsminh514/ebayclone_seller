@@ -4,6 +4,7 @@ using EbayClone.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EbayClone.Infrastructure.Migrations
 {
     [DbContext(typeof(EbayDbContext))]
-    partial class EbayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260316165035_AddSellerLevelToShop")]
+    partial class AddSellerLevelToShop
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -87,52 +90,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("CategoryItemSpecifics");
-                });
-
-            modelBuilder.Entity("EbayClone.Domain.Entities.EscrowHold", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18, 2)");
-
-                    b.Property<DateTimeOffset>("HoldReleasesAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset>("HoldStartedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("OrderId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ResolveNote")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<DateTimeOffset?>("ResolvedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("ShopId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("HOLDING");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("HoldReleasesAt");
-
-                    b.HasIndex("OrderId");
-
-                    b.HasIndex("ShopId", "Status");
-
-                    b.ToTable("EscrowHolds");
                 });
 
             modelBuilder.Entity("EbayClone.Domain.Entities.FileEntity", b =>
@@ -473,9 +430,6 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal?>("PartialOfferAmount")
-                        .HasColumnType("decimal(18, 2)");
 
                     b.Property<string>("PhotoUrls")
                         .HasColumnType("nvarchar(max)");
@@ -959,9 +913,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("OnHoldBalance")
-                        .HasColumnType("decimal(18, 2)");
-
                     b.Property<decimal>("PendingBalance")
                         .HasColumnType("decimal(18, 2)");
 
@@ -1413,25 +1364,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Category");
-                });
-
-            modelBuilder.Entity("EbayClone.Domain.Entities.EscrowHold", b =>
-                {
-                    b.HasOne("EbayClone.Domain.Entities.Order", "Order")
-                        .WithMany()
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("EbayClone.Domain.Entities.Shop", "Shop")
-                        .WithMany()
-                        .HasForeignKey("ShopId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Order");
-
-                    b.Navigation("Shop");
                 });
 
             modelBuilder.Entity("EbayClone.Domain.Entities.FileEntity", b =>

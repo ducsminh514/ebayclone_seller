@@ -22,6 +22,8 @@
         <button class="nav-link @(currentTab == "DELIVERED" ? "active" : "")" @onclick='() => ChangeTab("DELIVERED")'>Delivered</button>
         <button class="nav-link @(currentTab == "CANCELLED" ? "active" : "")" @onclick='() => ChangeTab("CANCELLED")'>Cancelled</button>
         <button class="nav-link @(currentTab == "RETURN_REQUESTED" ? "active" : "")" @onclick='() => ChangeTab("RETURN_REQUESTED")'>Returns</button>
+        <button class="nav-link @(currentTab == "DISPUTE_OPENED" ? "active" : "")" @onclick='() => ChangeTab("DISPUTE_OPENED")'>Disputes</button>
+        <button class="nav-link @(currentTab == "REFUNDED" ? "active" : "")" @onclick='() => ChangeTab("REFUNDED")'>Refunded</button>
     </div>
 
     @* Search & Filter Section *@
@@ -120,6 +122,30 @@
                                         Shipped @o.ShippedAt.Value.ToString("dd MMM")
                                     </div>
                                 }
+                                @if (o.Status == "RETURN_REQUESTED")
+                                {
+                                    <div style="font-size: 12px; color: #e53238; font-weight: 600; margin-bottom: 4px;">
+                                        <i class="bi bi-arrow-return-left"></i> Return requested
+                                    </div>
+                                }
+                                @if (o.Status == "RETURN_IN_PROGRESS")
+                                {
+                                    <div style="font-size: 12px; color: #3665f3; font-weight: 600; margin-bottom: 4px;">
+                                        <i class="bi bi-box-arrow-in-left"></i> Return in progress
+                                    </div>
+                                }
+                                @if (o.Status == "DISPUTE_OPENED")
+                                {
+                                    <div style="font-size: 12px; color: #e53238; font-weight: 600; margin-bottom: 4px;">
+                                        <i class="bi bi-exclamation-triangle"></i> Dispute opened
+                                    </div>
+                                }
+                                @if (o.Status == "REFUNDED" || o.Status == "PARTIALLY_REFUNDED")
+                                {
+                                    <div style="font-size: 12px; color: #267500; font-weight: 600; margin-bottom: 4px;">
+                                        <i class="bi bi-check-circle"></i> @o.Status
+                                    </div>
+                                }
                                 <div class="dropdown" style="position: relative;">
                                     <button class="btn-ebay-secondary btn-sm dropdown-toggle-ebay" style="font-size: 12px; padding: 4px 10px;" @onclick="() => ToggleDropdown(o.Id)">
                                         Actions ▾
@@ -149,6 +175,24 @@
                                             {
                                                 <a class="ebay-dropdown-item" href="/orders/@o.Id">
                                                     <i class="bi bi-credit-card me-2"></i>Mark as paid
+                                                </a>
+                                            }
+                                            @if (o.Status == "RETURN_REQUESTED" || o.Status == "RETURN_IN_PROGRESS")
+                                            {
+                                                <a class="ebay-dropdown-item" href="/orders/@o.Id">
+                                                    <i class="bi bi-arrow-return-left me-2"></i>Manage return
+                                                </a>
+                                            }
+                                            @if (o.Status == "DISPUTE_OPENED")
+                                            {
+                                                <a class="ebay-dropdown-item" href="/orders/@o.Id">
+                                                    <i class="bi bi-exclamation-triangle me-2"></i>Respond to dispute
+                                                </a>
+                                            }
+                                            @if (o.Status == "REFUNDED" || o.Status == "PARTIALLY_REFUNDED")
+                                            {
+                                                <a class="ebay-dropdown-item" href="/orders/@o.Id">
+                                                    <i class="bi bi-receipt me-2"></i>View refund details
                                                 </a>
                                             }
                                         </div>
@@ -386,6 +430,18 @@
     }
     .dropdown-toggle-ebay {
         cursor: pointer;
+    }
+
+    /* GĐ5: Status badges */
+    .status-return {
+        background: #fff0f0 !important;
+        color: #e53238 !important;
+        border: 1px solid #e53238 !important;
+    }
+    .status-dispute {
+        background: #fff8e6 !important;
+        color: #f5a623 !important;
+        border: 1px solid #f5a623 !important;
     }
 </style>
 

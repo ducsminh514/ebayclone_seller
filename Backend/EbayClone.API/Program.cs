@@ -74,6 +74,7 @@ builder.Services.AddScoped<ICreateTestOrderUseCase, CreateTestOrderUseCase>();
 builder.Services.AddScoped<IReleaseFundsUseCase, ReleaseFundsUseCase>();
 builder.Services.AddScoped<IOpenReturnUseCase, OpenReturnUseCase>();
 builder.Services.AddScoped<IRespondReturnUseCase, RespondReturnUseCase>();
+builder.Services.AddScoped<IRespondPartialOfferUseCase, RespondPartialOfferUseCase>();
 builder.Services.AddScoped<IIssueRefundUseCase, IssueRefundUseCase>();
 builder.Services.AddScoped<IOpenDisputeUseCase, OpenDisputeUseCase>();
 builder.Services.AddScoped<IRespondDisputeUseCase, RespondDisputeUseCase>();

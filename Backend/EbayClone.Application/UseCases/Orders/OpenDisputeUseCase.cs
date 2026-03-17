@@ -71,10 +71,24 @@ namespace EbayClone.Application.UseCases.Orders
                 // Order → DISPUTE_OPENED
                 order.MarkAsDisputeOpened();
 
-                // [Tài chính] Freeze PendingBalance — seller không thể rút
-                // (Không deduct, chỉ đánh dấu — ví đã pending sẵn)
+                // [Tài chính] Hold tiền đơn này — chuyển từ Pending/Available → OnHold
+                // Seller không thể rút tiền đơn này cho đến khi dispute resolve
+                var wallet = await _walletRepository.GetByShopIdAsync(order.ShopId, cancellationToken);
+                if (wallet != null)
+                {
+                    wallet.HoldForDispute(order.TotalAmount);
+                    _walletRepository.Update(wallet);
 
-                await _disputeRepository.AddAsync(dispute, cancellationToken);
+                    await _disputeRepository.AddAsync(dispute, cancellationToken);
+
+                    // Không cần WalletTransaction cho hold (chỉ chuyển nội bộ giữa các balance)
+                    // Khi resolve sẽ ghi transaction REFUND hoặc ESCROW_RELEASE
+                }
+                else
+                {
+                    await _disputeRepository.AddAsync(dispute, cancellationToken);
+                }
+
                 _orderRepository.Update(order);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);

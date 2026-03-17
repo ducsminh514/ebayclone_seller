@@ -4,6 +4,7 @@ using EbayClone.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EbayClone.Infrastructure.Migrations
 {
     [DbContext(typeof(EbayDbContext))]
-    partial class EbayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260316165431_AddOnHoldAndEscrowHold")]
+    partial class AddOnHoldAndEscrowHold
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -473,9 +476,6 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal?>("PartialOfferAmount")
-                        .HasColumnType("decimal(18, 2)");
 
                     b.Property<string>("PhotoUrls")
                         .HasColumnType("nvarchar(max)");

@@ -166,7 +166,7 @@ namespace EbayClone.Application.UseCases.Orders
                         ReferenceId = newOrder.Id,
                         ReferenceType = "ORDER",
                         Description = $"Tạm giữ {newOrder.TotalAmount:N0} đ (Escrow) từ đơn hàng #{newOrder.OrderNumber}",
-                        BalanceAfter = wallet.PendingBalance
+                        BalanceAfter = wallet.TotalBalance
                     }, cancellationToken);
                 }
 

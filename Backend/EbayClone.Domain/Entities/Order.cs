@@ -133,8 +133,8 @@ namespace EbayClone.Domain.Entities
 
         public void MarkAsCompleted()
         {
-            if (Status != "DELIVERED")
-                throw new InvalidOperationException("Chỉ đơn hàng đã giao (DELIVERED) mới có thể đánh dấu hoàn tất.");
+            if (Status != "DELIVERED" && Status != "DISPUTE_OPENED")
+                throw new InvalidOperationException("Chỉ đơn hàng DELIVERED hoặc DISPUTE_OPENED mới có thể đánh dấu hoàn tất.");
             
             Status = "COMPLETED";
             CompletedAt = DateTimeOffset.UtcNow;
@@ -173,8 +173,8 @@ namespace EbayClone.Domain.Entities
         // --- DISPUTE FLOW ---
         public void MarkAsDisputeOpened()
         {
-            if (Status != "DELIVERED")
-                throw new InvalidOperationException("Chỉ đơn hàng đã giao (DELIVERED) mới có thể mở tranh chấp.");
+            if (Status != "DELIVERED" && Status != "RETURN_REQUESTED")
+                throw new InvalidOperationException("Chỉ đơn hàng DELIVERED hoặc RETURN_REQUESTED mới có thể mở tranh chấp.");
             Status = "DISPUTE_OPENED";
         }
     }

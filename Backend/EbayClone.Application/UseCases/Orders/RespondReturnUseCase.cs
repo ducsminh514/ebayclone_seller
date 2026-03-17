@@ -77,21 +77,14 @@ namespace EbayClone.Application.UseCases.Orders
                         break;
 
                     case "PARTIAL_REFUND":
-                        // Seller offer partial → cần buyer accept (mock: auto-accept)
+                        // Seller offer partial → chờ buyer accept/reject (KHÔNG auto-refund)
                         if (!request.PartialRefundAmount.HasValue || request.PartialRefundAmount.Value <= 0)
                             throw new ArgumentException("Số tiền hoàn 1 phần phải > 0.");
                         if (request.PartialRefundAmount.Value > order.TotalAmount)
                             throw new ArgumentException("Số tiền hoàn không được vượt quá tổng đơn hàng.");
 
-                        var deduction = order.TotalAmount - request.PartialRefundAmount.Value;
-                        returnEntity.AcceptReturn("PARTIAL_REFUND", request.SellerMessage);
-                        returnEntity.MarkRefunded(request.PartialRefundAmount.Value, deduction);
-                        order.MarkAsPartiallyRefunded();
-
-                        // Hoàn partial vào ví
-                        await DeductPendingAsync(shopId, order, 
-                            $"Hoàn tiền 1 phần {request.PartialRefundAmount.Value:N0} đ", 
-                            cancellationToken, request.PartialRefundAmount.Value);
+                        returnEntity.OfferPartialRefund(request.PartialRefundAmount.Value, request.SellerMessage);
+                        // Order giữ nguyên status — chờ buyer respond
                         break;
 
                     case "DECLINE":
@@ -126,8 +119,14 @@ namespace EbayClone.Application.UseCases.Orders
             if (wallet != null)
             {
                 var amount = customAmount ?? order.TotalAmount;
-                wallet.DeductPending(amount);
+                var (fromOnHold, fromPending, fromAvailable) = wallet.ProcessRefund(amount);
                 _walletRepository.Update(wallet);
+
+                var sources = new System.Collections.Generic.List<string>();
+                if (fromOnHold > 0) sources.Add($"Hold: -{fromOnHold:N0}");
+                if (fromPending > 0) sources.Add($"Pending: -{fromPending:N0}");
+                if (fromAvailable > 0) sources.Add($"Available: -{fromAvailable:N0}");
+                var balanceNote = sources.Count > 0 ? $" ({string.Join(", ", sources)})" : "";
 
                 await _txRepository.AddAsync(new Domain.Entities.WalletTransaction
                 {
@@ -136,8 +135,8 @@ namespace EbayClone.Application.UseCases.Orders
                     Type = "REFUND",
                     ReferenceId = order.Id,
                     ReferenceType = "ORDER_RETURN",
-                    Description = $"{desc} — Đơn #{order.OrderNumber}",
-                    BalanceAfter = wallet.PendingBalance
+                    Description = $"{desc} — Đơn #{order.OrderNumber}{balanceNote}",
+                    BalanceAfter = wallet.PendingBalance + wallet.AvailableBalance + wallet.OnHoldBalance
                 }, ct);
             }
         }

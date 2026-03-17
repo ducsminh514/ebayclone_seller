@@ -18,9 +18,10 @@ namespace EbayClone.Domain.Entities
         public string? PhotoUrls { get; set; }                  // JSON array
 
         // Seller Response
-        // Status: REQUESTED → ACCEPTED/DECLINED → IN_PROGRESS → REFUNDED/PARTIALLY_REFUNDED/CLOSED
+        // Status: REQUESTED → ACCEPTED/PARTIAL_OFFERED/DECLINED → IN_PROGRESS → REFUNDED/PARTIALLY_REFUNDED/CLOSED
         public string Status { get; private set; } = "REQUESTED";
         public string? SellerResponseType { get; private set; }         // "ACCEPT_RETURN", "PARTIAL_REFUND", "FULL_REFUND_KEEP_ITEM", "DECLINE"
+        public decimal? PartialOfferAmount { get; private set; }         // Số tiền seller offer (khi PARTIAL_OFFERED)
         public string? SellerMessage { get; set; }
 
         // Refund
@@ -71,6 +72,53 @@ namespace EbayClone.Domain.Entities
             SellerResponseType = responseType; // "ACCEPT_RETURN", "FULL_REFUND_KEEP_ITEM"
             SellerMessage = message;
             RespondedAt = DateTimeOffset.UtcNow;
+        }
+
+        /// <summary>
+        /// Seller offer partial refund → chờ buyer accept/reject.
+        /// Chưa trừ tiền — chỉ khi buyer ACCEPT mới thực hiện refund.
+        /// </summary>
+        public void OfferPartialRefund(decimal amount, string? message = null)
+        {
+            if (Status != "REQUESTED")
+                throw new InvalidOperationException("Chỉ return REQUESTED mới được offer.");
+            if (amount <= 0)
+                throw new ArgumentException("Số tiền offer phải > 0.");
+            
+            Status = "PARTIAL_OFFERED";
+            SellerResponseType = "PARTIAL_REFUND";
+            PartialOfferAmount = amount;
+            SellerMessage = message;
+            RespondedAt = DateTimeOffset.UtcNow;
+        }
+
+        /// <summary>
+        /// Buyer accept partial offer → thực hiện refund.
+        /// </summary>
+        public void AcceptPartialOffer()
+        {
+            if (Status != "PARTIAL_OFFERED")
+                throw new InvalidOperationException("Chỉ PARTIAL_OFFERED mới được buyer accept.");
+            if (!PartialOfferAmount.HasValue || PartialOfferAmount.Value <= 0)
+                throw new InvalidOperationException("Không có offer amount.");
+            
+            // Chuyển sang ACCEPTED để MarkRefunded() cho phép tiếp tục
+            Status = "ACCEPTED";
+        }
+
+        /// <summary>
+        /// Buyer reject partial offer → quay lại REQUESTED (seller có thể offer lại hoặc buyer escalate).
+        /// </summary>
+        public void RejectPartialOffer()
+        {
+            if (Status != "PARTIAL_OFFERED")
+                throw new InvalidOperationException("Chỉ PARTIAL_OFFERED mới được buyer reject.");
+            
+            Status = "REQUESTED";
+            PartialOfferAmount = null;
+            SellerResponseType = null;
+            SellerMessage = null;
+            RespondedAt = null;
         }
 
         public void DeclineReturn(string? message = null)
