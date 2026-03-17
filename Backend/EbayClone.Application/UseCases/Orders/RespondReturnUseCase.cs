@@ -135,6 +135,7 @@ namespace EbayClone.Application.UseCases.Orders
                     Type = "REFUND",
                     ReferenceId = order.Id,
                     ReferenceType = "ORDER_RETURN",
+                    OrderNumber = order.OrderNumber,
                     Description = $"{desc} — Đơn #{order.OrderNumber}{balanceNote}",
                     BalanceAfter = wallet.PendingBalance + wallet.AvailableBalance + wallet.OnHoldBalance
                 }, ct);

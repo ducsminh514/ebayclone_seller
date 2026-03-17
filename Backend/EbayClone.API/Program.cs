@@ -76,6 +76,7 @@ builder.Services.AddScoped<IOpenReturnUseCase, OpenReturnUseCase>();
 builder.Services.AddScoped<IRespondReturnUseCase, RespondReturnUseCase>();
 builder.Services.AddScoped<IRespondPartialOfferUseCase, RespondPartialOfferUseCase>();
 builder.Services.AddScoped<IIssueRefundUseCase, IssueRefundUseCase>();
+builder.Services.AddScoped<IConfirmItemReceivedUseCase, ConfirmItemReceivedUseCase>();
 builder.Services.AddScoped<IOpenDisputeUseCase, OpenDisputeUseCase>();
 builder.Services.AddScoped<IRespondDisputeUseCase, RespondDisputeUseCase>();
 builder.Services.AddScoped<IResolveDisputeUseCase, ResolveDisputeUseCase>();
@@ -84,8 +85,9 @@ builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
 builder.Services.AddScoped<IGetDashboardStatsUseCase, GetDashboardStatsUseCase>();
 
-// Background Service: tự động kích hoạt sản phẩm SCHEDULED → ACTIVE khi đến giờ
+// Background Services: tự động kích hoạt Listing SCHEDULED và giải ngân Escrow
 builder.Services.AddHostedService<EbayClone.API.BackgroundServices.ScheduledListingActivatorService>();
+builder.Services.AddHostedService<EbayClone.API.BackgroundServices.FundReleaseHostedService>();
 builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
 builder.Services.AddScoped<IGetSellerFinanceUseCase, GetSellerFinanceUseCase>();
 

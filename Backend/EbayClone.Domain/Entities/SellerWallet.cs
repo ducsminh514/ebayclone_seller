@@ -69,6 +69,7 @@ namespace EbayClone.Domain.Entities
 
         /// <summary>
         /// [Phase 3] Khi dispute resolve seller win → release hold về Available.
+        /// ⚠️ Internal use only — prefer ProcessReleaseFromHold() để tránh dùng sai.
         /// </summary>
         public void ReleaseHold(decimal amount)
         {
@@ -80,41 +81,69 @@ namespace EbayClone.Domain.Entities
         }
 
         /// <summary>
-        /// [Resilient] Giải ngân escrow: trừ Pending/OnHold → cộng Available (trừ phí sàn).
-        /// Fallback: nếu Pending thiếu → trừ OnHold → vẫn thiếu → cho âm.
-        /// Thay thế ReleaseEscrow() cũ — không crash.
+        /// [Dispute SELLER_WIN] Giải ngân từ OnHold → Available (sau phí sàn).
+        /// Dùng khi tiền đang ở OnHold (do HoldForDispute trước đó).
+        ///
+        /// Safe: Nếu OnHold < totalDebit (mismatch data), chỉ giải ngân phần có sẵn.
+        /// Returns: (actualDebit, actualCredit) — số tiền thực giải ngân được.
         /// </summary>
-        public void ProcessRelease(decimal totalDebit, decimal availableCredit)
+        public (decimal actualDebit, decimal actualCredit) ProcessReleaseFromHold(decimal totalDebit, decimal availableCredit)
+        {
+            if (totalDebit <= 0 || availableCredit <= 0) throw new ArgumentException("Amounts must be positive.");
+            if (availableCredit > totalDebit) throw new ArgumentException("Credit cannot exceed debit.");
+
+            decimal feeRate  = 1m - (availableCredit / totalDebit);
+            decimal actualDebit = Math.Min(totalDebit, OnHoldBalance);
+
+            if (actualDebit <= 0)
+                return (0, 0); // OnHold cạn — không làm gì
+
+            OnHoldBalance  -= actualDebit;
+            decimal actualCredit = Math.Round(actualDebit * (1m - feeRate), 0);
+            AvailableBalance += actualCredit;
+            UpdatedAt = DateTimeOffset.UtcNow;
+
+            return (actualDebit, actualCredit);
+        }
+
+        /// <summary>
+        /// [Resilient] Giải ngân escrow: trừ Pending → cộng Available (sau phí sàn).
+        ///
+        /// SAFE DESIGN: Nếu Pending không đủ (do data drift: cancel + release chạy cùng lúc),
+        /// chỉ giải ngân phần Pending có sẵn → KHÔNG BAO GIỜ trừ Available.
+        /// Tránh ví âm do double-accounting.
+        ///
+        /// Returns: (actualDebit, actualCredit) — số thực tế giải ngân được.
+        /// Caller dùng để log đúng số tiền thực.
+        /// </summary>
+        public (decimal actualDebit, decimal actualCredit) ProcessRelease(decimal totalDebit, decimal availableCredit)
         {
             if (totalDebit <= 0 || availableCredit <= 0) throw new ArgumentException("Amounts must be positive.");
             if (availableCredit > totalDebit) throw new ArgumentException("Credit cannot exceed debit (phí sàn không thể âm).");
 
-            decimal remaining = totalDebit;
+            decimal feeRate = 1m - (availableCredit / totalDebit); // tỉ lệ phí (ví dụ 0.05)
 
-            // 1. Trừ Pending trước
-            if (remaining > 0 && PendingBalance > 0)
+            // Chỉ giải ngân phần Pending thực tế có (không trừ Available)
+            decimal actualDebit = Math.Min(totalDebit, PendingBalance);
+
+            if (actualDebit <= 0)
             {
-                var deduct = Math.Min(remaining, PendingBalance);
-                PendingBalance -= deduct;
-                remaining -= deduct;
-            }
-            // 2. Nếu thiếu → trừ OnHold
-            if (remaining > 0 && OnHoldBalance > 0)
-            {
-                var deduct = Math.Min(remaining, OnHoldBalance);
-                OnHoldBalance -= deduct;
-                remaining -= deduct;
-            }
-            // 3. Vẫn thiếu → cho PendingBalance âm (ghi nợ — edge case)
-            if (remaining > 0)
-            {
-                PendingBalance -= remaining;
+                // Pending = 0 → không có gì để giải ngân (đơn này đã bị refund rồi)
+                // Bỏ qua, không làm gì
+                return (0, 0);
             }
 
-            // Cộng profit vào Available
-            AvailableBalance += availableCredit;
+            PendingBalance -= actualDebit;
+
+            // Tính lại profit theo tỉ lệ phí (giữ đúng fee rate dù giải ngân partial)
+            decimal actualCredit = Math.Round(actualDebit * (1m - feeRate), 0);
+
+            AvailableBalance += actualCredit;
             UpdatedAt = DateTimeOffset.UtcNow;
+
+            return (actualDebit, actualCredit);
         }
+
 
         /// <summary>
         /// [Legacy] Giải ngân escrow strict — THROWS nếu Pending thiếu.

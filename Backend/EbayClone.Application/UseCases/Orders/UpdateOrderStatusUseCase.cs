@@ -98,6 +98,7 @@ namespace EbayClone.Application.UseCases.Orders
                                 Type = "ORDER_INCOME",
                                 ReferenceId = order.Id,
                                 ReferenceType = "ORDER",
+                                OrderNumber = order.OrderNumber,
                                 Description = $"Tạm giữ {order.TotalAmount:N0} đ (Escrow) từ đơn hàng #{order.OrderNumber}",
                                 BalanceAfter = walletPaid.TotalBalance
                             }, cancellationToken);
@@ -179,6 +180,7 @@ namespace EbayClone.Application.UseCases.Orders
                                     Type = "REFUND",
                                     ReferenceId = order.Id,
                                     ReferenceType = "ORDER",
+                                    OrderNumber = order.OrderNumber,
                                     Description = $"Hoàn tiền tạm giữ {order.TotalAmount:N0} đ cho Buyer (Hủy đơn #{order.OrderNumber}){balanceNote}",
                                     BalanceAfter = walletRefund.PendingBalance + walletRefund.AvailableBalance + walletRefund.OnHoldBalance
                                 }, cancellationToken);

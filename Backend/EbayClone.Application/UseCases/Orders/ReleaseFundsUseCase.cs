@@ -47,27 +47,50 @@ namespace EbayClone.Application.UseCases.Orders
                     {
                         decimal totalDebit = order.TotalAmount;
                         decimal profit = order.TotalAmount - order.PlatformFee;
-                        
+
                         // Chuyển từ Pending sang Available, khấu trừ Platform Fee
-                        wallet.ProcessRelease(totalDebit, profit);
+                        // ProcessRelease trả về giá trị thực tế — nếu (0,0) tức là Pending đã cạn
+                        // (đơn bị refund/cancel trong khi đang chờ release)
+                        var (actualDebit, actualCredit) = wallet.ProcessRelease(totalDebit, profit);
                         _walletRepository.Update(wallet);
 
-                        // Ghi log giải ngân
-                        await _walletTransactionRepository.AddAsync(new WalletTransaction
+                        if (actualDebit > 0)
                         {
-                            ShopId = order.ShopId,
-                            Amount = profit,
-                            Type = "ESCROW_RELEASE",
-                            ReferenceId = order.Id,
-                            ReferenceType = "ORDER",
-                            Description = $"Giải ngân đơn hàng #{order.OrderNumber}. Thực nhận: {profit:N0} đ (Phí sàn: {order.PlatformFee:N0} đ)",
-                            BalanceAfter = wallet.TotalBalance
-                        }, cancellationToken);
+                            // Log 1: Phí sàn trừ trước
+                            decimal actualFee = actualDebit - actualCredit;
+                            await _walletTransactionRepository.AddAsync(new WalletTransaction
+                            {
+                                ShopId = order.ShopId,
+                                Amount = -actualFee,
+                                Type = "PLATFORM_FEE",
+                                ReferenceId = order.Id,
+                                ReferenceType = "ORDER",
+                                OrderNumber = order.OrderNumber,
+                                Description = $"Phí sàn 5% — Đơn hàng #{order.OrderNumber} (thực thu: {actualFee:N0} đ)",
+                                BalanceAfter = wallet.TotalBalance
+                            }, cancellationToken);
 
-                        // Cập nhật trạng thái đơn hàng thành COMPLETED để tránh giải ngân lặp lại
-                        order.MarkAsCompleted();
-                        _orderRepository.Update(order);
+                            // Log 2: Giải ngân sau phí
+                            await _walletTransactionRepository.AddAsync(new WalletTransaction
+                            {
+                                ShopId = order.ShopId,
+                                Amount = actualCredit,
+                                Type = "ESCROW_RELEASE",
+                                ReferenceId = order.Id,
+                                ReferenceType = "ORDER",
+                                OrderNumber = order.OrderNumber,
+                                Description = $"Giải ngân đơn hàng #{order.OrderNumber}. Thực nhận: {actualCredit:N0} đ (phí sàn: {actualFee:N0} đ)",
+                                BalanceAfter = wallet.TotalBalance
+                            }, cancellationToken);
+                        }
+                        // actualDebit = 0: đơn đã bị refund trước khi release → không log
+                        // (Pending đã được xử lý qua ProcessRefund rồi, không cần làm gì thêm)
                     }
+
+                    // LUÔN đánh dấu IsEscrowReleased=true để FundRelease không chạy lại
+                    // kể cả khi actualDebit=0 (đơn đã refund)
+                    order.MarkAsCompleted();
+                    _orderRepository.Update(order);
 
                     await _unitOfWork.SaveChangesAsync(cancellationToken);
                     await _unitOfWork.CommitTransactionAsync(cancellationToken);

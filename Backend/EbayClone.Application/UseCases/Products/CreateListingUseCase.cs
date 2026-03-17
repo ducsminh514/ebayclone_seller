@@ -21,17 +21,20 @@ namespace EbayClone.Application.UseCases.Products
         private readonly IProductRepository _productRepository;
         private readonly IShopRepository _shopRepository;
         private readonly IPolicyRepository _policyRepository;
+        private readonly ICategoryRepository _categoryRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateListingUseCase(
             IProductRepository productRepository,
             IShopRepository shopRepository,
             IPolicyRepository policyRepository,
+            ICategoryRepository categoryRepository,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
             _shopRepository = shopRepository;
             _policyRepository = policyRepository;
+            _categoryRepository = categoryRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -44,6 +47,14 @@ namespace EbayClone.Application.UseCases.Products
             // [C1] Validate Subtitle length (max 80 ký tự — eBay charge phí phụ cho subtitle)
             if (!string.IsNullOrEmpty(request.Subtitle) && request.Subtitle.Length > 80)
                 throw new ArgumentException("Phụ đề (Subtitle) không được vượt quá 80 ký tự.");
+
+            // [CRITICAL-1] Validate PrimaryImageUrl là bắt buộc (eBay không cho đăng không ảnh)
+            if (string.IsNullOrWhiteSpace(request.PrimaryImageUrl))
+                throw new ArgumentException("Ảnh bìa (Primary Image) là bắt buộc. Vui lòng upload ít nhất 1 ảnh sản phẩm.");
+
+            // [WARNING-4] Validate ImageUrls max 5 ảnh phụ
+            if (request.ImageUrls != null && request.ImageUrls.Count > 5)
+                throw new ArgumentException("Chỉ được upload tối đa 5 ảnh phụ.");
 
             // [C2] Validate Condition whitelist (chuẩn eBay 2024)
             var validConditions = new[] { "New", "New Other", "Open Box", "Seller Refurbished", "Used", "For Parts" };
@@ -93,29 +104,36 @@ namespace EbayClone.Application.UseCases.Products
                 throw new ArgumentException($"SkuCode bị trùng trong cùng listing: {string.Join(", ", duplicateSkus)}. Mỗi biến thể phải có SKU riêng biệt.");
 
             // [FIX-2] Validate duplicate attribute keys per variant
+            // [WARNING-3] Validate variant Attributes không được empty
             foreach (var vReq in request.Variants)
             {
-                if (vReq.Attributes != null)
-                {
-                    var duplicateKeys = vReq.Attributes.Keys
-                        .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
-                        .Where(g => g.Count() > 1)
-                        .Select(g => g.Key)
-                        .ToList();
-                    if (duplicateKeys.Any())
-                        throw new ArgumentException($"Biến thể {vReq.SkuCode} có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
-                }
+                if (vReq.Attributes == null || !vReq.Attributes.Any())
+                    throw new ArgumentException($"Biến thể '{vReq.SkuCode}' phải có ít nhất 1 thuộc tính (VD: Color - Red, Size - M).");
+
+                var duplicateKeys = vReq.Attributes.Keys
+                    .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
+                if (duplicateKeys.Any())
+                    throw new ArgumentException($"Biến thể '{vReq.SkuCode}' có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
             }
 
-            // Kiểm tra giới hạn đăng bài hàng tháng (MonthlyListingLimit)
+            // [CRITICAL-2] Validate CategoryId tồn tại trong DB
+            var category = await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken);
+            if (category == null)
+                throw new ArgumentException($"Danh mục với Id '{request.CategoryId}' không tồn tại.");
+
+            // [WARNING-5] Validate Shop tồn tại — không skip MonthlyListingLimit nếu shop không tìm thấy
             var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
-            if (shop != null)
-            {
-                var countThisMonth = await _productRepository.CountProductsThisMonthAsync(shopId, cancellationToken);
-                if (countThisMonth >= shop.MonthlyListingLimit)
-                    throw new InvalidOperationException(
-                        $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
-            }
+            if (shop == null)
+                throw new UnauthorizedAccessException("Shop không tồn tại hoặc token không hợp lệ.");
+
+            // Kiểm tra giới hạn đăng bài hàng tháng (MonthlyListingLimit)
+            var countThisMonth = await _productRepository.CountProductsThisMonthAsync(shopId, cancellationToken);
+            if (countThisMonth >= shop.MonthlyListingLimit)
+                throw new InvalidOperationException(
+                    $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
 
             // Fallback to defaults if not provided
             var shippingPolicyId = request.ShippingPolicyId;

@@ -59,7 +59,7 @@ namespace EbayClone.Domain.Entities
             {
                 SellerLevels.NEW => 21,
                 SellerLevels.BELOW_STANDARD => 14,
-                SellerLevels.ABOVE_STANDARD => 2,
+                SellerLevels.ABOVE_STANDARD => 3,
                 SellerLevels.TOP_RATED => 0,
                 _ => 7
             };

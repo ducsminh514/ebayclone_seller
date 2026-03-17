@@ -189,7 +189,7 @@
 
             @* Ảnh bìa *@
             <div class="mb-4">
-                <label class="form-label fw-bold">Ảnh Bìa (Primary Image) *</label>
+                <label class="form-label fw-bold">Ảnh Bìa (Primary Image) <span class="text-danger">*</span></label>
                 <div class="upload-area @(isDraggingPrimary ? "dragging" : "")"
                      style="border: 2px dashed var(--border-color); border-radius: 10px; padding: 20px; text-align: center; background: #fafafa; position: relative; cursor: pointer;"
                      @ondragover:preventDefault @ondragover="() => isDraggingPrimary = true"
@@ -555,7 +555,9 @@
     private void OnScheduledAtChanged(ChangeEventArgs e)
     {
         if (DateTime.TryParse(e.Value?.ToString(), out var dt))
-            request.ScheduledAt = new DateTimeOffset(dt, TimeSpan.FromHours(7)); // UTC+7
+            // Dùng Local timezone của máy client thay vì hardcode UTC+7
+            // DateTimeOffset.Local sẽ tự lấy timezone của hệ điều hành người dùng
+            request.ScheduledAt = new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Local));
         else
             request.ScheduledAt = null;
     }

@@ -22,17 +22,20 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IOrderRepository _orderRepository;
         private readonly IOrderDisputeRepository _disputeRepository;
         private readonly ISellerWalletRepository _walletRepository;
+        private readonly IWalletTransactionRepository _walletTransactionRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public OpenDisputeUseCase(
             IOrderRepository orderRepository,
             IOrderDisputeRepository disputeRepository,
             ISellerWalletRepository walletRepository,
+            IWalletTransactionRepository walletTransactionRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _disputeRepository = disputeRepository;
             _walletRepository = walletRepository;
+            _walletTransactionRepository = walletTransactionRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -81,8 +84,20 @@ namespace EbayClone.Application.UseCases.Orders
 
                     await _disputeRepository.AddAsync(dispute, cancellationToken);
 
-                    // Không cần WalletTransaction cho hold (chỉ chuyển nội bộ giữa các balance)
-                    // Khi resolve sẽ ghi transaction REFUND hoặc ESCROW_RELEASE
+                    // Ghi WalletTransaction DISPUTE_HOLD
+                    // Amount = -TotalAmount: tiền vẫn trong ví (chuyển sang OnHold),
+                    // âm để mô tả "tiền rời khỏi lưu thông". BalanceAfter = TotalBalance (không đổi).
+                    await _walletTransactionRepository.AddAsync(new WalletTransaction
+                    {
+                        ShopId = order.ShopId,
+                        Amount = -order.TotalAmount,
+                        Type = "DISPUTE_HOLD",
+                        ReferenceId = order.Id,
+                        ReferenceType = "ORDER_DISPUTE",
+                        OrderNumber = order.OrderNumber,
+                        Description = $"Tạm giữ {order.TotalAmount:N0} đ sang OnHold cho dispute — Đơn #{order.OrderNumber} (tiền không mất, chỉ lock)",
+                        BalanceAfter = wallet.TotalBalance
+                    }, cancellationToken);
                 }
                 else
                 {

@@ -33,6 +33,7 @@ builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<FileUploadService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SellerService>();
+builder.Services.AddScoped<WalletService>();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddMudServices();
 

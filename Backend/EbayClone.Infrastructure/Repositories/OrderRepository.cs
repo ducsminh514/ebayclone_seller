@@ -114,17 +114,29 @@ namespace EbayClone.Infrastructure.Repositories
                     && o.CreatedAt >= cutoffDate)
                 .SumAsync(o => o.TotalAmount, cancellationToken);
         }
-        // eBay Policy: Release after 3-7 days post-delivery.
-        // TODO: Dùng config/appsettings cho production. Demo = 1 phút.
-        private const int FUND_RELEASE_DELAY_MINUTES = 1;
-        
+        /// <summary>
+        /// Lấy các đơn DELIVERED đủ điều kiện giải ngân dựa theo Shop.SellerLevel.
+        /// Hold period: NEW=21 ngày, BELOW_STANDARD=14, ABOVE_STANDARD=3, TOP_RATED=0.
+        /// </summary>
         public async Task<IEnumerable<Order>> GetOrdersEligibleForFundReleaseAsync(CancellationToken cancellationToken = default)
         {
-            var cutoff = DateTimeOffset.UtcNow.AddMinutes(-FUND_RELEASE_DELAY_MINUTES); 
-            
-            return await _context.Orders
-                .Where(o => o.Status == "DELIVERED" && o.DeliveredAt <= cutoff && !o.IsEscrowReleased) 
+            var now = DateTimeOffset.UtcNow;
+
+            // Load DELIVERED + !IsEscrowReleased, kèm Shop để tính GetHoldDays()
+            var candidates = await _context.Orders
+                .Include(o => o.Shop)
+                .Where(o => o.Status == "DELIVERED" && !o.IsEscrowReleased && o.DeliveredAt.HasValue)
                 .ToListAsync(cancellationToken);
+
+            // Filter theo hold period của từng seller level (in-memory sau khi đã load)
+            return candidates.Where(o =>
+            {
+                if (o.Shop == null) return false;
+                int holdDays = o.Shop.GetHoldDays();
+                // TOP_RATED = 0 ngày → release ngay khi DeliveredAt <= now
+                var releaseAt = o.DeliveredAt!.Value.AddDays(holdDays);
+                return now >= releaseAt;
+            });
         }
     }
 }

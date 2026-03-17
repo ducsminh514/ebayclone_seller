@@ -442,5 +442,28 @@ namespace EbayClone.API.Controllers
             catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
             catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
         }
+
+        /// <summary>
+        /// GD5A Buớc 3 (ACCEPT_RETURN path): Seller xác nhận đã nhận lại hàng từ buyer.
+        /// → Trigger hoàn tiền đầy đủ + ghi WalletTransaction REFUND.
+        /// </summary>
+        [HttpPut("returns/{returnId}/confirm-received")]
+        public async Task<IActionResult> ConfirmItemReceived(
+            Guid returnId,
+            [FromServices] IConfirmItemReceivedUseCase confirmUseCase)
+        {
+            var shopId = GetShopId();
+            if (!shopId.HasValue)
+                return StatusCode(403, new { Error = "Account not authorized. HasShop claim missing." });
+
+            try
+            {
+                await confirmUseCase.ExecuteAsync(shopId.Value, returnId);
+                return Ok(new { Message = "Xác nhận nhận hàng thành công. Tiền đã được hoàn cho buyer." });
+            }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+            catch (ArgumentException ex) { return BadRequest(new { Error = ex.Message }); }
+        }
     }
 }

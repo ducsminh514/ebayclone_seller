@@ -78,6 +78,7 @@ namespace EbayClone.Application.UseCases.Orders
                                 Type = "REFUND",
                                 ReferenceId = order.Id,
                                 ReferenceType = "ORDER_DISPUTE",
+                                OrderNumber = order.OrderNumber,
                                 Description = $"Hoàn tiền dispute (Buyer win) — Đơn #{order.OrderNumber}. Defect +1.{balanceNote}",
                                 BalanceAfter = walletRefund.PendingBalance + walletRefund.AvailableBalance + walletRefund.OnHoldBalance
                             }, cancellationToken);
@@ -87,24 +88,46 @@ namespace EbayClone.Application.UseCases.Orders
                     case "SELLER_WIN":
                         dispute.ResolveSellerWin(); // IsDefect = false
                         
-                        // Release funds → COMPLETED
+                        // Release funds từ OnHold → Available (tiền đang lock ở OnHold do HoldForDispute)
+                        // KHÔNG dùng ProcessRelease (từ Pending) — sẽ sai nguồn tiền
                         var walletRelease = await _walletRepository.GetByShopIdAsync(order.ShopId, cancellationToken);
                         if (walletRelease != null)
                         {
                             decimal profit = order.TotalAmount - order.PlatformFee;
-                            walletRelease.ProcessRelease(order.TotalAmount, profit);
+                            var (actualDebit, actualCredit) = walletRelease.ProcessReleaseFromHold(order.TotalAmount, profit);
                             _walletRepository.Update(walletRelease);
 
-                            await _txRepository.AddAsync(new WalletTransaction
+                            if (actualDebit > 0)
                             {
-                                ShopId = order.ShopId,
-                                Amount = profit,
-                                Type = "ESCROW_RELEASE",
-                                ReferenceId = order.Id,
-                                ReferenceType = "ORDER_DISPUTE",
-                                Description = $"Giải ngân dispute (Seller win) — Đơn #{order.OrderNumber}. Thực nhận: {profit:N0} đ.",
-                                BalanceAfter = walletRelease.TotalBalance
-                            }, cancellationToken);
+                                decimal actualFee = actualDebit - actualCredit;
+
+                                // Log 1: Phí sàn
+                                await _txRepository.AddAsync(new WalletTransaction
+                                {
+                                    ShopId = order.ShopId,
+                                    Amount = -actualFee,
+                                    Type = "PLATFORM_FEE",
+                                    ReferenceId = order.Id,
+                                    ReferenceType = "ORDER_DISPUTE",
+                                    OrderNumber = order.OrderNumber,
+                                    Description = $"Phí sàn 5% — Đơn #{order.OrderNumber} (Dispute Seller Win, thực thu: {actualFee:N0} đ)",
+                                    BalanceAfter = walletRelease.TotalBalance
+                                }, cancellationToken);
+
+                                // Log 2: Giải ngân
+                                await _txRepository.AddAsync(new WalletTransaction
+                                {
+                                    ShopId = order.ShopId,
+                                    Amount = actualCredit,
+                                    Type = "ESCROW_RELEASE",
+                                    ReferenceId = order.Id,
+                                    ReferenceType = "ORDER_DISPUTE",
+                                    OrderNumber = order.OrderNumber,
+                                    Description = $"Giải ngân dispute (Seller win) — Đơn #{order.OrderNumber}. Thực nhận: {actualCredit:N0} đ (phí: {actualFee:N0} đ).",
+                                    BalanceAfter = walletRelease.TotalBalance
+                                }, cancellationToken);
+                            }
+                            // actualDebit=0: OnHold cạn (edge case) — không log, tiền đã xử lý nơi khác
                         }
 
                         order.MarkAsCompleted();
