@@ -40,24 +40,49 @@ namespace EbayClone.Application.UseCases.Products
 
         public async Task<Guid> ExecuteAsync(Guid shopId, CreateListingRequest request, CancellationToken cancellationToken = default)
         {
-            // [C1] Validate Title length (3-255 ký tự — chuẩn eBay)
-            if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length < 3 || request.Name.Length > 255)
-                throw new ArgumentException("Tiêu đề sản phẩm (Title) phải từ 3 đến 255 ký tự.");
+            // [C1] Validate Title length (3-80 ký tự — chuẩn eBay Cassini, không phải 255)
+            if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length < 3 || request.Name.Length > 80)
+                throw new ArgumentException("Tiêu đề sản phẩm (Title) phải từ 3 đến 80 ký tự (chuẩn eBay).");
 
-            // [C1] Validate Subtitle length (max 80 ký tự — eBay charge phí phụ cho subtitle)
-            if (!string.IsNullOrEmpty(request.Subtitle) && request.Subtitle.Length > 80)
-                throw new ArgumentException("Phụ đề (Subtitle) không được vượt quá 80 ký tự.");
+            // [C1] Validate Subtitle length (max 55 ký tự — eBay charge phí $1.50-$3.00 cho subtitle)
+            if (!string.IsNullOrEmpty(request.Subtitle) && request.Subtitle.Length > 55)
+                throw new ArgumentException("Phụ đề (Subtitle) không được vượt quá 55 ký tự (chuẩn eBay).");
 
             // [CRITICAL-1] Validate PrimaryImageUrl là bắt buộc (eBay không cho đăng không ảnh)
             if (string.IsNullOrWhiteSpace(request.PrimaryImageUrl))
                 throw new ArgumentException("Ảnh bìa (Primary Image) là bắt buộc. Vui lòng upload ít nhất 1 ảnh sản phẩm.");
 
-            // [WARNING-4] Validate ImageUrls max 5 ảnh phụ
-            if (request.ImageUrls != null && request.ImageUrls.Count > 5)
-                throw new ArgumentException("Chỉ được upload tối đa 5 ảnh phụ.");
+            // [WARNING-4] Validate ImageUrls max 12 ảnh phụ
+            // eBay thực tế cho 24 ảnh miễn phí từ Nov 2022. Clone giới hạn 12 là trade-off hợp lý.
+            if (request.ImageUrls != null && request.ImageUrls.Count > 12)
+                throw new ArgumentException("Chỉ được upload tối đa 12 ảnh phụ.");
 
-            // [C2] Validate Condition whitelist (chuẩn eBay 2024)
-            var validConditions = new[] { "New", "New Other", "Open Box", "Seller Refurbished", "Used", "For Parts" };
+            // [C2] Validate Condition whitelist (chuẩn eBay 2024-2025)
+            // "New Other" đã bị deprecated từ 2024 — KHÔNG còn hợp lệ
+            // Pre-owned Excellent/Good/Fair được thêm từ Feb 2025 (clothing categories)
+            // "New with defects" đổi tên thành "New with imperfections" từ Feb 2025
+            var validConditions = new[]
+            {
+                // Nhóm New
+                "New",
+                "New with tags",
+                "New without tags",
+                "New with imperfections",   // đổi tên từ "New with defects" — Feb 2025
+                "Open Box",
+                // Nhóm Refurbished
+                "Certified Refurbished",
+                "Excellent Refurbished",
+                "Very Good Refurbished",
+                "Good Refurbished",
+                "Seller Refurbished",
+                // Nhóm Used / Pre-owned
+                "Used",
+                "Pre-owned - Excellent",    // mới Feb 2025 (clothing)
+                "Pre-owned - Good",         // mới Feb 2025 (clothing)
+                "Pre-owned - Fair",         // mới Feb 2025 (clothing)
+                // Nhóm khác
+                "For Parts or Not Working"
+            };
             if (!validConditions.Contains(request.Condition))
                 throw new ArgumentException($"Condition không hợp lệ. Giá trị cho phép: {string.Join(", ", validConditions)}");
 
@@ -118,6 +143,63 @@ namespace EbayClone.Application.UseCases.Products
                 if (duplicateKeys.Any())
                     throw new ArgumentException($"Biến thể '{vReq.SkuCode}' có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
             }
+
+            // [FIX-5] Validate DUPLICATE attribute combination (eBay rule: "Duplicate name-value combinations not permitted")
+            // VD: Variant A: {Color:Red, Size:M} + Variant B: {Color:Red, Size:M} → REJECTED
+            var combinationSet = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var vReq in request.Variants)
+            {
+                if (vReq.Attributes == null) continue;
+                // Tạo canonical key từ attribute combination (sort key để tránh order-sensitive false positive)
+                var comboKey = string.Join("|", vReq.Attributes
+                    .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(kv => $"{kv.Key.ToLower()}:{kv.Value.ToLower()}"));
+
+                if (!combinationSet.Add(comboKey))
+                    throw new ArgumentException(
+                        $"Biến thể '{vReq.SkuCode}' có combination thuộc tính trùng với biến thể khác ({comboKey.Replace("|", ", ")}). " +
+                        "eBay không cho phép 2 biến thể có cùng combination giá trị thuộc tính.");
+            }
+
+            // [FIX-6] Validate ATTRIBUTE KEY CONSISTENCY — tất cả variants phải dùng CÙNG BỘ attribute keys
+            // eBay yêu cầu variation matrix nhất quán (không được vừa có Color+Size, vừa chỉ có Color)
+            var firstVariantKeys = request.Variants[0].Attributes?.Keys
+                .Select(k => k.ToLower())
+                .OrderBy(k => k)
+                .ToList() ?? new System.Collections.Generic.List<string>();
+
+            for (int vi = 1; vi < request.Variants.Count; vi++)
+            {
+                var vReq = request.Variants[vi];
+                var thisKeys = vReq.Attributes?.Keys
+                    .Select(k => k.ToLower())
+                    .OrderBy(k => k)
+                    .ToList() ?? new System.Collections.Generic.List<string>();
+
+                if (!thisKeys.SequenceEqual(firstVariantKeys))
+                    throw new ArgumentException(
+                        $"Biến thể '{vReq.SkuCode}' dùng bộ thuộc tính [{string.Join(", ", thisKeys)}] " +
+                        $"khác với biến thể đầu tiên [{string.Join(", ", firstVariantKeys)}]. " +
+                        "Tất cả biến thể trong cùng listing phải có cùng bộ thuộc tính (VD: đều dùng Color + Size).");
+            }
+
+            // [FIX-7] Validate Variation attribute names KHÔNG ĐƯỢC TRÙNG với Item Specifics names
+            // eBay error: "Variations Specifics and Item Specifics entered for a Multi-SKU item should be different"
+            if (request.ItemSpecifics != null && request.ItemSpecifics.Any() && request.Variants.Count > 0)
+            {
+                var itemSpecificNames = request.ItemSpecifics
+                    .Select(s => s.Name.ToLower())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var variationAttrNames = firstVariantKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var conflictNames = variationAttrNames.Intersect(itemSpecificNames).ToList();
+                if (conflictNames.Any())
+                    throw new ArgumentException(
+                        $"Thuộc tính variation [{string.Join(", ", conflictNames)}] trùng tên với Item Specifics. " +
+                        "eBay yêu cầu Variation Attributes và Item Specifics phải có tên khác nhau hoàn toàn.");
+            }
+
 
             // [CRITICAL-2] Validate CategoryId tồn tại trong DB
             var category = await _categoryRepository.GetByIdAsync(request.CategoryId, cancellationToken);

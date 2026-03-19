@@ -1,4 +1,5 @@
 @page "/listings/create"
+@attribute [Authorize]
 @using EbayClone.Shared.DTOs.Products
 @using EbayClone.Shared.DTOs.Policies
 @using EbayClone.Frontend.Services
@@ -9,8 +10,23 @@
 @inject FileUploadService FileUploadService
 @inject NavigationManager NavigationManager
 
+
+
 <div class="container mt-4">
-    <h2>Tạo Sản Phẩm Mới</h2>
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <h2 class="mb-0">Create Listing</h2>
+        <a href="/listings/start" class="btn btn-sm btn-outline-secondary" style="border-radius: 20px;">
+            ← Start over
+        </a>
+    </div>
+    @if (!string.IsNullOrEmpty(selectedCategoryFullPath))
+    {
+        <div style="font-size: 13px; color: #555; margin-bottom: 4px;">
+            📂 Category: <strong>@selectedCategoryFullPath</strong>
+            <button type="button" class="btn btn-link btn-sm p-0 ms-2" style="font-size: 12px;"
+                    @onclick="GoToStartListingToChangeCategory">Change</button>
+        </div>
+    }
     <hr />
 
     @if (!string.IsNullOrEmpty(errorMessage))
@@ -27,39 +43,101 @@
         <div class="ebay-card">
             <h4 class="ebay-card-title">Thông tin cơ bản</h4>
             <div class="mb-3">
-                <label class="form-label">Tên Sản Phẩm *</label>
-                <InputText class="form-control ebay-input" @bind-Value="request.Name" />
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="form-label mb-0">Tẽn Sản Phẩm (Title) <span class="text-danger">*</span></label>
+                    <span class="text-muted" style="font-size: 12px;"
+                          title="eBay cho phép tối đa 80 ký tự">
+                        <span class="@(request.Name.Length > 70 ? (request.Name.Length >= 80 ? "text-danger fw-bold" : "text-warning fw-bold") : "")">@request.Name.Length</span>/80
+                    </span>
+                </div>
+                <InputText class="form-control ebay-input" @bind-Value="request.Name" maxlength="80"
+                           placeholder="Viết tiêu đề rõ ràng, 75-80 ký tự để SEO tốt nhất" />
+                <ValidationMessage For="() => request.Name" />
             </div>
             <div class="mb-3">
-                <label class="form-label">Thương hiệu</label>
-                <InputText class="form-control ebay-input" @bind-Value="request.Brand" />
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="form-label mb-0">Phụ đề (Subtitle) <span class="text-muted" style="font-size: 12px;">— Tùy chọn, có phí đăng thêm</span></label>
+                    <span class="text-muted" style="font-size: 12px;">
+                        <span class="@((request.Subtitle?.Length ?? 0) > 45 ? ((request.Subtitle?.Length ?? 0) >= 55 ? "text-danger fw-bold" : "text-warning fw-bold") : "")">@(request.Subtitle?.Length ?? 0)</span>/55
+                    </span>
+                </div>
+                <InputText class="form-control ebay-input" @bind-Value="request.Subtitle" maxlength="55"
+                           placeholder="Xuất hiện dưới Title trong search results (không ảnh hưởng SEO Cassini)" />
+                <ValidationMessage For="() => request.Subtitle" />
             </div>
             <div class="mb-3">
-                <label class="form-label">Mô tả</label>
+                <label class="form-label">Brand</label>
+                <InputText class="form-control ebay-input" @bind-Value="request.Brand" placeholder="e.g. Apple, Samsung, Nike" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">UPC / EAN / ISBN / MPN
+                    <span class="text-muted" style="font-size: 11px;">— Giúp tăng visibility trên eBay & Google Shopping</span>
+                </label>
+                <input type="text" class="form-control ebay-input" @bind="upcCode"
+                       placeholder="Enter product identifier (optional but recommended)" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Description</label>
                 <InputTextArea class="form-control ebay-input" @bind-Value="request.Description" rows="3" />
             </div>
             <div class="row">
                 <div class="col-md-6 mb-3">
-                    <label class="form-label">Danh Mục *</label>
-                    <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId"
-                                 @bind-Value:after="OnCategoryChanged">
-                        <option value="">-- Chọn Danh Mục --</option>
-                        @foreach (var c in categories)
-                        {
-                            var prefix = c.ParentId.HasValue ? "   └ " : "";
-                            <option value="@c.Id">@prefix@c.Name</option>
-                        }
-                    </InputSelect>
+                    <label class="form-label">Category *</label>
+                    @if (!string.IsNullOrEmpty(selectedCategoryFullPath))
+                    {
+                        @* Hiển thị breadcrumb readonly — đã được chọn từ StartListing *@
+                        <div style="padding: 8px 12px; background: #f0f7ff; border: 1px solid #c2dff7; border-radius: 8px; font-size: 13px;">
+                            <i class="bi bi-folder2-open text-primary me-1"></i>
+                            <strong>@selectedCategoryFullPath</strong>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Fallback dropdown nếu truy cập trực tiếp không qua StartListing *@
+                        <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId"
+                                     @bind-Value:after="OnCategoryChanged">
+                            <option value="">-- Select Category --</option>
+                            @foreach (var c in categories)
+                            {
+                                var prefix = c.ParentId.HasValue ? "   └ " : "";
+                                <option value="@c.Id">@prefix@c.Name</option>
+                            }
+                        </InputSelect>
+                        <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                            💡 <a href="/listings/start" style="color: #1a6bbf;">Use the listing wizard</a> to get AI category suggestions
+                        </div>
+                    }
                 </div>
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Tình trạng sản phẩm *</label>
                     <InputSelect class="form-select ebay-input" @bind-Value="request.Condition">
-                        <option value="New">Mới (New)</option>
-                        <option value="New Other">Mới khác (New Other)</option>
-                        <option value="Open Box">Đã khui hộp (Open Box)</option>
-                        <option value="Seller Refurbished">Đã tân trang (Refurbished)</option>
-                        <option value="Used">Đã qua sử dụng (Used)</option>
-                        <option value="For Parts">Dùng linh kiện (For Parts)</option>
+                        @* ── Nhóm Hàng Mới ── *@
+                        <optgroup label="── Hàng Mới (New) ──">
+                            <option value="New">New — Mới hoàn toàn, nguyên hộp</option>
+                            <option value="New with tags">New with tags — Mới, còn tag gốc</option>
+                            <option value="New without tags">New without tags — Mới, không còn tag</option>
+                            <option value="New with imperfections">New with imperfections — Mới nhưng có khuyết điểm nhỏ</option>
+                            <option value="Open Box">Open Box — Hộp đã mở, hàng vẫn mới</option>
+                        </optgroup>
+                        @* ── Nhóm Tân Trang ── *@
+                        <optgroup label="── Tân Trang (Refurbished) ──">
+                            <option value="Certified Refurbished">Certified Refurbished — Tân trang bởi nhà SX, như mới</option>
+                            <option value="Excellent Refurbished">Excellent Refurbished — Như mới, bảo hành 1 năm</option>
+                            <option value="Very Good Refurbished">Very Good Refurbished — Hao mòn tối thiểu, BH 1 năm</option>
+                            <option value="Good Refurbished">Good Refurbished — Hao mòn vừa, BH 1 năm</option>
+                            <option value="Seller Refurbished">Seller Refurbished — Người bán tự tân trang</option>
+                        </optgroup>
+                        @* ── Nhóm Đã Qua Sử Dụng ── *@
+                        <optgroup label="── Đã Qua Sử Dụng (Used/Pre-owned) ──">
+                            <option value="Used">Used — Đã sử dụng, còn hoạt động tốt</option>
+                            <option value="Pre-owned - Excellent">Pre-owned Excellent — Như mới, ít dấu hao mòn</option>
+                            <option value="Pre-owned - Good">Pre-owned Good — Hao mòn nhẹ (Feb 2025)</option>
+                            <option value="Pre-owned - Fair">Pre-owned Fair — Hao mòn rõ rệt (Feb 2025)</option>
+                        </optgroup>
+                        @* ── Nhóm Khác ── *@
+                        <optgroup label="── Khác ──">
+                            <option value="For Parts or Not Working">For Parts or Not Working — Hỏng, bán phụ tùng</option>
+                        </optgroup>
                     </InputSelect>
                 </div>
             </div>
@@ -228,7 +306,7 @@
 
             @* Ảnh phụ *@
             <div class="mb-2">
-                <label class="form-label fw-bold">Ảnh Phụ (tối đa 5)</label>
+                <label class="form-label fw-bold">(Ảnh Phụ (tối đa 12) <span class="text-muted" style="font-size:11px;">-- eBay cho phép 24 ảnh</span></label>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     @for (int i = 0; i < extraImageUrls.Count; i++)
                     {
@@ -242,7 +320,7 @@
                         </div>
                     }
 
-                    @if (extraImageUrls.Count < 5)
+                    @if (extraImageUrls.Count < 12)
                     {
                         <div style="width: 90px; height: 90px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; background: #fafafa;">
                             @if (isUploadingExtra)
@@ -523,7 +601,20 @@
 
     private Dictionary<CreateVariantRequest, List<AttributePair>> variantAttributesMap = new();
 
+    // Query params từ StartListing wizard
+    [SupplyParameterFromQuery(Name = "categoryId")] public Guid? InitCategoryId { get; set; }
+    [SupplyParameterFromQuery(Name = "condition")] public string? InitCondition { get; set; }
+    [SupplyParameterFromQuery(Name = "conditionDesc")] public string? InitConditionDescription { get; set; }
+
+    private string selectedCategoryFullPath = string.Empty; // breadcrumb hiển thị
+    private string upcCode = string.Empty; // UPC/EAN/ISBN/MPN field
+
     protected override async Task OnInitializedAsync()
+    {
+        await LoadPageDataAsync();
+    }
+
+    private async Task LoadPageDataAsync()
     {
         try
         {
@@ -539,6 +630,30 @@
             var pp = await PolicyService.GetPaymentPoliciesAsync();
             paymentPolicies = pp.ToList();
 
+            // Nhận categoryId từ query params (từ StartListing wizard)
+            if (InitCategoryId.HasValue && InitCategoryId != Guid.Empty)
+            {
+                request.CategoryId = InitCategoryId.Value;
+                await OnCategoryChanged();
+
+                // Build breadcrumb path từ categories đã load
+                var selectedCat = categories.FirstOrDefault(c => c.Id == request.CategoryId);
+                if (selectedCat != null)
+                {
+                    var parent = categories.FirstOrDefault(c => c.Id == selectedCat.ParentId);
+                    selectedCategoryFullPath = parent != null
+                        ? $"{parent.Name} > {selectedCat.Name}"
+                        : selectedCat.Name;
+                }
+            }
+
+            // Nhận condition từ query params
+            if (!string.IsNullOrEmpty(InitCondition))
+                request.Condition = Uri.UnescapeDataString(InitCondition);
+
+            if (!string.IsNullOrEmpty(InitConditionDescription))
+                request.ConditionDescription = Uri.UnescapeDataString(InitConditionDescription);
+
             // Khởi tạo sẵn 1 biến thể mặc định
             AddVariant();
         }
@@ -546,6 +661,11 @@
         {
             errorMessage = ex.Message;
         }
+    }
+
+    private void GoToStartListingToChangeCategory()
+    {
+        NavigationManager.NavigateTo("/listings/start");
     }
 
     // ─── HẸN GIỜ ĐĂNG BÁN ───
@@ -586,7 +706,7 @@
 
     private async Task UploadExtraImage(InputFileChangeEventArgs e)
     {
-        if (extraImageUrls.Count >= 5) return;
+        if (extraImageUrls.Count >= 12) return;
         isUploadingExtra = true;
         errorMessage = null;
         StateHasChanged();
@@ -693,6 +813,13 @@
             request.ItemSpecifics = itemSpecificsValues
                 .Where(v => !string.IsNullOrWhiteSpace(v.Value))
                 .ToList();
+
+            // UPC/EAN/ISBN/MPN → thêm vào Item Specifics nếu có
+            if (!string.IsNullOrWhiteSpace(upcCode))
+            {
+                if (!request.ItemSpecifics.Any(s => s.Name is "UPC" or "EAN" or "ISBN" or "MPN"))
+                    request.ItemSpecifics.Add(new ItemSpecificInput { Name = "UPC", Value = upcCode.Trim() });
+            }
 
             var productId = await ProductService.CreateListingAsync(request);
             

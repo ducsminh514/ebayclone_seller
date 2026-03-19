@@ -29,7 +29,8 @@ builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<BuyerService>();
-builder.Services.AddScoped<CategoryService>();
+builder.Services.AddScoped<CategoryService>(); // Scoped: an toàn với HttpClient (cũng Scoped)
+builder.Services.AddSingleton<CategoryCacheService>(); // Singleton: lưu category data trong browser memory suốt session
 builder.Services.AddScoped<FileUploadService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SellerService>();

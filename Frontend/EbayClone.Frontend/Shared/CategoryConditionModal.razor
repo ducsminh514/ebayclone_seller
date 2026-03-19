@@ -1,0 +1,472 @@
+@using EbayClone.Frontend.Services
+@inject CategoryService CategoryService
+
+@* ─────────────────────────────────────────────────────────────────────────
+   CategoryConditionModal — Bước 2 của listing flow
+   
+   Flow mới (đúng nghiệp vụ eBay):
+     - AI chạy TRƯỚC ở StartListing (blocking)
+     - Modal nhận suggestions đã có sẵn
+     - Nếu có suggestions → Step 1 = AI results screen (suggestions là primary)
+     - Nếu không → Step 1 = treeview (manual browse)
+     - "Browse all categories" là link phụ, không phải default
+   
+   Usage:
+     <CategoryConditionModal @ref="modal" OnConfirmed="HandleConfirmed" />
+     await modal.OpenWithSuggestionsAsync(keyword, suggestions);
+   ───────────────────────────────────────────────────────────────────────── *@
+
+@if (isOpen)
+{
+<div class="modal show d-block" tabindex="-1"
+     style="background: rgba(0,0,0,0.45); z-index: 1055;">
+    <div class="modal-dialog modal-dialog-scrollable" style="max-width: 560px; margin: 40px auto;">
+        <div class="modal-content" style="border-radius: 16px; overflow: hidden; border: none; box-shadow: 0 12px 40px rgba(0,0,0,0.22);">
+
+            @if (step == 1 && hasSuggestions)
+            {
+                @* ─── STEP 1A: AI SUGGESTIONS SCREEN (primary) ─── *@
+                <div class="modal-header" style="background: #fff; border-bottom: 1px solid #e0e0e0; padding: 16px 20px;">
+                    <div style="flex: 1;">
+                        <h5 class="modal-title mb-0" style="font-size: 16px; font-weight: 600;">
+                            ✨ Suggested categories
+                        </h5>
+                        @if (!string.IsNullOrEmpty(currentKeyword))
+                        {
+                            <div style="font-size: 12px; color: #888; margin-top: 2px;">for "@currentKeyword"</div>
+                        }
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="Cancel"
+                            style="border-radius: 20px; padding: 4px 16px; font-size: 13px;">
+                        Cancel
+                    </button>
+                </div>
+                <div class="modal-body p-0">
+
+                    @* AI suggestion cards *@
+                    <div style="padding: 16px;">
+                        <div style="font-size: 13px; color: #666; margin-bottom: 12px;">
+                            Select the best match for your item:
+                        </div>
+                        @foreach (var sug in aiSuggestions)
+                        {
+                            <div @onclick="() => SelectAiSuggestion(sug)"
+                                 style="padding: 14px 16px; border: 2px solid @(hoveredSugId == sug.Id ? "#1a6bbf" : "#e8e8e8"); border-radius: 10px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: @(hoveredSugId == sug.Id ? "#f0f7ff" : "#fff"); display: flex; align-items: center; justify-content: space-between;"
+                                 @onmouseenter="() => hoveredSugId = sug.Id"
+                                 @onmouseleave="() => hoveredSugId = Guid.Empty">
+                                <div>
+                                    <div style="font-size: 14px; font-weight: 500; color: #222;">@sug.FullPath</div>
+                                    @if (sug.IsLeaf)
+                                    {
+                                        <div style="font-size: 11px; color: #1a6bbf; margin-top: 2px;">✓ Exact category</div>
+                                    }
+                                    else
+                                    {
+                                        <div style="font-size: 11px; color: #888; margin-top: 2px;">Browse subcategories →</div>
+                                    }
+                                </div>
+                                <i class="bi bi-chevron-right text-muted" style="font-size: 14px;"></i>
+                            </div>
+                        }
+                    </div>
+
+                    @* Divider + Manual browse fallback *@
+                    <div style="padding: 0 16px 16px; border-top: 1px solid #f0f0f0; margin-top: 4px; padding-top: 14px;">
+                        <div style="font-size: 12px; color: #999; text-align: center; margin-bottom: 10px;">
+                            Not what you're looking for?
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm w-100" @onclick="SwitchToManualBrowse"
+                                style="border-radius: 8px; font-size: 13px; padding: 8px;">
+                            Browse all categories manually
+                        </button>
+                    </div>
+                </div>
+            }
+            else if (step == 1 && !hasSuggestions)
+            {
+                @* ─── STEP 1B: MANUAL TREEVIEW (fallback khi AI không tìm thấy) ─── *@
+                <div class="modal-header" style="background: #fff; border-bottom: 1px solid #e0e0e0; padding: 16px 20px;">
+                    <div class="d-flex align-items-center w-100 gap-2">
+                        @if (breadcrumb.Count > 0)
+                        {
+                            <button class="btn btn-sm btn-light" @onclick="GoBack">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        }
+                        <div style="flex: 1;">
+                            <h5 class="modal-title mb-0" style="font-size: 16px; font-weight: 600;">
+                                Select a category
+                            </h5>
+                            @if (!string.IsNullOrEmpty(currentKeyword))
+                            {
+                                <div style="font-size: 12px; color: #e05c00; margin-top: 2px;">
+                                    ⚠ No AI match for "@currentKeyword" — browse manually
+                                </div>
+                            }
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="Cancel"
+                                style="border-radius: 20px; padding: 4px 16px; font-size: 13px;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-body p-0">
+                    @* Search bar *@
+                    <div style="padding: 12px 16px; border-bottom: 1px solid #f0f0f0;">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text" style="background: #f5f5f5; border-color: #ddd;">
+                                <i class="bi bi-search text-muted"></i>
+                            </span>
+                            <input type="text" class="form-control" placeholder="Search categories..."
+                                   style="background: #f5f5f5; border-color: #ddd;"
+                                   @bind="categorySearch" @bind:event="oninput" />
+                        </div>
+                    </div>
+
+                    @* Breadcrumb *@
+                    @if (breadcrumb.Count > 0)
+                    {
+                        <div style="padding: 8px 16px; background: #f8f9fa; border-bottom: 1px solid #eee; font-size: 12px; color: #666;">
+                            @string.Join(" > ", breadcrumb.Select(b => b.Name))
+                        </div>
+                    }
+
+                    @* Category list *@
+                    <div style="max-height: 380px; overflow-y: auto;">
+                        @if (isLoadingCategories)
+                        {
+                            <div class="text-center py-4">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                <span class="ms-2 text-muted" style="font-size: 12px;">Loading...</span>
+                            </div>
+                        }
+                        else
+                        {
+                            var displayList = GetDisplayList();
+                            @foreach (var cat in displayList)
+                            {
+                                <div @onclick="() => SelectCategory(cat)"
+                                     style="padding: 13px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.12s;"
+                                     @onmouseenter="() => hoveredId = cat.Id"
+                                     @onmouseleave="() => hoveredId = Guid.Empty"
+                                     class="@(hoveredId == cat.Id ? "bg-light" : "")">
+                                    <span style="font-size: 14px; color: #333;">@cat.Name</span>
+                                    @if (cat.HasChildren)
+                                    {
+                                        <i class="bi bi-chevron-right text-muted" style="font-size: 12px;"></i>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border" style="font-size: 10px;">Select</span>
+                                    }
+                                </div>
+                            }
+                            @if (!displayList.Any())
+                            {
+                                <div class="text-center py-4 text-muted" style="font-size: 13px;">
+                                    No categories found for "@categorySearch"
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            else if (step == 2)
+            {
+                @* ─── STEP 2: CONDITION ─── *@
+                <div class="modal-header" style="background: #fff; border-bottom: 1px solid #e0e0e0; padding: 16px 20px;">
+                    <button class="btn btn-sm btn-light" @onclick="BackFromConditionStep">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <h5 class="modal-title mb-0 ms-2" style="font-size: 16px; font-weight: 600;">Condition</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="text-muted mb-3" style="font-size: 12px;">
+                        Category: <strong>@GetFullPath()</strong>
+                    </div>
+
+                    @foreach (var grp in GetConditionGroups())
+                    {
+                        <div class="mb-2" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #999; letter-spacing: 0.5px;">
+                            @grp.Key
+                        </div>
+                        @foreach (var cond in grp)
+                        {
+                            <label style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 2px solid @(selectedCondition == cond.Value ? "#1a6bbf" : "#e0e0e0"); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; background: @(selectedCondition == cond.Value ? "#f0f7ff" : "#fff");">
+                                <input type="radio" name="condition" value="@cond.Value"
+                                       checked="@(selectedCondition == cond.Value)"
+                                       @onchange="() => selectedCondition = cond.Value"
+                                       style="margin-top: 2px;" />
+                                <div>
+                                    <div style="font-size: 14px; font-weight: @(selectedCondition == cond.Value ? "600" : "400"); color: #222;">
+                                        @cond.Label
+                                    </div>
+                                    <div style="font-size: 12px; color: #666;">@cond.Description</div>
+                                </div>
+                            </label>
+                        }
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedCondition) && selectedCondition != "New")
+                    {
+                        <div class="mt-3">
+                            <label style="font-size: 13px; font-weight: 500; color: #444;">Condition notes (optional)</label>
+                            <textarea class="form-control mt-1" rows="2"
+                                      placeholder="Describe any flaws, scratches, or missing accessories..."
+                                      @bind="conditionDescription"
+                                      style="font-size: 13px; border-color: #ddd; border-radius: 8px;"></textarea>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #e0e0e0; padding: 12px 20px;">
+                    <button class="btn btn-primary w-100" disabled="@string.IsNullOrEmpty(selectedCondition)"
+                            @onclick="Confirm"
+                            style="border-radius: 8px; font-weight: 600; padding: 10px;">
+                        Continue →
+                    </button>
+                </div>
+            }
+
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    [Parameter] public EventCallback<CategoryConditionResult> OnConfirmed { get; set; }
+
+    private bool isOpen = false;
+    private int step = 1;
+
+    // Category state
+    private List<CategoryTreeNodeDto> currentLevelCategories = new();
+    private List<CategoryTreeNodeDto> breadcrumb = new();
+    private List<CategoryTreeNodeDto> allCategories = new();
+    private List<AiSuggestResultDto> aiSuggestions = new();
+    private bool hasSuggestions => aiSuggestions.Any();
+    private bool isLoadingCategories = false;
+    private string categorySearch = string.Empty;
+    private Guid hoveredId = Guid.Empty;
+    private Guid hoveredSugId = Guid.Empty;
+    private CategoryTreeNodeDto? selectedCategory;
+    private string currentKeyword = string.Empty;
+
+    // Condition state
+    private string selectedCondition = string.Empty;
+    private string conditionDescription = string.Empty;
+
+    /// <summary>
+    /// Mở modal với AI suggestions đã được tính toán sẵn từ StartListing.
+    /// Nếu suggestions rỗng → hiện manual treeview ngay.
+    /// Nếu có suggestions → hiện AI results screen.
+    /// </summary>
+    public async Task OpenWithSuggestionsAsync(string keyword, List<AiSuggestResultDto> suggestions)
+    {
+        // Reset state
+        step = 1;
+        breadcrumb.Clear();
+        selectedCategory = null;
+        selectedCondition = string.Empty;
+        conditionDescription = string.Empty;
+        categorySearch = string.Empty;
+        currentKeyword = keyword;
+        aiSuggestions = suggestions;
+
+        isOpen = true;
+        StateHasChanged();
+
+        // Nếu không có AI suggestions → load treeview ngay (manual browse)
+        if (!hasSuggestions)
+            await LoadRootCategories();
+    }
+
+    /// <summary>Mở manual treeview (Browse all categories button)</summary>
+    public async Task OpenAsync(string keyword = "")
+    {
+        await OpenWithSuggestionsAsync(keyword, new List<AiSuggestResultDto>());
+    }
+
+    private async Task LoadRootCategories()
+    {
+        isLoadingCategories = true;
+        StateHasChanged();
+
+        var roots = await CategoryService.GetRootCategoriesAsync();
+        currentLevelCategories = roots.ToList();
+        allCategories = currentLevelCategories.ToList();
+
+        isLoadingCategories = false;
+        StateHasChanged();
+    }
+
+    private IEnumerable<CategoryTreeNodeDto> GetDisplayList()
+    {
+        if (string.IsNullOrWhiteSpace(categorySearch))
+            return currentLevelCategories;
+        var kw = categorySearch.ToLower();
+        return allCategories.Where(c => c.Name.ToLower().Contains(kw));
+    }
+
+    private async Task SelectCategory(CategoryTreeNodeDto cat)
+    {
+        if (cat.HasChildren)
+        {
+            breadcrumb.Add(cat);
+            isLoadingCategories = true;
+            StateHasChanged();
+
+            var children = await CategoryService.GetChildCategoriesAsync(cat.Id);
+            currentLevelCategories = children.ToList();
+            foreach (var c in currentLevelCategories)
+                if (!allCategories.Any(a => a.Id == c.Id))
+                    allCategories.Add(c);
+
+            isLoadingCategories = false;
+            categorySearch = string.Empty;
+            StateHasChanged();
+        }
+        else
+        {
+            selectedCategory = cat;
+            breadcrumb.Add(cat);
+            step = 2;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SelectAiSuggestion(AiSuggestResultDto sug)
+    {
+        if (sug.IsLeaf)
+        {
+            selectedCategory = new CategoryTreeNodeDto
+            {
+                Id = sug.Id,
+                Name = sug.Name,
+                HasChildren = false
+            };
+            // Build breadcrumb từ fullPath
+            var parts = sug.FullPath.Split(" > ");
+            breadcrumb.Clear();
+            foreach (var part in parts)
+                breadcrumb.Add(new CategoryTreeNodeDto { Name = part });
+            step = 2;
+            StateHasChanged();
+        }
+        else
+        {
+            // Parent category → drill into it (chuyển sang manual browse tại level đó)
+            aiSuggestions.Clear(); // ẩn suggestions screen
+            var tempNode = new CategoryTreeNodeDto { Id = sug.Id, Name = sug.Name, HasChildren = true };
+            breadcrumb.Add(tempNode);
+            isLoadingCategories = true;
+            StateHasChanged();
+
+            var children = await CategoryService.GetChildCategoriesAsync(sug.Id);
+            currentLevelCategories = children.ToList();
+            allCategories = new(currentLevelCategories);
+            isLoadingCategories = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SwitchToManualBrowse()
+    {
+        // User từ AI suggestions screen chuyển sang treeview
+        aiSuggestions.Clear(); // clear để hiện treeview branch
+        _ = LoadRootCategories();
+    }
+
+    // GoBack trong manual treeview (step 1B)
+    private async Task GoBack()
+    {
+        if (breadcrumb.Count > 0)
+            breadcrumb.RemoveAt(breadcrumb.Count - 1);
+
+        if (breadcrumb.Count == 0)
+            await LoadRootCategories();
+        else
+        {
+            var parent = breadcrumb.Last();
+            isLoadingCategories = true;
+            StateHasChanged();
+            var children = await CategoryService.GetChildCategoriesAsync(parent.Id);
+            currentLevelCategories = children.ToList();
+            isLoadingCategories = false;
+            StateHasChanged();
+        }
+    }
+
+    // Back từ step 2 (Condition) → step 1
+    private void BackFromConditionStep()
+    {
+        if (breadcrumb.Count > 0)
+            breadcrumb.RemoveAt(breadcrumb.Count - 1);
+
+        selectedCategory = null;
+        selectedCondition = string.Empty;
+        conditionDescription = string.Empty;
+        step = 1;
+        StateHasChanged();
+    }
+
+    private string GetFullPath()
+        => string.Join(" > ", breadcrumb.Select(b => b.Name));
+
+    private void Cancel()
+    {
+        isOpen = false;
+        StateHasChanged();
+    }
+
+    private async Task Confirm()
+    {
+        if (selectedCategory == null || string.IsNullOrEmpty(selectedCondition)) return;
+
+        isOpen = false;
+        await OnConfirmed.InvokeAsync(new CategoryConditionResult
+        {
+            CategoryId = selectedCategory.Id,
+            CategoryName = selectedCategory.Name,
+            CategoryFullPath = GetFullPath(),
+            Condition = selectedCondition,
+            ConditionDescription = conditionDescription
+        });
+    }
+
+    // ─── CONDITION DATA ───
+
+    private record ConditionItem(string Value, string Label, string Description, string Group);
+
+    private IEnumerable<IGrouping<string, ConditionItem>> GetConditionGroups()
+        => GetConditions().GroupBy(c => c.Group);
+
+    private IEnumerable<ConditionItem> GetConditions() => new List<ConditionItem>
+    {
+        new("New",                    "New",                    "Brand new, unopened, unused",                   "New"),
+        new("New with tags",          "New with tags",          "Brand new, original tags still attached",       "New"),
+        new("New without tags",       "New without tags",       "Brand new, tags have been removed",             "New"),
+        new("New with imperfections", "New with imperfections", "Unused but has minor visible flaws",            "New"),
+        new("Open Box",               "Open Box",               "Opened but unused, all parts included",         "New"),
+        new("Certified Refurbished",  "Certified Refurbished",  "Manufacturer refurbished, like new",            "Refurbished"),
+        new("Excellent Refurbished",  "Excellent Refurbished",  "Like new, minimal signs of wear, 1yr warranty", "Refurbished"),
+        new("Very Good Refurbished",  "Very Good Refurbished",  "Minimal wear, fully functional, 1yr warranty",  "Refurbished"),
+        new("Good Refurbished",       "Good Refurbished",       "Moderate wear, fully functional, 1yr warranty", "Refurbished"),
+        new("Seller Refurbished",     "Seller Refurbished",     "Repaired or refurbished by the seller",         "Refurbished"),
+        new("Used",                   "Used",                   "Previously used, works as intended",            "Used"),
+        new("Pre-owned - Excellent",  "Pre-owned - Excellent",  "Like new, little to no signs of wear",          "Used"),
+        new("Pre-owned - Good",       "Pre-owned - Good",       "Gently used, light signs of wear",              "Used"),
+        new("Pre-owned - Fair",       "Pre-owned - Fair",       "Significant visible flaws or heavy wear",        "Used"),
+        new("For Parts or Not Working","For Parts or Not Working","Not fully functional, for parts only",        "Other"),
+    };
+
+    // ─── Result DTO ───
+    public class CategoryConditionResult
+    {
+        public Guid CategoryId { get; set; }
+        public string CategoryName { get; set; } = string.Empty;
+        public string CategoryFullPath { get; set; } = string.Empty;
+        public string Condition { get; set; } = string.Empty;
+        public string ConditionDescription { get; set; } = string.Empty;
+    }
+}

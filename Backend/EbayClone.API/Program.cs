@@ -91,6 +91,12 @@ builder.Services.AddHostedService<EbayClone.API.BackgroundServices.FundReleaseHo
 builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
 builder.Services.AddScoped<IGetSellerFinanceUseCase, GetSellerFinanceUseCase>();
 
+// HttpClient factory cho gọi external APIs (Gemini AI)
+builder.Services.AddHttpClient();
+
+// MemoryCache cho static data (categories, item specifics) — tránh hit DB mỗi request
+builder.Services.AddMemoryCache();
+
 // Cấu hình JWT Authentication
 builder.Services.AddAuthentication(options =>
 {
