@@ -51,16 +51,23 @@ namespace EbayClone.Application.UseCases.Products
                 }
             }
 
-            // [C1] Validate Title length (3-255 ký tự — chuẩn eBay)
-            if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length < 3 || request.Name.Length > 255)
-                throw new ArgumentException("Tiêu đề sản phẩm (Title) phải từ 3 đến 255 ký tự.");
+            // [C1] Validate Title length (3-80 ký tự — chuẩn eBay Cassini)
+            if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length < 3 || request.Name.Length > 80)
+                throw new ArgumentException("Tiêu đề sản phẩm (Title) phải từ 3 đến 80 ký tự (chuẩn eBay).");
 
-            // [C1] Validate Subtitle length (max 80 ký tự)
-            if (!string.IsNullOrEmpty(request.Subtitle) && request.Subtitle.Length > 80)
-                throw new ArgumentException("Phụ đề (Subtitle) không được vượt quá 80 ký tự.");
+            // [C1] Validate Subtitle length (max 55 ký tự — eBay charge phí)
+            if (!string.IsNullOrEmpty(request.Subtitle) && request.Subtitle.Length > 55)
+                throw new ArgumentException("Phụ đề (Subtitle) không được vượt quá 55 ký tự (chuẩn eBay).");
 
-            // [C2] Validate Condition whitelist (chuẩn eBay 2024)
-            var validConditions = new[] { "New", "New Other", "Open Box", "Seller Refurbished", "Used", "For Parts" };
+            // [C2] Validate Condition whitelist (chuẩn eBay 2024-2025)
+            var validConditions = new[]
+            {
+                "New", "New with tags", "New without tags", "New with imperfections", "Open Box",
+                "Certified Refurbished", "Excellent Refurbished", "Very Good Refurbished",
+                "Good Refurbished", "Seller Refurbished",
+                "Used", "Pre-owned - Excellent", "Pre-owned - Good", "Pre-owned - Fair",
+                "For Parts or Not Working"
+            };
             if (!validConditions.Contains(request.Condition))
                 throw new ArgumentException($"Condition không hợp lệ. Giá trị cho phép: {string.Join(", ", validConditions)}");
 
@@ -76,6 +83,14 @@ namespace EbayClone.Application.UseCases.Products
 
             if (request.ListingFormat == "AUCTION" && totalVariantsAfterUpdate > 1)
                 throw new ArgumentException("Listing dạng AUCTION không hỗ trợ nhiều variations.");
+
+            // [A4-FIX] Variation listing PHẢI dùng Fixed Price
+            if (request.IsVariationListing && request.ListingFormat == "AUCTION")
+                throw new ArgumentException("Variation listings must use Fixed Price format.");
+
+            // [A4-FIX] RequireImmediatePayment chỉ áp dụng cho Fixed Price
+            if (request.RequireImmediatePayment && request.ListingFormat == "AUCTION")
+                request.RequireImmediatePayment = false;
 
             if (request.AutoAcceptPrice.HasValue && request.AutoDeclinePrice.HasValue
                 && request.AutoAcceptPrice <= request.AutoDeclinePrice)
@@ -138,6 +153,13 @@ namespace EbayClone.Application.UseCases.Products
             product.AutoAcceptPrice = request.AutoAcceptPrice;         // [A3]
             product.AutoDeclinePrice = request.AutoDeclinePrice;       // [A3]
             product.Subtitle = request.Subtitle;                       // [A3]
+            product.RequireImmediatePayment = request.RequireImmediatePayment; // [A4]
+            product.IsVariationListing = request.IsVariationListing;   // [A4]
+            product.CountryOfOrigin = request.CountryOfOrigin?.ToUpperInvariant(); // [SHIPPING]
+            product.PackageLengthCm = request.PackageLengthCm;         // [SHIPPING]
+            product.PackageWidthCm = request.PackageWidthCm;           // [SHIPPING]
+            product.PackageHeightCm = request.PackageHeightCm;         // [SHIPPING]
+            product.ScheduledAt = request.ScheduledAt;                 // Schedule
             product.CategoryId = request.CategoryId;
             product.ShippingPolicyId = request.ShippingPolicyId;
             product.ReturnPolicyId = request.ReturnPolicyId;

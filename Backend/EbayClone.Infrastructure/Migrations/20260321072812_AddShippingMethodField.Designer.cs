@@ -4,6 +4,7 @@ using EbayClone.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EbayClone.Infrastructure.Migrations
 {
     [DbContext(typeof(EbayDbContext))]
-    partial class EbayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260321072812_AddShippingMethodField")]
+    partial class AddShippingMethodField
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -507,9 +510,6 @@ namespace EbayClone.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ReturnShippedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<decimal>("ReturnShippingCost")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("ReturnShippingPaidBy")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -874,10 +874,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
 
-                    b.Property<string>("DomesticRefundMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("DomesticReturnDays")
                         .HasColumnType("int");
 
@@ -885,10 +881,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("InternationalRefundMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("InternationalReturnDays")
                         .HasColumnType("int");

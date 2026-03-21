@@ -33,6 +33,8 @@ namespace EbayClone.Domain.Entities
         public string? ReturnTrackingCode { get; private set; }
         public string? ReturnCarrier { get; private set; }
         public string ReturnShippingPaidBy { get; set; } = "BUYER";  // "BUYER" or "SELLER" (SNAD = SELLER)
+        // [FIX-H6] Chi phí ship trả hàng — ghi nhận để tracking financial
+        public decimal ReturnShippingCost { get; set; } = 0;
 
         // Stock
         public bool IsStockRestored { get; set; }

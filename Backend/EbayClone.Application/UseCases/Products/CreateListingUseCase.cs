@@ -98,6 +98,14 @@ namespace EbayClone.Application.UseCases.Products
             if (request.ListingFormat == "AUCTION" && request.Variants.Count > 1)
                 throw new ArgumentException("Listing dạng AUCTION không hỗ trợ nhiều variations. Chỉ được 1 variant duy nhất.");
 
+            // [A4-FIX] Variation listing PHẢI dùng Fixed Price (eBay rule)
+            if (request.IsVariationListing && request.ListingFormat == "AUCTION")
+                throw new ArgumentException("Variation listings must use Fixed Price format. Auction is not supported for multi-variation items.");
+
+            // [A4-FIX] RequireImmediatePayment chỉ áp dụng cho Fixed Price (eBay rule)
+            if (request.RequireImmediatePayment && request.ListingFormat == "AUCTION")
+                request.RequireImmediatePayment = false; // Silently reset — auction không hỗ trợ
+
             // [A3] Validate Best Offer logic
             if (request.AutoAcceptPrice.HasValue && request.AutoDeclinePrice.HasValue
                 && request.AutoAcceptPrice <= request.AutoDeclinePrice)
@@ -129,19 +137,25 @@ namespace EbayClone.Application.UseCases.Products
                 throw new ArgumentException($"SkuCode bị trùng trong cùng listing: {string.Join(", ", duplicateSkus)}. Mỗi biến thể phải có SKU riêng biệt.");
 
             // [FIX-2] Validate duplicate attribute keys per variant
-            // [WARNING-3] Validate variant Attributes không được empty
+            // [WARNING-3] Attribute chỉ bắt buộc khi có NHIỀU variants — để phân biệt chúng
+            // Single-variant product không cần attribute (eBay cho phép listing không có variation attributes)
+            bool multipleVariants = request.Variants.Count > 1;
+
             foreach (var vReq in request.Variants)
             {
-                if (vReq.Attributes == null || !vReq.Attributes.Any())
-                    throw new ArgumentException($"Biến thể '{vReq.SkuCode}' phải có ít nhất 1 thuộc tính (VD: Color - Red, Size - M).");
+                if (multipleVariants && (vReq.Attributes == null || !vReq.Attributes.Any()))
+                    throw new ArgumentException($"Khi listing có nhiều biến thể, mỗi biến thể phải có ít nhất 1 thuộc tính (VD: Color - Red) để phân biệt. Biến thể '{vReq.SkuCode}' đang thiếu thuộc tính.");
 
-                var duplicateKeys = vReq.Attributes.Keys
-                    .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
-                    .Where(g => g.Count() > 1)
-                    .Select(g => g.Key)
-                    .ToList();
-                if (duplicateKeys.Any())
-                    throw new ArgumentException($"Biến thể '{vReq.SkuCode}' có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
+                if (vReq.Attributes != null)
+                {
+                    var duplicateKeys = vReq.Attributes.Keys
+                        .GroupBy(k => k, StringComparer.OrdinalIgnoreCase)
+                        .Where(g => g.Count() > 1)
+                        .Select(g => g.Key)
+                        .ToList();
+                    if (duplicateKeys.Any())
+                        throw new ArgumentException($"Biến thể '{vReq.SkuCode}' có thuộc tính trùng tên: {string.Join(", ", duplicateKeys)}.");
+                }
             }
 
             // [FIX-5] Validate DUPLICATE attribute combination (eBay rule: "Duplicate name-value combinations not permitted")
@@ -218,11 +232,19 @@ namespace EbayClone.Application.UseCases.Products
                     $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
 
             // Fallback to defaults if not provided
+            // [FIX-H5] SECURITY: Validate policy belongs to THIS shop (prevent IDOR attack)
             var shippingPolicyId = request.ShippingPolicyId;
             if (shippingPolicyId == null)
             {
                 var def = await _policyRepository.GetDefaultShippingPolicyAsync(shopId, cancellationToken);
                 shippingPolicyId = def?.Id;
+            }
+            else
+            {
+                // Validate ownership — seller A không được dùng policy của shop B
+                var sp = await _policyRepository.GetShippingPolicyByIdAsync(shippingPolicyId.Value, cancellationToken);
+                if (sp == null || sp.ShopId != shopId)
+                    throw new UnauthorizedAccessException("Shipping policy không tồn tại hoặc không thuộc shop của bạn.");
             }
 
             var returnPolicyId = request.ReturnPolicyId;
@@ -231,12 +253,24 @@ namespace EbayClone.Application.UseCases.Products
                 var def = await _policyRepository.GetDefaultReturnPolicyAsync(shopId, cancellationToken);
                 returnPolicyId = def?.Id;
             }
+            else
+            {
+                var rp = await _policyRepository.GetReturnPolicyByIdAsync(returnPolicyId.Value, cancellationToken);
+                if (rp == null || rp.ShopId != shopId)
+                    throw new UnauthorizedAccessException("Return policy không tồn tại hoặc không thuộc shop của bạn.");
+            }
 
             var paymentPolicyId = request.PaymentPolicyId;
             if (paymentPolicyId == null)
             {
                 var def = await _policyRepository.GetDefaultPaymentPolicyAsync(shopId, cancellationToken);
                 paymentPolicyId = def?.Id;
+            }
+            else
+            {
+                var pp = await _policyRepository.GetPaymentPolicyByIdAsync(paymentPolicyId.Value, cancellationToken);
+                if (pp == null || pp.ShopId != shopId)
+                    throw new UnauthorizedAccessException("Payment policy không tồn tại hoặc không thuộc shop của bạn.");
             }
 
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
@@ -275,7 +309,15 @@ namespace EbayClone.Application.UseCases.Products
                     ScheduledAt = request.ScheduledAt,
                     // Nếu seller chọn hẹn giờ → SCHEDULED, không thì DRAFT
                     Status = request.ScheduledAt.HasValue ? "SCHEDULED" : "DRAFT",
-                    BasePrice = request.Variants[0].Price // Lấy giá biến thể đầu tiên làm giá base
+                    BasePrice = request.Variants[0].Price, // Lấy giá biến thể đầu tiên làm giá base
+                    // [A4] Listing Meta
+                    RequireImmediatePayment = request.RequireImmediatePayment,
+                    IsVariationListing = request.IsVariationListing,
+                    // [SHIPPING] Package Info
+                    CountryOfOrigin = request.CountryOfOrigin?.ToUpperInvariant(),
+                    PackageLengthCm = request.PackageLengthCm,
+                    PackageWidthCm = request.PackageWidthCm,
+                    PackageHeightCm = request.PackageHeightCm,
                 };
 
                 await _productRepository.AddAsync(product, cancellationToken);

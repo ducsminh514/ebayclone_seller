@@ -4,6 +4,7 @@ using EbayClone.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EbayClone.Infrastructure.Migrations
 {
     [DbContext(typeof(EbayDbContext))]
-    partial class EbayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260318105110_AddListingMetaAndPackageInfo")]
+    partial class AddListingMetaAndPackageInfo
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -507,9 +510,6 @@ namespace EbayClone.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("ReturnShippedAt")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<decimal>("ReturnShippingCost")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("ReturnShippingPaidBy")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -642,8 +642,7 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("CountryOfOrigin")
-                        .HasMaxLength(2)
-                        .HasColumnType("nvarchar(2)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
@@ -678,13 +677,13 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasColumnType("nvarchar(255)");
 
                     b.Property<decimal?>("PackageHeightCm")
-                        .HasColumnType("decimal(10, 2)");
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("PackageLengthCm")
-                        .HasColumnType("decimal(10, 2)");
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("PackageWidthCm")
-                        .HasColumnType("decimal(10, 2)");
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("PaymentPolicyId")
                         .HasColumnType("uniqueidentifier");
@@ -874,10 +873,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
 
-                    b.Property<string>("DomesticRefundMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<int>("DomesticReturnDays")
                         .HasColumnType("int");
 
@@ -885,10 +880,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("InternationalRefundMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("InternationalReturnDays")
                         .HasColumnType("int");
@@ -1067,9 +1058,6 @@ namespace EbayClone.Infrastructure.Migrations
                     b.Property<bool>("OfferFreeShipping")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("OfferLocalPickup")
-                        .HasColumnType("bit");
-
                     b.Property<string>("PackageDimensionsJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1085,10 +1073,6 @@ namespace EbayClone.Infrastructure.Migrations
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
-
-                    b.Property<string>("ShippingMethod")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("ShopId")
                         .HasColumnType("uniqueidentifier");

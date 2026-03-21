@@ -120,6 +120,12 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.PrimaryImageUrl).HasMaxLength(500);
                 entity.Property(e => e.IsDeleted).HasDefaultValue(false);
                 
+                // [A4] Listing Meta + Package Info
+                entity.Property(e => e.CountryOfOrigin).HasMaxLength(2);
+                entity.Property(e => e.PackageLengthCm).HasColumnType("decimal(10, 2)");
+                entity.Property(e => e.PackageWidthCm).HasColumnType("decimal(10, 2)");
+                entity.Property(e => e.PackageHeightCm).HasColumnType("decimal(10, 2)");
+                
                 // Global Query Filter: tự động loại trừ SP đã Soft Delete
                 entity.HasQueryFilter(e => !e.IsDeleted);
 
@@ -205,6 +211,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.RefundAmount).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.DeductionAmount).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.PartialOfferAmount).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.ReturnShippingCost).HasColumnType("decimal(18, 2)");
                 entity.HasIndex(e => e.OrderId);
                 entity.HasIndex(e => e.Status); // Performance: filter by return status
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();

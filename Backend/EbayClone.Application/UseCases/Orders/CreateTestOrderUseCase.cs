@@ -65,6 +65,24 @@ namespace EbayClone.Application.UseCases.Orders
                 // [Security] Không cho đặt đơn nếu sản phẩm không ACTIVE
                 if (product.Status != "ACTIVE")
                     throw new InvalidOperationException($"Sản phẩm '{product.Name}' hiện ở trạng thái '{product.Status}', không thể đặt mua.");
+
+                // [FIX-M1+M2] Check PaymentPolicy config
+                int paymentDaysToPayment = 0; // 0 = immediate (default)
+                if (product.PaymentPolicyId.HasValue)
+                {
+                    var paymentPolicy = await _policyRepository.GetPaymentPolicyByIdAsync(
+                        product.PaymentPolicyId.Value, cancellationToken);
+                    if (paymentPolicy != null)
+                    {
+                        // [M1] ImmediatePaymentRequired enforcement
+                        // Mock order luôn auto-pay, nhưng ghi nhận config cho real checkout
+                        if (!paymentPolicy.ImmediatePaymentRequired)
+                        {
+                            paymentDaysToPayment = paymentPolicy.DaysToPayment;
+                        }
+                        // Nếu ImmediatePaymentRequired = true → paymentDaysToPayment = 0 (auto-pay below)
+                    }
+                }
                 // 1. Thực hiện Atomic Deduct Stock (Trừ kho trực tiếp — single-step model)
                 int updatedRows = await _productRepository.DeductStockAtomicAsync(variant.Id, request.Quantity, cancellationToken);
                 if (updatedRows == 0)
@@ -81,37 +99,44 @@ namespace EbayClone.Application.UseCases.Orders
                 }
 
                 // 2. Tính phí ship từ ShippingPolicy thực tế (seller đã set khi tạo sản phẩm)
+                // [FIX-H1+H2+L4] Query 1 lần, tính AdditionalItemCost cho Qty > 1
                 decimal shippingFee = 0;
+                int handlingDays = 3; // fallback nếu không có policy
                 if (product.ShippingPolicyId.HasValue)
                 {
                     var shippingPolicy = await _policyRepository.GetShippingPolicyByIdAsync(
                         product.ShippingPolicyId.Value, cancellationToken);
                     if (shippingPolicy != null)
                     {
+                        // [L4] Reuse query — lấy HandlingTimeDays luôn
+                        handlingDays = shippingPolicy.HandlingTimeDays;
+
                         if (shippingPolicy.OfferFreeShipping)
                         {
                             shippingFee = 0; // Seller đã chọn Free Shipping
                         }
                         else
                         {
-                            // Parse DomesticServicesJson → lấy Cost service đầu tiên
+                            // Parse DomesticServicesJson → lấy service đầu tiên
+                            // TODO: Khi có checkout UI → buyer chọn service, truyền serviceIndex
                             var services = System.Text.Json.JsonSerializer.Deserialize<List<EbayClone.Shared.DTOs.Policies.ShippingServiceDto>>(
                                 shippingPolicy.DomesticServicesJson);
                             if (services != null && services.Count > 0)
                             {
-                                shippingFee = services[0].IsFreeShipping ? 0 : services[0].Cost;
+                                var svc = services[0];
+                                if (svc.IsFreeShipping)
+                                {
+                                    shippingFee = 0;
+                                }
+                                else
+                                {
+                                    // [H1+H2] eBay rule: Item 1 = Cost, item 2+ = AdditionalItemCost
+                                    // VD: Cost=10, AdditionalItemCost=3, Qty=3 → 10 + 3 + 3 = 16
+                                    shippingFee = svc.Cost + (svc.AdditionalItemCost * Math.Max(0, request.Quantity - 1));
+                                }
                             }
                         }
                     }
-                }
-
-                // Lấy HandlingTimeDays từ cùng ShippingPolicy (đã query ở bước 2)
-                int handlingDays = 3; // fallback nếu không có policy
-                if (product.ShippingPolicyId.HasValue)
-                {
-                    var shipPolicyForHandling = await _policyRepository.GetShippingPolicyByIdAsync(
-                        product.ShippingPolicyId.Value, cancellationToken);
-                    if (shipPolicyForHandling != null) handlingDays = shipPolicyForHandling.HandlingTimeDays;
                 }
 
                 // 3. Tạo đối tượng Order
@@ -149,6 +174,11 @@ namespace EbayClone.Application.UseCases.Orders
                 // 5. Mock checkout = buyer đã thanh toán → auto mark PAID
                 newOrder.MarkAsPaid();
                 newOrder.SetShipByDate(handlingDays);
+
+                // [FIX-M7] Set PlatformFee ngay khi PAID (đồng bộ với UpdateOrderStatusUseCase)
+                var itemSubtotalForFee = newOrder.TotalAmount - newOrder.ShippingFee;
+                newOrder.PlatformFee = itemSubtotalForFee * 0.05m; // 5% on item subtotal
+
                 _orderRepository.Update(newOrder);
 
                 // 6. Wallet Escrow — ghi nhận doanh thu treo khi PAID (giống UpdateOrderStatusUseCase)

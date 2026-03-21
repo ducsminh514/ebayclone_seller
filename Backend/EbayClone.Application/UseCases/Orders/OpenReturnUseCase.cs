@@ -21,15 +21,21 @@ namespace EbayClone.Application.UseCases.Orders
     {
         private readonly IOrderRepository _orderRepository;
         private readonly IOrderReturnRepository _returnRepository;
+        private readonly IProductRepository _productRepository;
+        private readonly IPolicyRepository _policyRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public OpenReturnUseCase(
             IOrderRepository orderRepository,
             IOrderReturnRepository returnRepository,
+            IProductRepository productRepository,
+            IPolicyRepository policyRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _returnRepository = returnRepository;
+            _productRepository = productRepository;
+            _policyRepository = policyRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -55,6 +61,33 @@ namespace EbayClone.Application.UseCases.Orders
                 if (existingReturn != null)
                     throw new InvalidOperationException("Đơn hàng đã có yêu cầu trả hàng đang xử lý.");
 
+                // [FIX-L1] Xác định ReturnShippingPaidBy từ ReturnPolicy config
+                // SNAD/Damaged → luôn SELLER (eBay MBG override, bất kể policy)
+                // Buyer remorse → đọc từ ReturnPolicy.DomesticShippingPaidBy
+                string returnShippingPaidBy = "BUYER"; // fallback
+                if (request.Reason == "NOT_AS_DESCRIBED" || request.Reason == "DAMAGED")
+                {
+                    returnShippingPaidBy = "SELLER"; // eBay MBG: seller luôn chịu phí SNAD
+                }
+                else
+                {
+                    // Đọc ReturnPolicy config cho buyer remorse cases
+                    var orderItem = order.Items?.FirstOrDefault();
+                    if (orderItem != null)
+                    {
+                        var product = await _productRepository.GetByIdAsync(orderItem.ProductId, cancellationToken);
+                        if (product?.ReturnPolicyId != null)
+                        {
+                            var retPolicy = await _policyRepository.GetReturnPolicyByIdAsync(
+                                product.ReturnPolicyId.Value, cancellationToken);
+                            if (retPolicy != null)
+                            {
+                                returnShippingPaidBy = retPolicy.DomesticShippingPaidBy; // "BUYER" or "SELLER"
+                            }
+                        }
+                    }
+                }
+
                 // Tạo OrderReturn
                 var returnEntity = new OrderReturn
                 {
@@ -63,14 +96,33 @@ namespace EbayClone.Application.UseCases.Orders
                     Reason = request.Reason,
                     BuyerMessage = request.BuyerMessage,
                     PhotoUrls = request.PhotoUrls,
-                    // SNAD/Damaged → seller trả phí ship return
-                    ReturnShippingPaidBy = (request.Reason == "NOT_AS_DESCRIBED" || request.Reason == "DAMAGED") 
-                        ? "SELLER" : "BUYER"
+                    ReturnShippingPaidBy = returnShippingPaidBy
                 };
                 returnEntity.InitializeDeadline(); // Auto-set: +3 ngày seller phải respond
 
-                // Order → RETURN_REQUESTED
-                order.MarkAsReturnRequested();
+                // [FIX-M4] AutoAcceptReturns: nếu seller config auto-accept → tự chấp nhận
+                bool autoAccepted = false;
+                var orderItemForPolicy = order.Items?.FirstOrDefault();
+                if (orderItemForPolicy != null)
+                {
+                    var productForPolicy = await _productRepository.GetByIdAsync(orderItemForPolicy.ProductId, cancellationToken);
+                    if (productForPolicy?.ReturnPolicyId != null)
+                    {
+                        var retPolicyForAuto = await _policyRepository.GetReturnPolicyByIdAsync(
+                            productForPolicy.ReturnPolicyId.Value, cancellationToken);
+                        if (retPolicyForAuto != null && retPolicyForAuto.AutoAcceptReturns)
+                        {
+                            returnEntity.AcceptReturn("ACCEPT_RETURN", "Auto-accepted by return policy");
+                            autoAccepted = true;
+                        }
+                    }
+                }
+
+                // Order → RETURN_REQUESTED hoặc RETURN_IN_PROGRESS (nếu auto-accept)
+                if (autoAccepted)
+                    order.MarkAsReturnInProgress();
+                else
+                    order.MarkAsReturnRequested();
 
                 await _returnRepository.AddAsync(returnEntity, cancellationToken);
                 _orderRepository.Update(order);

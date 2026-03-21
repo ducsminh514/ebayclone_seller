@@ -11,16 +11,25 @@ namespace EbayClone.Domain.Entities
         public int HandlingTimeDays { get; set; } = 2; // e.g., Same day = 0, 1 = 1 day
         public bool IsDefault { get; set; } = false;
 
+        // Shipping Method (eBay: top-level dropdown quyết định layout toàn trang)
+        // "Standard" — Small to medium items (full UI: domestic + international + local pickup)
+        // "Freight" — Large items that require special handling (chỉ Preferences)
+        // "NoShipping" — Local pickup only (chỉ Preferences)
+        public string ShippingMethod { get; set; } = "Standard";
+
+        // Local Pickup (eBay: section riêng với toggle, chỉ dùng khi ShippingMethod == "Standard")
+        public bool OfferLocalPickup { get; set; } = false;
+
         // Free Shipping (eBay: toggle nổi bật trên form tạo policy)
         public bool OfferFreeShipping { get; set; } = false;
 
-        // Domestic Shipping
-        public string DomesticCostType { get; set; } = "Flat"; // Flat, Calculated, Freight, NoShipping
+        // Domestic Shipping (chỉ dùng khi ShippingMethod == "Standard")
+        public string DomesticCostType { get; set; } = "Flat"; // Flat, Calculated
         public string DomesticServicesJson { get; set; } = "[]"; // Serialized JSON array of ShippingServiceDto
 
         // International Shipping
         public bool IsInternationalShippingAllowed { get; set; } = false;
-        public string InternationalCostType { get; set; } = "Flat"; // Flat, Calculated, NoShipping
+        public string InternationalCostType { get; set; } = "Flat"; // Flat, Calculated
         public string InternationalServicesJson { get; set; } = "[]"; // Serialized JSON array of InternationalShippingServiceDto
 
         // Combined Shipping Discount (eBay: giảm giá ship khi buyer mua nhiều item cùng seller)

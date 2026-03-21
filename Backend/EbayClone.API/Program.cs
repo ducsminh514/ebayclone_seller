@@ -111,8 +111,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "https://localhost:5072",
-        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "https://localhost:5071",
+        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "https://localhost:7250",
+        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "https://localhost:7251",
         IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "superSecretKey@345EbayClone@Authentication123!")),
         RoleClaimType = System.Security.Claims.ClaimTypes.Role
     };
@@ -190,7 +190,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll",
         policy =>
         {
-            policy.WithOrigins("https://localhost:5071", "http://localhost:5070") // Port của Frontend
+            policy.WithOrigins("https://localhost:7251", "http://localhost:7252") // Port của Frontend
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });

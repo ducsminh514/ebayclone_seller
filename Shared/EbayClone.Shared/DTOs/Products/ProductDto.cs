@@ -26,6 +26,16 @@ namespace EbayClone.Shared.DTOs.Products
         public decimal? AutoAcceptPrice { get; set; }
         public decimal? AutoDeclinePrice { get; set; }
         public string? Subtitle { get; set; }
+
+        // [A4] Listing Meta
+        public bool RequireImmediatePayment { get; set; } = false;
+        public bool IsVariationListing { get; set; } = false;
+
+        // [SHIPPING] Package Info
+        public string? CountryOfOrigin { get; set; }
+        public decimal? PackageLengthCm { get; set; }
+        public decimal? PackageWidthCm { get; set; }
+        public decimal? PackageHeightCm { get; set; }
         
         public string Status { get; set; } = "DRAFT";
         public DateTimeOffset? ScheduledAt { get; set; }

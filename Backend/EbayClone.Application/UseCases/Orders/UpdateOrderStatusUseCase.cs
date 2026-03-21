@@ -84,6 +84,9 @@ namespace EbayClone.Application.UseCases.Orders
                         order.SetShipByDate(handlingDays);
                         
                         // NGHIỆP VỤ 2024: Ghi nhận doanh thu treo (Escrow) ngay khi khách TRẢ TIỀN
+                        // [H7-NOTE] Guard: MarkAsPaid() throws nếu status ≠ PENDING_PAYMENT
+                        // → CreateTestOrderUseCase đã auto-PAID + escrow, nên case này
+                        // chỉ chạy cho non-test orders. Không bao giờ duplicate.
                         // Stock đã được trừ tại mock checkout (CreateTestOrderUseCase)
                         var walletPaid = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
                         if (walletPaid != null)
@@ -103,6 +106,10 @@ namespace EbayClone.Application.UseCases.Orders
                                 BalanceAfter = walletPaid.TotalBalance
                             }, cancellationToken);
                         }
+
+                        // [FIX-M7] Set PlatformFee ngay khi PAID — đảm bảo dispute/release sớm luôn có fee đúng
+                        var itemSubPaid = order.TotalAmount - order.ShippingFee;
+                        order.PlatformFee = itemSubPaid * PLATFORM_FEE_RATE;
                         break;
 
                     case "SHIPPED":
@@ -129,7 +136,13 @@ namespace EbayClone.Application.UseCases.Orders
                         }
                         if (returnDays > 0) order.SetReturnDeadline(returnDays);
 
-                        order.PlatformFee = order.TotalAmount * PLATFORM_FEE_RATE;
+                        // [FIX-M7] PlatformFee đã set ở PAID — verify consistency tại DELIVERED
+                        // Nếu chưa set (edge case legacy orders) → set lại
+                        if (order.PlatformFee == 0)
+                        {
+                            var itemSubtotal = order.TotalAmount - order.ShippingFee;
+                            order.PlatformFee = itemSubtotal * PLATFORM_FEE_RATE;
+                        }
                         break;
 
                     case "CANCELLED":
@@ -157,6 +170,32 @@ namespace EbayClone.Application.UseCases.Orders
                             await _cancellationRepository.AddAsync(cancellation, cancellationToken);
                         }
                         // else: record đã tồn tại (buyer → seller accepted) → không tạo thêm
+
+                        // [FIX-L5] IsFeeCredited: nếu buyer unpaid cancel → hoàn PlatformFee cho seller
+                        // (eBay rule: seller không chịu phí sàn cho đơn buyer không thanh toán)
+                        var activeCancellation = existingCancellation ?? 
+                            (await _cancellationRepository.GetByOrderIdAsync(order.Id, cancellationToken));
+                        if (activeCancellation != null && activeCancellation.IsFeeCredited && order.PlatformFee > 0)
+                        {
+                            var walletFeeCredit = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
+                            if (walletFeeCredit != null)
+                            {
+                                walletFeeCredit.AddAvailable(order.PlatformFee);
+                                _walletRepository.Update(walletFeeCredit);
+
+                                await _walletTransactionRepository.AddAsync(new WalletTransaction
+                                {
+                                    ShopId = shopId,
+                                    Amount = order.PlatformFee,
+                                    Type = "FEE_CREDIT",
+                                    ReferenceId = order.Id,
+                                    ReferenceType = "ORDER",
+                                    OrderNumber = order.OrderNumber,
+                                    Description = $"Hoàn phí sàn {order.PlatformFee:N0} đ (buyer unpaid cancel #{order.OrderNumber})",
+                                    BalanceAfter = walletFeeCredit.TotalBalance
+                                }, cancellationToken);
+                            }
+                        }
 
                         // 1. Hoàn trả ví Pending (chỉ khi đã thanh toán)
                         if (order.PaymentStatus == "PAID")

@@ -44,12 +44,60 @@ namespace EbayClone.Application.UseCases.Policies
                     throw new InvalidOperationException("You have reached the maximum limit of 100 shipping policies.");
                 }
 
-                // Business Validation: Phải có ít nhất 1 dịch vụ vận chuyển nếu không phải là Local Pickup
-                if (request.DomesticCostType != "NoShipping" && (request.DomesticServices == null || request.DomesticServices.Count == 0))
+                // ===== Business Validation theo ShippingMethod =====
+                var validMethods = new[] { "Standard", "Freight", "NoShipping" };
+                if (!validMethods.Contains(request.ShippingMethod))
                 {
-                    throw new ArgumentException("At least one domestic shipping service must be provided.");
+                    throw new ArgumentException($"Invalid shipping method '{request.ShippingMethod}'. Must be: Standard, Freight, or NoShipping.");
                 }
-                // Dập cờ IsDefault cũ để bảo vệ mảng Data Integrity
+
+                // Khi Standard → validate domestic + (optional) international
+                if (request.ShippingMethod == "Standard")
+                {
+                    // DomesticCostType whitelist 
+                    if (request.DomesticCostType != "Flat" && request.DomesticCostType != "Calculated")
+                    {
+                        throw new ArgumentException("Cost type must be Flat or Calculated for standard shipping.");
+                    }
+
+                    // Phải có ít nhất 1 domestic service
+                    if (request.DomesticServices == null || request.DomesticServices.Count == 0)
+                    {
+                        throw new ArgumentException("At least one domestic shipping service must be provided.");
+                    }
+
+                    // [FIX-M5] Validate shipping costs không được âm
+                    foreach (var svc in request.DomesticServices)
+                    {
+                        if (svc.Cost < 0)
+                            throw new ArgumentException($"Shipping cost for '{svc.ServiceName}' cannot be negative.");
+                        if (svc.AdditionalItemCost < 0)
+                            throw new ArgumentException($"Additional item cost for '{svc.ServiceName}' cannot be negative.");
+                    }
+
+                    // Nếu bật international → phải có ít nhất 1 international service
+                    if (request.IsInternationalShippingAllowed 
+                        && (request.InternationalServices == null || request.InternationalServices.Count == 0))
+                    {
+                        throw new ArgumentException("At least one international shipping service must be provided when international shipping is enabled.");
+                    }
+
+                    // [FIX-M5] Validate international service costs
+                    if (request.IsInternationalShippingAllowed && request.InternationalServices != null)
+                    {
+                        foreach (var svc in request.InternationalServices)
+                        {
+                            if (svc.Cost < 0)
+                                throw new ArgumentException($"International shipping cost for '{svc.ServiceName}' cannot be negative.");
+                            if (svc.AdditionalItemCost < 0)
+                                throw new ArgumentException($"International additional item cost for '{svc.ServiceName}' cannot be negative.");
+                        }
+                    }
+                }
+                // Khi Freight/NoShipping → domestic/international không cần, clear data
+                // (giữ clean, không lưu services rác vào DB khi method không cần)
+
+                // Dập cờ IsDefault cũ để bảo vệ Data Integrity
                 if (request.IsDefault)
                 {
                     await _policyRepository.ClearDefaultShippingPolicyAsync(shopId, cancellationToken);
@@ -60,17 +108,23 @@ namespace EbayClone.Application.UseCases.Policies
                     ShopId = shopId,
                     Name = request.Name,
                     Description = request.Description,
-                    HandlingTimeDays = request.HandlingTimeDays,
+                    HandlingTimeDays = request.ShippingMethod == "Standard" ? request.HandlingTimeDays : 0,
                     IsDefault = request.IsDefault,
 
-                    OfferFreeShipping = request.OfferFreeShipping,
+                    ShippingMethod = request.ShippingMethod,
+                    // NoShipping = "Local pickup only" → force OfferLocalPickup = true
+                    OfferLocalPickup = request.ShippingMethod == "NoShipping" ? true : request.OfferLocalPickup,
+                    OfferFreeShipping = request.ShippingMethod == "Standard" ? request.OfferFreeShipping : false,
 
-                    DomesticCostType = request.DomesticCostType,
-                    DomesticServicesJson = JsonSerializer.Serialize(request.DomesticServices),
+                    DomesticCostType = request.ShippingMethod == "Standard" ? request.DomesticCostType : "Flat",
+                    DomesticServicesJson = request.ShippingMethod == "Standard" 
+                        ? JsonSerializer.Serialize(request.DomesticServices) : "[]",
 
-                    IsInternationalShippingAllowed = request.IsInternationalShippingAllowed,
+                    IsInternationalShippingAllowed = request.ShippingMethod == "Standard" 
+                        ? request.IsInternationalShippingAllowed : false,
                     InternationalCostType = request.InternationalCostType,
-                    InternationalServicesJson = JsonSerializer.Serialize(request.InternationalServices),
+                    InternationalServicesJson = request.ShippingMethod == "Standard" && request.IsInternationalShippingAllowed
+                        ? JsonSerializer.Serialize(request.InternationalServices) : "[]",
 
                     OfferCombinedShippingDiscount = request.OfferCombinedShippingDiscount,
 

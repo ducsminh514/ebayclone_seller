@@ -14,6 +14,10 @@ namespace EbayClone.Domain.Entities
         public decimal TotalAmount { get; set; }
         public decimal ShippingFee { get; set; }
         public decimal PlatformFee { get; set; } = 0;
+
+        /// <summary>Item subtotal = TotalAmount - ShippingFee. Dùng cho refund logic.</summary>
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public decimal ItemSubtotal => TotalAmount - ShippingFee;
         
         // --- STATUS ---
         // Valid: PENDING_PAYMENT, PAID, SHIPPED, DELIVERED, COMPLETED,
@@ -190,6 +194,8 @@ namespace EbayClone.Domain.Entities
         public int Quantity { get; set; }
         public decimal PriceAtPurchase { get; set; }
         
+        // [M6-NOTE] DB computed column: [Quantity] * [PriceAtPurchase] (stored: true)
+        // EF Core đọc giá trị từ DB, không cần set ở C# — private set cho EF mapping
         public decimal TotalLineAmount { get; private set; }
 
         // Navigation

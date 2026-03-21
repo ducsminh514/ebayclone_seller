@@ -4,6 +4,7 @@ using EbayClone.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EbayClone.Infrastructure.Migrations
 {
     [DbContext(typeof(EbayDbContext))]
-    partial class EbayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260321090306_AddRefundMethodToReturnPolicy")]
+    partial class AddRefundMethodToReturnPolicy
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -506,9 +509,6 @@ namespace EbayClone.Infrastructure.Migrations
 
                     b.Property<DateTimeOffset?>("ReturnShippedAt")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<decimal>("ReturnShippingCost")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("ReturnShippingPaidBy")
                         .IsRequired()
