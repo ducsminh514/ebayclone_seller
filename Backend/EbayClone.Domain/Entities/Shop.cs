@@ -48,6 +48,12 @@ namespace EbayClone.Domain.Entities
         public decimal TotalSalesAmount { get; set; } = 0;
         public DateTimeOffset? LevelEvaluatedAt { get; set; }
 
+        // ─── Denormalized Counts (Performance: tránh COUNT queries mỗi dashboard load) ───
+        public int ActiveListingCount { get; set; } = 0;
+        public int DraftListingCount { get; set; } = 0;
+        public int AwaitingShipmentCount { get; set; } = 0;  // Orders status = PAID
+        public int LateShipmentCount { get; set; } = 0;
+
         /// <summary>
         /// Hold period (ngày) cho tiền escrow dựa trên seller level.
         /// New seller: 21 ngày, Below Standard: 14 ngày,
@@ -66,6 +72,30 @@ namespace EbayClone.Domain.Entities
         }
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+        // ─── Feedback Summary (Denormalized cho performance) ───
+        public int FeedbackScore { get; set; } = 0;       // Positive - Negative
+        public int TotalPositive { get; set; } = 0;
+        public int TotalNeutral { get; set; } = 0;
+        public int TotalNegative { get; set; } = 0;
+        public decimal PositivePercent { get; set; } = 0;  // % positive trong tổng
+
+        /// <summary>
+        /// Cập nhật feedback stats khi có feedback mới.
+        /// Gọi sau khi buyer leave feedback.
+        /// </summary>
+        public void UpdateFeedbackStats(int totalPositive, int totalNeutral, int totalNegative)
+        {
+            TotalPositive = totalPositive;
+            TotalNeutral = totalNeutral;
+            TotalNegative = totalNegative;
+            FeedbackScore = totalPositive - totalNegative;
+
+            var total = totalPositive + totalNeutral + totalNegative;
+            PositivePercent = total > 0
+                ? Math.Round((decimal)totalPositive / total * 100, 2)
+                : 0;
+        }
 
         // Navigation property
         public User? Owner { get; set; }

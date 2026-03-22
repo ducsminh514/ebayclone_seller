@@ -226,10 +226,22 @@ namespace EbayClone.Application.UseCases.Products
                 throw new UnauthorizedAccessException("Shop không tồn tại hoặc token không hợp lệ.");
 
             // Kiểm tra giới hạn đăng bài hàng tháng (MonthlyListingLimit)
+            // [Phase 3D] Below Standard Restriction: giảm limit 50%
+            var effectiveLimit = shop.MonthlyListingLimit;
+            var isRestricted = shop.SellerLevel == SellerLevels.BELOW_STANDARD;
+            if (isRestricted)
+            {
+                effectiveLimit = (int)Math.Ceiling(shop.MonthlyListingLimit * 0.5);
+            }
+
             var countThisMonth = await _productRepository.CountProductsThisMonthAsync(shopId, cancellationToken);
-            if (countThisMonth >= shop.MonthlyListingLimit)
-                throw new InvalidOperationException(
-                    $"Bạn đã tạo {countThisMonth}/{shop.MonthlyListingLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.");
+            if (countThisMonth >= effectiveLimit)
+            {
+                var reason = isRestricted
+                    ? $"Seller Below Standard: giới hạn giảm còn {effectiveLimit} SP/tháng (gốc: {shop.MonthlyListingLimit}). Cải thiện defect rate để nâng limit."
+                    : $"Bạn đã tạo {countThisMonth}/{effectiveLimit} sản phẩm trong tháng này. Hãy nâng cấp gói hoặc chờ tháng sau.";
+                throw new InvalidOperationException(reason);
+            }
 
             // Fallback to defaults if not provided
             // [FIX-H5] SECURITY: Validate policy belongs to THIS shop (prevent IDOR attack)
@@ -321,6 +333,15 @@ namespace EbayClone.Application.UseCases.Products
                 };
 
                 await _productRepository.AddAsync(product, cancellationToken);
+
+                // [PERF Phase 2] Update denormalized count khi tạo listing mới
+                if (product.Status == "DRAFT")
+                {
+                    shop.DraftListingCount++;
+                    _shopRepository.Update(shop);
+                }
+                // SCHEDULED sẽ được ScheduledListingActivatorService update ActiveListingCount khi activate
+
                 await _unitOfWork.SaveChangesAsync(cancellationToken); // Lấy ProductId
 
                 // 2. Khởi tạo danh sách Mảng Biến thể (SKUs - Entities Con)

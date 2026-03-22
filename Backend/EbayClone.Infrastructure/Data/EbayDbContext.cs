@@ -23,7 +23,7 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<SellerWallet> SellerWallets { get; set; }
         public DbSet<WalletTransaction> WalletTransactions { get; set; }
         public DbSet<ShopAnalyticsDaily> ShopAnalyticsDaily { get; set; }
-        public DbSet<Review> Reviews { get; set; }
+        public DbSet<SellerDefect> SellerDefects { get; set; }
         public DbSet<ProductViewLog> ProductViewLogs { get; set; }
         public DbSet<VariantAttributeValue> VariantAttributeValues { get; set; }
         public DbSet<CategoryItemSpecific> CategoryItemSpecifics { get; set; }
@@ -32,6 +32,7 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<OrderCancellation> OrderCancellations { get; set; }
         public DbSet<OrderDispute> OrderDisputes { get; set; }
         public DbSet<EscrowHold> EscrowHolds { get; set; }
+        public DbSet<Feedback> Feedbacks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -303,9 +304,13 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.ViewerIP).HasMaxLength(50);
             });
 
-            // Reviews
-            modelBuilder.Entity<Review>(entity => {
-                entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).IsRequired(false);
+            // SellerDefects
+            modelBuilder.Entity<SellerDefect>(entity => {
+                entity.HasIndex(e => new { e.ShopId, e.CreatedAt }).HasDatabaseName("IX_SellerDefects_ShopId_CreatedAt");
+                entity.Property(e => e.DefectType).HasMaxLength(30).IsRequired();
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.HasOne(e => e.Shop).WithMany().HasForeignKey(e => e.ShopId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Order).WithMany().HasForeignKey(e => e.OrderId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // Voucher
@@ -347,6 +352,18 @@ namespace EbayClone.Infrastructure.Data
                 entity.HasOne<Voucher>().WithMany().HasForeignKey(e => e.VoucherId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             });
 
+            // Feedback
+            modelBuilder.Entity<Feedback>(entity => {
+                entity.HasIndex(e => e.OrderId).IsUnique(); // 1 order = 1 feedback
+                entity.HasIndex(e => new { e.ShopId, e.CreatedAt }).HasDatabaseName("IX_Feedbacks_ShopId_CreatedAt");
+                entity.Property(e => e.Rating).HasMaxLength(10).IsRequired();
+                entity.Property(e => e.Comment).HasMaxLength(500);
+                entity.Property(e => e.SellerReply).HasMaxLength(1000);
+                entity.HasOne(e => e.Order).WithMany().HasForeignKey(e => e.OrderId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Buyer).WithMany().HasForeignKey(e => e.BuyerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Shop).WithMany().HasForeignKey(e => e.ShopId).OnDelete(DeleteBehavior.Restrict);
+            });
+
             // Prevent SQL Server multiple cascade path errors
             var cascadeFKs = modelBuilder.Model.GetEntityTypes()
                 .SelectMany(t => t.GetForeignKeys())
@@ -359,11 +376,7 @@ namespace EbayClone.Infrastructure.Data
                 {
                     fk.DeleteBehavior = DeleteBehavior.Restrict;
                 }
-                if (fk.DeclaringEntityType.ClrType == typeof(Review) && 
-                    (fk.Properties.Any(p => p.Name == "ProductId" || p.Name == "OrderId")))
-                {
-                    fk.DeleteBehavior = DeleteBehavior.Restrict;
-                }
+
                 // Prevent cascade for new Order child tables
                 if ((fk.DeclaringEntityType.ClrType == typeof(OrderReturn) ||
                      fk.DeclaringEntityType.ClrType == typeof(OrderCancellation) ||

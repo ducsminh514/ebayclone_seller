@@ -17,15 +17,18 @@ namespace EbayClone.Application.UseCases.Products
     {
         private readonly IProductRepository _productRepository;
         private readonly ICategoryRepository _categoryRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public UpdateProductStatusUseCase(
             IProductRepository productRepository,
             ICategoryRepository categoryRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
             _categoryRepository = categoryRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -39,6 +42,7 @@ namespace EbayClone.Application.UseCases.Products
             if (product.ShopId != shopId)
                 throw new UnauthorizedAccessException("Bạn không có quyền chỉnh sửa sản phẩm này.");
 
+            var oldStatus = product.Status;
             var newStatus = request.Status.ToUpper();
 
             // [C3] ENDED là trạng thái CUỐI CÙNG — seller có thể kết thúc listing bất kỳ lúc nào
@@ -98,6 +102,25 @@ namespace EbayClone.Application.UseCases.Products
 
             product.Status = newStatus;
             product.UpdatedAt = DateTimeOffset.UtcNow;
+
+            // [PERF Phase 2] Update denormalized counts khi product status thay đổi
+            // Chỉ update nếu thực sự thay đổi giữa các status tracked (ACTIVE, DRAFT)
+            if (oldStatus != newStatus)
+            {
+                var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+                if (shop != null)
+                {
+                    // Giảm count cho status cũ
+                    if (oldStatus == "ACTIVE") shop.ActiveListingCount = Math.Max(0, shop.ActiveListingCount - 1);
+                    if (oldStatus == "DRAFT") shop.DraftListingCount = Math.Max(0, shop.DraftListingCount - 1);
+
+                    // Tăng count cho status mới
+                    if (newStatus == "ACTIVE") shop.ActiveListingCount++;
+                    if (newStatus == "DRAFT") shop.DraftListingCount++;
+
+                    _shopRepository.Update(shop);
+                }
+            }
 
             await _productRepository.UpdateAsync(product, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

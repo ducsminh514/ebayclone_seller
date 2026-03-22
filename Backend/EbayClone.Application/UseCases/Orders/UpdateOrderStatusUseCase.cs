@@ -16,8 +16,17 @@ namespace EbayClone.Application.UseCases.Orders
 
     public class UpdateOrderStatusUseCase : IUpdateOrderStatusUseCase
     {
-        // eBay Managed Payments: phí sàn ~13.25% (FVF). Demo simplified = 5%
-        private const decimal PLATFORM_FEE_RATE = 0.05m;
+        /// <summary>
+        /// [Phase 2] Dynamic platform fee dựa trên Seller Level.
+        /// TOP_RATED = 4.5% (giảm 10%), ABOVE_STANDARD/NEW = 5%, BELOW_STANDARD = 5.5% (tăng 10%).
+        /// eBay thật: Final Value Fee ~13.25%, giảm 10% cho Top Rated Plus.
+        /// </summary>
+        private static decimal GetPlatformFeeRate(string sellerLevel) => sellerLevel switch
+        {
+            "TOP_RATED" => 0.045m,       // -10% discount (incentive Top Rated)
+            "BELOW_STANDARD" => 0.055m,  // +10% surcharge (penalty)
+            _ => 0.05m                    // ABOVE_STANDARD / NEW (base)
+        };
 
         private readonly IOrderRepository _orderRepository;
         private readonly IOrderCancellationRepository _cancellationRepository;
@@ -25,7 +34,9 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IWalletTransactionRepository _walletTransactionRepository;
         private readonly IProductRepository _productRepository;
         private readonly IPolicyRepository _policyRepository;
-        private readonly IVoucherRepository _voucherRepository; // [FIX-CRITICAL-2] Rollback voucher khi CANCEL
+        private readonly IVoucherRepository _voucherRepository;
+        private readonly ISellerDefectRepository _sellerDefectRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public UpdateOrderStatusUseCase(
@@ -35,7 +46,9 @@ namespace EbayClone.Application.UseCases.Orders
             IWalletTransactionRepository walletTransactionRepository,
             IProductRepository productRepository,
             IPolicyRepository policyRepository,
-            IVoucherRepository voucherRepository, // [FIX-CRITICAL-2]
+            IVoucherRepository voucherRepository,
+            ISellerDefectRepository sellerDefectRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
@@ -45,6 +58,8 @@ namespace EbayClone.Application.UseCases.Orders
             _productRepository = productRepository;
             _policyRepository = policyRepository;
             _voucherRepository = voucherRepository;
+            _sellerDefectRepository = sellerDefectRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -110,13 +125,80 @@ namespace EbayClone.Application.UseCases.Orders
                             }, cancellationToken);
                         }
 
-                        // [FIX] PlatformFee = 5% trên OriginalSubtotal (chuẩn eBay — tính trên giá gốc trước discount)
-                        // PlatformFeeBase: nếu OriginalSubtotal > 0 dùng giá gốc, còn lại fallback về ItemSubtotal (backward compat)
-                        order.PlatformFee = order.PlatformFeeBase * PLATFORM_FEE_RATE;
+                        // [PERF] Denormalized: update Shop stats khi PAID + Dynamic PlatformFee
+                        var shopPaid = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+
+                        // [Phase 2] Dynamic PlatformFee dựa trên Seller Level
+                        var feeRate = GetPlatformFeeRate(shopPaid?.SellerLevel ?? "NEW");
+
+                        // [Phase 3E] Top Rated Plus: listing qualifies → thêm 10% fee discount
+                        // Điều kiện: seller = TOP_RATED + handling ≤ 1 day + return ≥ 30 days free
+                        if (shopPaid?.SellerLevel == SellerLevels.TOP_RATED && firstItem != null)
+                        {
+                            var trpProduct = await _productRepository.GetByIdAsync(firstItem.ProductId, cancellationToken);
+                            if (trpProduct != null)
+                            {
+                                bool qualifiesTRP = false;
+                                // Check handling time
+                                if (trpProduct.ShippingPolicyId != null)
+                                {
+                                    var trpShipPolicy = await _policyRepository.GetShippingPolicyByIdAsync(trpProduct.ShippingPolicyId.Value, cancellationToken);
+                                    if (trpShipPolicy != null && trpShipPolicy.HandlingTimeDays <= 1)
+                                    {
+                                        // Check return policy
+                                        if (trpProduct.ReturnPolicyId != null)
+                                        {
+                                            var trpReturnPolicy = await _policyRepository.GetReturnPolicyByIdAsync(trpProduct.ReturnPolicyId.Value, cancellationToken);
+                                            if (trpReturnPolicy != null && trpReturnPolicy.DomesticReturnDays >= 30 && trpReturnPolicy.DomesticShippingPaidBy == "SELLER")
+                                            {
+                                                qualifiesTRP = true;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (qualifiesTRP)
+                                {
+                                    feeRate *= 0.90m; // 10% additional discount (4.5% → 4.05%)
+                                }
+                            }
+                        }
+
+                        order.PlatformFee = order.PlatformFeeBase * feeRate;
+
+                        if (shopPaid != null)
+                        {
+                            shopPaid.TotalTransactions++;
+                            shopPaid.TotalSalesAmount += order.TotalAmount;
+                            shopPaid.AwaitingShipmentCount++;
+                            _shopRepository.Update(shopPaid);
+                        }
                         break;
 
                     case "SHIPPED":
                         order.MarkAsShipped(request.ShippingCarrier ?? "Unknown", request.TrackingCode ?? "");
+
+                        // [PERF] Denormalized: giảm AwaitingShipmentCount
+                        var shopShipped = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+                        if (shopShipped != null)
+                        {
+                            shopShipped.AwaitingShipmentCount = Math.Max(0, shopShipped.AwaitingShipmentCount - 1);
+
+                            // [DEFECT] Late Shipment detection — tự động check bởi MarkAsShipped()
+                            if (order.IsLateShipment)
+                            {
+                                shopShipped.LateShipmentCount++;
+                                await _sellerDefectRepository.AddAsync(new SellerDefect
+                                {
+                                    ShopId = shopId,
+                                    OrderId = order.Id,
+                                    BuyerId = order.BuyerId,
+                                    DefectType = DefectTypes.LATE_SHIPMENT,
+                                    Description = $"Late shipment: shipped {order.ShippedAt:yyyy-MM-dd} > deadline {order.ShipByDate:yyyy-MM-dd}"
+                                }, cancellationToken);
+                            }
+                            _shopRepository.Update(shopShipped);
+                        }
                         break;
 
                     case "COMPLETED":
@@ -180,11 +262,13 @@ namespace EbayClone.Application.UseCases.Orders
                         if (returnDays > 0) order.SetReturnDeadline(returnDays);
 
                         // [FIX-M7] PlatformFee đã set ở PAID — verify consistency tại DELIVERED
-                        // Nếu chưa set (edge case legacy orders) → set lại
+                        // Nếu chưa set (edge case legacy orders) → set lại với dynamic fee
                         if (order.PlatformFee == 0)
                         {
+                            var shopDelivered = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+                            var deliveredFeeRate = GetPlatformFeeRate(shopDelivered?.SellerLevel ?? "NEW");
                             var itemSubtotal = order.TotalAmount - order.ShippingFee;
-                            order.PlatformFee = itemSubtotal * PLATFORM_FEE_RATE;
+                            order.PlatformFee = itemSubtotal * deliveredFeeRate;
                         }
                         break;
 
@@ -299,9 +383,36 @@ namespace EbayClone.Application.UseCases.Orders
                                 order.VoucherId.Value,
                                 order.DiscountAmount,
                                 order.Id);
-                            // RollbackApplyAsync:
-                            // 1. SQL UPDATE giảm UsedCount/UsedBudget (atomic, không để âm)
-                            // 2. Xóa VoucherUsage record → SaveChanges gọi bên dưới
+                        }
+
+                        // [PERF+FIX] Gom tất cả Shop updates (defect + awaiting count) thành 1 lần GetByIdAsync
+                        if (cancelReason == "OUT_OF_STOCK" || order.PaymentStatus == "PAID")
+                        {
+                            var shopCancel = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+                            if (shopCancel != null)
+                            {
+                                // [DEFECT] Cancel OUT_OF_STOCK → ghi SellerDefect + update Shop.DefectCount
+                                if (cancelReason == "OUT_OF_STOCK")
+                                {
+                                    shopCancel.DefectCount++;
+                                    await _sellerDefectRepository.AddAsync(new SellerDefect
+                                    {
+                                        ShopId = shopId,
+                                        OrderId = order.Id,
+                                        BuyerId = order.BuyerId,
+                                        DefectType = DefectTypes.CANCEL_OUT_OF_STOCK,
+                                        Description = $"Seller cancelled order #{order.OrderNumber} — OUT_OF_STOCK"
+                                    }, cancellationToken);
+                                }
+
+                                // [PERF] Denormalized: giảm AwaitingShipmentCount nếu đơn đang PAID
+                                if (order.PaymentStatus == "PAID")
+                                {
+                                    shopCancel.AwaitingShipmentCount = Math.Max(0, shopCancel.AwaitingShipmentCount - 1);
+                                }
+
+                                _shopRepository.Update(shopCancel);
+                            }
                         }
                         break;
 

@@ -6,8 +6,11 @@ using EbayClone.Application.UseCases.Policies;
 using EbayClone.Application.UseCases.Products;
 using EbayClone.Application.UseCases.Auth;
 using EbayClone.Application.UseCases.Orders;
+using EbayClone.Application.UseCases.Vouchers;
 using EbayClone.Application.UseCases.Dashboard;
 using EbayClone.Application.UseCases.Finance;
+using EbayClone.Application.UseCases.Feedbacks;
+using EbayClone.Application.UseCases.Analytics;
 
 using EbayClone.Infrastructure.Repositories;
 using EbayClone.Infrastructure.Services;
@@ -42,6 +45,10 @@ builder.Services.AddScoped<IOrderDisputeRepository, OrderDisputeRepository>();
 builder.Services.AddScoped<IDefaultPolicySeeder, DefaultPolicySeeder>();
 builder.Services.AddScoped<ICategorySeeder, CategorySeeder>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IVoucherRepository, VoucherRepository>();
+builder.Services.AddScoped<ISellerDefectRepository, SellerDefectRepository>();
+builder.Services.AddScoped<IShopAnalyticsDailyRepository, ShopAnalyticsDailyRepository>();
+builder.Services.AddScoped<IProductViewLogRepository, ProductViewLogRepository>();
 
 builder.Services.AddScoped<ICreateShopUseCase, CreateShopUseCase>();
 builder.Services.AddScoped<IVerifyShopOtpUseCase, VerifyShopOtpUseCase>();
@@ -84,12 +91,34 @@ builder.Services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
 builder.Services.AddScoped<ILoginUseCase, LoginUseCase>();
 builder.Services.AddScoped<IRefreshTokenUseCase, RefreshTokenUseCase>();
 builder.Services.AddScoped<IGetDashboardStatsUseCase, GetDashboardStatsUseCase>();
+builder.Services.AddScoped<IEvaluateSellerLevelUseCase, EvaluateSellerLevelUseCase>();
+builder.Services.AddScoped<ITrackProductViewUseCase, TrackProductViewUseCase>();
+builder.Services.AddScoped<IGetTrafficStatsUseCase, GetTrafficStatsUseCase>();
 
-// Background Services: tự động kích hoạt Listing SCHEDULED và giải ngân Escrow
+// Background Services: tự động kích hoạt Listing SCHEDULED, giải ngân Escrow, evaluate Seller Level
 builder.Services.AddHostedService<EbayClone.API.BackgroundServices.ScheduledListingActivatorService>();
 builder.Services.AddHostedService<EbayClone.API.BackgroundServices.FundReleaseHostedService>();
+builder.Services.AddHostedService<EbayClone.API.BackgroundServices.EvaluateSellerLevelService>();
+builder.Services.AddHostedService<EbayClone.API.BackgroundServices.ComputeDailyAnalyticsService>();
+builder.Services.AddHostedService<EbayClone.API.BackgroundServices.ReconcileDenormalizedCountsService>();
 builder.Services.AddScoped<IVerifyEmailUseCase, VerifyEmailUseCase>();
 builder.Services.AddScoped<IGetSellerFinanceUseCase, GetSellerFinanceUseCase>();
+
+// Voucher UseCases
+builder.Services.AddScoped<CreateVoucherUseCase>();
+builder.Services.AddScoped<GetVouchersUseCase>();
+builder.Services.AddScoped<GetVoucherByIdUseCase>();
+builder.Services.AddScoped<UpdateVoucherUseCase>();
+builder.Services.AddScoped<UpdateVoucherStatusUseCase>();
+builder.Services.AddScoped<DeleteVoucherUseCase>();
+builder.Services.AddScoped<ApplyVoucherUseCase>();
+
+// Feedback
+builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
+builder.Services.AddScoped<ILeaveFeedbackUseCase, LeaveFeedbackUseCase>();
+builder.Services.AddScoped<IGetFeedbacksByShopUseCase, GetFeedbacksByShopUseCase>();
+builder.Services.AddScoped<IReplyFeedbackUseCase, ReplyFeedbackUseCase>();
+builder.Services.AddScoped<IGetFeedbackByOrderUseCase, GetFeedbackByOrderUseCase>();
 
 // HttpClient factory cho gọi external APIs (Gemini AI)
 builder.Services.AddHttpClient();

@@ -68,6 +68,7 @@ namespace EbayClone.Domain.Entities
         public string? CancelReason { get; private set; }         // "BUYER_ASKED", "OUT_OF_STOCK", "ADDRESS_ISSUE", "BUYER_HASNT_PAID"
         public string? CancelRequestedBy { get; private set; }    // "BUYER", "SELLER", "SYSTEM"
         public bool IsEscrowReleased { get; private set; }
+        public bool IsLateShipment { get; private set; } = false;
 
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
@@ -108,6 +109,12 @@ namespace EbayClone.Domain.Entities
             ShippingCarrier = carrier;
             TrackingCode = trackingCode;
             ShippedAt = DateTimeOffset.UtcNow;
+
+            // Auto-detect late shipment
+            if (ShipByDate.HasValue && ShippedAt > ShipByDate)
+            {
+                IsLateShipment = true;
+            }
         }
 
         /// <summary>

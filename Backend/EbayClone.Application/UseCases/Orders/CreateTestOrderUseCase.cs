@@ -25,7 +25,8 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IWalletTransactionRepository _walletTransactionRepository;
         private readonly IPolicyRepository _policyRepository;
         private readonly IVoucherRepository _voucherRepository;
-        private readonly ApplyVoucherUseCase _applyVoucherUseCase; // [FIX-HIGH-3] Inject thay vì tự new
+        private readonly IShopRepository _shopRepository;
+        private readonly ApplyVoucherUseCase _applyVoucherUseCase;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateTestOrderUseCase(
@@ -35,7 +36,8 @@ namespace EbayClone.Application.UseCases.Orders
             IWalletTransactionRepository walletTransactionRepository,
             IPolicyRepository policyRepository,
             IVoucherRepository voucherRepository,
-            ApplyVoucherUseCase applyVoucherUseCase, // [FIX-HIGH-3]
+            IShopRepository shopRepository,
+            ApplyVoucherUseCase applyVoucherUseCase,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
@@ -44,6 +46,7 @@ namespace EbayClone.Application.UseCases.Orders
             _walletTransactionRepository = walletTransactionRepository;
             _policyRepository = policyRepository;
             _voucherRepository = voucherRepository;
+            _shopRepository = shopRepository;
             _applyVoucherUseCase = applyVoucherUseCase;
             _unitOfWork = unitOfWork;
         }
@@ -208,8 +211,15 @@ namespace EbayClone.Application.UseCases.Orders
                 newOrder.MarkAsPaid();
                 newOrder.SetShipByDate(handlingDays);
 
-                // [FIX] PlatformFee = 5% trên OriginalSubtotal (giá gốc trước discount) — chuẩn eBay
-                newOrder.PlatformFee = newOrder.PlatformFeeBase * 0.05m;
+                // [Phase 2] Dynamic PlatformFee dựa trên Seller Level
+                var shopForFee = await _shopRepository.GetByIdAsync(product.ShopId, cancellationToken);
+                var feeRate = shopForFee?.SellerLevel switch
+                {
+                    "TOP_RATED" => 0.045m,
+                    "BELOW_STANDARD" => 0.055m,
+                    _ => 0.05m
+                };
+                newOrder.PlatformFee = newOrder.PlatformFeeBase * feeRate;
 
                 _orderRepository.Update(newOrder);
 
@@ -247,6 +257,16 @@ namespace EbayClone.Application.UseCases.Orders
                         Description = txDescription,
                         BalanceAfter = wallet.TotalBalance
                     }, cancellationToken);
+                }
+
+                // [PERF] Denormalized: update Shop stats khi mock order auto-PAID
+                // (Dùng shopForFee đã load ở trên — tránh duplicate query)
+                if (shopForFee != null)
+                {
+                    shopForFee.TotalTransactions++;
+                    shopForFee.TotalSalesAmount += newOrder.TotalAmount;
+                    shopForFee.AwaitingShipmentCount++;
+                    _shopRepository.Update(shopForFee);
                 }
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);

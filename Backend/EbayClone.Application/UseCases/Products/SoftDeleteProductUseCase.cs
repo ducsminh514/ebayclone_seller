@@ -14,11 +14,16 @@ namespace EbayClone.Application.UseCases.Products
     public class SoftDeleteProductUseCase : ISoftDeleteProductUseCase
     {
         private readonly IProductRepository _productRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
-        public SoftDeleteProductUseCase(IProductRepository productRepository, IUnitOfWork unitOfWork)
+        public SoftDeleteProductUseCase(
+            IProductRepository productRepository,
+            IShopRepository shopRepository,
+            IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -31,6 +36,15 @@ namespace EbayClone.Application.UseCases.Products
 
             if (product.ShopId != shopId)
                 throw new UnauthorizedAccessException("Bạn không có quyền xóa sản phẩm này.");
+
+            // [PERF Phase 2] Decrement denormalized count trước khi soft delete
+            var shop = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+            if (shop != null)
+            {
+                if (product.Status == "ACTIVE") shop.ActiveListingCount = Math.Max(0, shop.ActiveListingCount - 1);
+                if (product.Status == "DRAFT") shop.DraftListingCount = Math.Max(0, shop.DraftListingCount - 1);
+                _shopRepository.Update(shop);
+            }
 
             // Soft Delete: đánh dấu IsDeleted, không xóa vật lý
             product.IsDeleted = true;
