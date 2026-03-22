@@ -9,443 +9,606 @@
 @inject NavigationManager NavigationManager
 @using Microsoft.AspNetCore.Components.Forms
 
-<div class="container mt-4">
-    <h2>Sửa Thông Tin Sản Phẩm</h2>
-    <hr />
+<style>
+    .listing-section {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 24px;
+        margin-bottom: 16px;
+    }
+    .section-title {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: #191919;
+        margin-bottom: 16px;
+    }
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    .ebay-toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 14px 0;
+        border-top: 1px solid #f0f0f0;
+    }
+    .ebay-toggle-row .toggle-label strong { font-size: 14px; }
+    .ebay-toggle-row .toggle-label small { color: #707070; font-size: 12px; display: block; margin-top: 2px; }
+    .form-switch .form-check-input { width: 44px; height: 24px; cursor: pointer; }
+    .char-counter { font-size: 12px; color: #707070; text-align: right; }
+    .char-counter.warn { color: #e65c00; font-weight: 600; }
+    .char-counter.danger { color: #d93025; font-weight: 700; }
+</style>
+
+<div class="container-lg mt-4" style="max-width: 860px;">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="mb-0" style="font-size: 22px;">Edit your listing</h2>
+        <a href="/listings" class="btn btn-sm btn-outline-secondary" style="border-radius: 20px; font-size: 12px;">
+            ← Back to Listings
+        </a>
+    </div>
 
     @if (isLoading)
     {
-        <div class="p-4 text-center">Đang tải dữ liệu sản phẩm...</div>
+        <div class="p-4 text-center">Loading listing data...</div>
     }
     else if (!string.IsNullOrEmpty(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger alert-dismissible mb-3" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
     }
     else
     {
         <EditForm Model="fullRequest" OnValidSubmit="HandleSubmit">
             <DataAnnotationsValidator />
-            <ValidationSummary />
 
             <fieldset disabled="@isSubmitting">
-                <div class="ebay-card">
-                    <h4 class="ebay-card-title">Thông tin cơ bản (Master Data)</h4>
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Ảnh bìa (Primary Image) *</label>
-                        <div class="ebay-upload-box" style="width: 200px; height: 200px; position: relative; border: 2px dashed #0052ff; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8f9ff;">
-                            @if (!string.IsNullOrEmpty(fullRequest.PrimaryImageUrl))
-                            {
-                                <img src="@fullRequest.PrimaryImageUrl" class="w-100 h-100" style="object-fit: cover;" />
-                                <div class="upload-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.3); opacity: 0; transition: 0.3s; display: flex; align-items: center; justify-content: center;">
-                                    <span class="text-white fw-bold">Thay đổi ảnh</span>
-                                </div>
-                            }
 
-                            @if (isUploadingPrimary)
-                            {
-                                <div class="upload-loading-overlay" style="position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 3;">
-                                    <div class="spinner-border spinner-border-sm text-primary"></div>
-                                    <div class="text-muted mt-2" style="font-size: 11px;">Đang tải...</div>
-                                </div>
-                            }
+            @* ======= 1. PHOTOS ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Photos</span>
+                    <small class="text-muted">@(extraImageUrls.Count + (string.IsNullOrEmpty(fullRequest.PrimaryImageUrl) ? 0 : 1)) / 24 photos</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Primary Image *</label>
+                    <div style="width: 200px; height: 200px; position: relative; border: 2px dashed #0052ff; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8f9ff;">
+                        @if (!string.IsNullOrEmpty(fullRequest.PrimaryImageUrl))
+                        {
+                            <img src="@fullRequest.PrimaryImageUrl" class="w-100 h-100" style="object-fit: cover;" />
+                        }
+                        @if (isUploadingPrimary)
+                        {
+                            <div style="position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 3;">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                <div class="text-muted mt-2" style="font-size: 11px;">Uploading...</div>
+                            </div>
+                        }
+                        <InputFile OnChange="UploadPrimaryImage" accept="image/*"
+                                   style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2; display: {(isUploadingPrimary ? "none" : "block")}")" />
+                        @if (string.IsNullOrEmpty(fullRequest.PrimaryImageUrl) && !isUploadingPrimary)
+                        {
+                            <div class="text-center">
+                                <span style="font-size: 32px;">📷</span>
+                                <div class="text-muted mt-1" style="font-size: 12px;">Click to upload</div>
+                            </div>
+                        }
+                    </div>
+                </div>
 
-                            @* Luôn giữ InputFile trong DOM để tránh lỗi _blazorFilesById*@
-                            <InputFile OnChange="UploadPrimaryImage" accept="image/*" 
-                                       style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2; display: {(isUploadingPrimary ? "none" : "block")}")" />
-                            
-                            @if (string.IsNullOrEmpty(fullRequest.PrimaryImageUrl))
-                            {
-                                <div class="text-center" style="display: @(isUploadingPrimary ? "none" : "block")">
-                                    <span style="font-size: 32px;">📷</span>
-                                    <div class="text-muted mt-1" style="font-size: 12px;">Bấm để chọn</div>
-                                </div>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Ảnh phụ (Tối đa 5)</label>
-                        <div class="d-flex flex-wrap gap-2">
-                            @for (int i = 0; i < extraImageUrls.Count; i++)
-                            {
-                                var idx = i;
-                                <div style="position: relative; width: 80px; height: 80px;">
-                                    <img src="@extraImageUrls[idx]" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;" />
-                                    <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%;" @onclick="() => extraImageUrls.RemoveAt(idx)">✕</button>
-                                </div>
-                            }
-                            @if (extraImageUrls.Count < 5)
-                            {
-                                <div style="width: 80px; height: 80px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative;">
-                                    @if (isUploadingExtra)
-                                    {
-                                        <div class="spinner-border spinner-border-sm text-primary"></div>
-                                    }
-                                    
-                                    @* Luôn giữ InputFile *@
-                                    <span class="text-secondary" style="display: @(isUploadingExtra ? "none" : "block")">+</span>
-                                    <InputFile OnChange="UploadExtraImage" accept="image/*" 
-                                               style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; display: {(isUploadingExtra ? "none" : "block")}")" />
-                                </div>
-                            }
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Tên sản phẩm *</label>
-                        <InputText class="form-control ebay-input" @bind-Value="fullRequest.Name" placeholder="Ví dụ: iPhone 15 Pro Max 256GB Gold" />
-                        <ValidationMessage For="@(() => fullRequest.Name)" />
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Mô tả chi tiết</label>
-                        <InputTextArea class="form-control ebay-input" @bind-Value="fullRequest.Description" rows="5" placeholder="Mô tả các tính năng, tình trạng sản phẩm..." />
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Thương hiệu</label>
-                            <InputText class="form-control ebay-input" @bind-Value="fullRequest.Brand" placeholder="Ví dụ: Apple, Samsung..." />
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Danh mục *</label>
-                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.CategoryId">
-                                <option value="">-- Chọn danh mục --</option>
-                                @foreach (var cat in categories)
-                                {
-                                    var prefix = cat.ParentId.HasValue ? "   └ " : "";
-                                    <option value="@cat.Id">@prefix@cat.Name</option>
-                                }
-                            </InputSelect>
-                            <ValidationMessage For="@(() => fullRequest.CategoryId)" />
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Tình trạng *</label>
-                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.Condition">
-                                <option value="New">Mới (New)</option>
-                                <option value="New Other">Mới khác (New Other)</option>
-                                <option value="Open Box">Đã khui hộp (Open Box)</option>
-                                <option value="Seller Refurbished">Đã tân trang (Refurbished)</option>
-                                <option value="Used">Đã qua sử dụng (Used)</option>
-                                <option value="For Parts">Dùng linh kiện (For Parts)</option>
-                            </InputSelect>
-                        </div>
-                    </div>
-                    @if (fullRequest.Condition != "New")
+                <label class="form-label fw-bold">Additional photos (up to 23)</label>
+                <div class="d-flex flex-wrap gap-2">
+                    @for (int i = 0; i < extraImageUrls.Count; i++)
                     {
-                        <div class="mb-3">
-                            <label class="form-label">Mô tả tình trạng (vết xước, thiếu phụ kiện...)</label>
-                            <InputTextArea class="form-control ebay-input" @bind-Value="fullRequest.ConditionDescription" rows="2" placeholder="Mô tả chi tiết tình trạng sản phẩm..." />
+                        var idx = i;
+                        <div style="position: relative; width: 80px; height: 80px;">
+                            <img src="@extraImageUrls[idx]" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;" />
+                            <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; font-size: 10px;" @onclick="() => extraImageUrls.RemoveAt(idx)">&#10005;</button>
                         </div>
                     }
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Hình thức bán</label>
-                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.ListingFormat">
-                                <option value="FIXED_PRICE">Giá cố định (Fixed Price)</option>
-                                <option value="AUCTION">Đấu giá (Auction)</option>
-                            </InputSelect>
-                            @if (fullRequest.ListingFormat == "AUCTION" && fullRequest.Variants.Count > 1)
-                            {
-                                <div class="text-danger mt-1" style="font-size: 12px;">⚠️ Auction chỉ cho phép đúng 1 biến thể. Hiện có @fullRequest.Variants.Count — hãy xóa bớt trước khi lưu.</div>
-                            }
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">Subtitle (phụ đề SEO)</label>
-                            <InputText class="form-control ebay-input" @bind-Value="fullRequest.Subtitle" placeholder="Phụ đề hiển thị trong kết quả tìm kiếm" />
-                        </div>
-                        <div class="col-md-4 mb-3 d-flex align-items-end">
-                            <div class="form-check">
-                                <InputCheckbox class="form-check-input" @bind-Value="fullRequest.AllowOffers" />
-                                <label class="form-check-label">Cho phép đặt giá (Best Offer)</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    @if (fullRequest.AllowOffers)
+                    @if (extraImageUrls.Count < 23)
                     {
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Tự chấp nhận offer ≥ (₫)</label>
-                                <InputNumber class="form-control ebay-input" @bind-Value="fullRequest.AutoAcceptPrice" />
+                        <div style="width: 80px; height: 80px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; background: #fafafa;">
+                            @if (isUploadingExtra) { <div class="spinner-border spinner-border-sm text-primary"></div> }
+                            else { <span style="font-size: 24px; color: #aaa;">+</span> }
+                            <InputFile OnChange="UploadExtraImage" accept="image/*"
+                                       style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; display: {(isUploadingExtra ? "none" : "block")}")" />
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* ======= 2. TITLE ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Title</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Item title <span class="text-danger">*</span></label>
+                    <InputText class="form-control" @bind-Value="fullRequest.Name" maxlength="80"
+                               placeholder="Describe what you're selling" />
+                    <div class="char-counter @(fullRequest.Name.Length > 70 ? (fullRequest.Name.Length >= 80 ? "danger" : "warn") : "")">
+                        @fullRequest.Name.Length / 80
+                    </div>
+                    <ValidationMessage For="@(() => fullRequest.Name)" />
+                </div>
+                <div class="mb-0">
+                    <label class="form-label">Subtitle <span class="text-muted" style="font-size: 12px;">(optional)</span></label>
+                    <InputText class="form-control" @bind-Value="fullRequest.Subtitle" maxlength="55"
+                               placeholder="Add more detail to attract buyers" />
+                    <div class="char-counter @((fullRequest.Subtitle?.Length ?? 0) > 45 ? "warn" : "")">
+                        @(fullRequest.Subtitle?.Length ?? 0) / 55
+                    </div>
+                </div>
+            </div>
+
+            @* ======= 3. CATEGORY ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Item Category</span>
+                </div>
+                <InputSelect class="form-select" @bind-Value="fullRequest.CategoryId" @bind-Value:after="OnCategoryChanged">
+                    <option value="">-- Select a category --</option>
+                    @foreach (var c in categories)
+                    {
+                        var prefix = c.ParentId.HasValue ? "   - " : "";
+                        <option value="@c.Id">@prefix@c.Name</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => fullRequest.CategoryId)" />
+            </div>
+
+            @* ======= 4. CONDITION ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Condition</span>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Item condition</label>
+                    <InputSelect class="form-select" @bind-Value="fullRequest.Condition">
+                        <optgroup label="New">
+                            <option value="New">New - Brand new, original packaging</option>
+                            <option value="New with tags">New with tags</option>
+                            <option value="New without tags">New without tags</option>
+                            <option value="New with imperfections">New with imperfections</option>
+                            <option value="Open Box">Open Box</option>
+                        </optgroup>
+                        <optgroup label="Refurbished">
+                            <option value="Certified Refurbished">Certified Refurbished</option>
+                            <option value="Excellent Refurbished">Excellent Refurbished</option>
+                            <option value="Very Good Refurbished">Very Good Refurbished</option>
+                            <option value="Good Refurbished">Good Refurbished</option>
+                            <option value="Seller Refurbished">Seller Refurbished</option>
+                        </optgroup>
+                        <optgroup label="Used / Pre-owned">
+                            <option value="Used">Used</option>
+                            <option value="Pre-owned - Excellent">Pre-owned Excellent</option>
+                            <option value="Pre-owned - Good">Pre-owned Good</option>
+                            <option value="Pre-owned - Fair">Pre-owned Fair</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option value="For Parts or Not Working">For Parts or Not Working</option>
+                        </optgroup>
+                    </InputSelect>
+                </div>
+                @if (fullRequest.Condition != "New")
+                {
+                    <div>
+                        <label class="form-label" style="font-size: 12px;">Condition description</label>
+                        <InputTextArea class="form-control" @bind-Value="fullRequest.ConditionDescription"
+                                       rows="2" placeholder="Describe condition details (scratches, missing parts, etc.)" />
+                    </div>
+                }
+            </div>
+
+            @* ======= 5. DESCRIPTION ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Description</span>
+                </div>
+                <InputTextArea class="form-control" @bind-Value="fullRequest.Description" rows="5"
+                               placeholder="Write a detailed description of your item" />
+            </div>
+
+            @* ======= 6. ITEM SPECIFICS ======= *@
+            @if (categoryItemSpecifics.Any())
+            {
+                <div class="listing-section">
+                    <div class="section-header">
+                        <span class="section-title mb-0">Item Specifics</span>
+                    </div>
+                    @foreach (var spec in categoryItemSpecifics.OrderBy(s => s.SortOrder))
+                    {
+                        var existing = fullRequest.ItemSpecifics?.FirstOrDefault(v => v.Name == spec.Name);
+                        var isRequired = spec.Requirement == "REQUIRED";
+                        <div class="row align-items-center mb-2">
+                            <div class="col-md-3">
+                                <label class="form-label mb-0" style="font-size: 13px;">
+                                    @spec.Name
+                                    @if (isRequired) { <span class="text-danger">*</span> }
+                                </label>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Tự từ chối offer &lt; (₫)</label>
-                                <InputNumber class="form-control ebay-input" @bind-Value="fullRequest.AutoDeclinePrice" />
+                            <div class="col-md-9">
+                                @if (!string.IsNullOrEmpty(spec.SuggestedValues))
+                                {
+                                    var suggestions = spec.SuggestedValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                    <select class="form-select form-select-sm"
+                                            value="@(existing != null ? existing.Value : string.Empty)"
+                                            @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())">
+                                        <option value="">-- Select --</option>
+                                        @foreach (var sug in suggestions)
+                                        { <option value="@sug">@sug</option> }
+                                    </select>
+                                }
+                                else
+                                {
+                                    <input type="text" class="form-control form-control-sm" placeholder="Enter value..."
+                                           value="@(existing != null ? existing.Value : string.Empty)"
+                                           @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())" />
+                                }
                             </div>
                         </div>
                     }
                 </div>
+            }
 
-                @* ─── ITEM SPECIFICS (GAP-2) ─── *@
-                @if (categoryItemSpecifics.Any())
+            @* ======= 7. PRICING ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Pricing</span>
+                </div>
+                <div class="mb-3" style="max-width: 260px;">
+                    <label class="form-label">Format</label>
+                    <InputSelect class="form-select" @bind-Value="fullRequest.ListingFormat">
+                        <option value="FIXED_PRICE">Buy It Now</option>
+                        <option value="AUCTION">Auction</option>
+                    </InputSelect>
+                    @if (fullRequest.ListingFormat == "AUCTION" && fullRequest.Variants.Count > 1)
+                    {
+                        <div class="text-danger mt-1" style="font-size: 12px;">⚠ Auction only supports single items. You have @fullRequest.Variants.Count variants — remove extras before saving.</div>
+                    }
+                </div>
+
+                @if (fullRequest.ListingFormat == "FIXED_PRICE")
                 {
-                    <div class="ebay-card">
-                        <h4 class="ebay-card-title">📋 Thông Tin Chi Tiết (Item Specifics)</h4>
-                        <div class="text-muted mb-3" style="font-size: 12px;">Các trường đánh dấu <span class="text-danger fw-bold">*</span> là bắt buộc trước khi đăng bán.</div>
-                        
-                        @foreach (var spec in categoryItemSpecifics.OrderBy(s => s.SortOrder))
+                    <div class="form-check mb-3">
+                        <InputCheckbox class="form-check-input" id="reqPaymentCheckEdit"
+                                       @bind-Value="fullRequest.RequireImmediatePayment" />
+                        <label class="form-check-label" for="reqPaymentCheckEdit" style="font-size: 13px;">
+                            Require immediate payment when buyer uses Buy It Now
+                        </label>
+                    </div>
+                }
+
+                @* Allow Offers *@
+                <div class="ebay-toggle-row">
+                    <div class="toggle-label">
+                        <strong>Allow offers</strong> <span class="text-muted" style="font-size: 12px;">(optional)</span>
+                        <small>Interested buyers can send an offer.</small>
+                    </div>
+                    <div class="form-check form-switch ms-3">
+                        <InputCheckbox class="form-check-input" id="allowOffersSwitchEdit"
+                                       @bind-Value="fullRequest.AllowOffers" role="switch" />
+                    </div>
+                </div>
+                @if (fullRequest.AllowOffers)
+                {
+                    <div class="row g-3 mt-1 mb-2">
+                        <div class="col-sm-4">
+                            <label class="form-label" style="font-size: 12px;">Minimum offer</label>
+                            <InputNumber class="form-control form-control-sm" @bind-Value="fullRequest.AutoDeclinePrice" placeholder="Min. amount" />
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label" style="font-size: 12px;">Auto accept</label>
+                            <InputNumber class="form-control form-control-sm" @bind-Value="fullRequest.AutoAcceptPrice" placeholder="Auto accept >=" />
+                        </div>
+                    </div>
+                }
+
+                @* Schedule listing *@
+                <div class="ebay-toggle-row">
+                    <div class="toggle-label">
+                        <strong>Schedule your listing</strong>
+                        <small>Your listing goes live immediately, unless you select a time and date.</small>
+                    </div>
+                    <div class="form-check form-switch ms-3">
+                        <input type="checkbox" class="form-check-input" id="scheduleSwitchEdit"
+                               checked="@showSchedulePicker"
+                               @onchange="OnScheduleToggle" role="switch" />
+                    </div>
+                </div>
+                @if (showSchedulePicker)
+                {
+                    <div class="mt-2 d-flex align-items-center gap-3">
+                        <input type="datetime-local" class="form-control" style="max-width: 280px;"
+                               value="@(fullRequest.ScheduledAt.HasValue ? fullRequest.ScheduledAt.Value.LocalDateTime.ToString("yyyy-MM-ddTHH:mm") : "")"
+                               @onchange="OnScheduledAtChanged" />
+                        @if (fullRequest.ScheduledAt.HasValue)
                         {
-                            var existing = fullRequest.ItemSpecifics?.FirstOrDefault(v => v.Name == spec.Name);
-                            var isRequired = spec.Requirement == "REQUIRED";
-                            var badgeClass = spec.Requirement switch
-                            {
-                                "REQUIRED" => "bg-danger",
-                                "RECOMMENDED" => "bg-warning text-dark",
-                                _ => "bg-secondary"
-                            };
-                            
-                            <div class="mb-2 row align-items-center">
-                                <div class="col-md-3">
-                                    <label class="form-label mb-0">
-                                        @spec.Name
-                                        @if (isRequired) { <span class="text-danger">*</span> }
-                                        <span class="badge @badgeClass ms-1" style="font-size: 10px;">@spec.Requirement</span>
-                                    </label>
-                                </div>
-                                <div class="col-md-9">
-                                    @if (!string.IsNullOrEmpty(spec.SuggestedValues))
+                            <span class="badge bg-info text-dark">@fullRequest.ScheduledAt.Value.LocalDateTime.ToString("HH:mm, dd/MM/yyyy")</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* ======= 8. SHIPPING ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Shipping</span>
+                </div>
+
+                <div class="mb-3" style="max-width: 400px;">
+                    <label class="form-label">Shipping policy</label>
+                    <select class="form-select" value="@fullRequest.ShippingPolicyId"
+                            @onchange="OnShippingPolicyChanged">
+                        <option value="">-- Select shipping policy --</option>
+                        @foreach (var p in shippingPolicies)
+                        { <option value="@p.Id">@p.Name</option> }
+                    </select>
+                </div>
+
+                @* Shipping Preview Panel *@
+                @if (selectedShippingPolicy != null)
+                {
+                    <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; margin-bottom: 16px; font-size: 13px;">
+                        <div style="padding: 10px 16px; background-color: #f8f8f8; border-bottom: 1px solid #f0f0f0;">
+                            <span style="font-weight: 600; color: #555;">
+                                @switch (selectedShippingPolicy.ShippingMethod)
+                                {
+                                    case "Standard": <span>&#128230; Standard shipping</span> break;
+                                    case "Freight": <span>&#9951; Freight</span> break;
+                                    case "NoShipping": <span>&#128203; No shipping. Local pickup only</span> break;
+                                    default: <span>@selectedShippingPolicy.ShippingMethod</span> break;
+                                }
+                            </span>
+                        </div>
+
+                        @if (selectedShippingPolicy.ShippingMethod == "Standard")
+                        {
+                            <div style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0;">
+                                <div style="font-weight: 700; margin-bottom: 8px; color: #333;">&#128230; Domestic shipping</div>
+                                @if (selectedShippingPolicy.OfferFreeShipping)
+                                {
+                                    <div><span class="badge bg-success me-2" style="font-size: 11px;">FREE</span>Free shipping for all buyers</div>
+                                }
+                                else if (selectedShippingPolicy.DomesticServices.Any())
+                                {
+                                    @foreach (var svc in selectedShippingPolicy.DomesticServices)
                                     {
-                                        var suggestions = spec.SuggestedValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                                        <select class="form-select form-select-sm ebay-input" 
-                                                value="@(existing != null ? existing.Value : string.Empty)"
-                                                @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())">
-                                            <option value="">-- Chọn --</option>
-                                            @foreach (var sug in suggestions)
-                                            {
-                                                <option value="@sug">@sug</option>
-                                            }
-                                        </select>
+                                        <div style="color: #444; padding-left: 8px;">
+                                            &#8227; @svc.ServiceName
+                                            @if (svc.IsFreeShipping) { <span class="text-success ms-1">— Free</span> }
+                                            else if (svc.Cost > 0) { <span class="ms-1">— @svc.Cost.ToString("C")</span> }
+                                        </div>
                                     }
-                                    else
-                                    {
-                                        <input type="text" class="form-control form-control-sm ebay-input" 
-                                               placeholder="Nhập giá trị..."
-                                               value="@(existing != null ? existing.Value : string.Empty)"
-                                               @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())" />
-                                    }
+                                }
+                                <div style="color: #707070; margin-top: 6px;">
+                                    &#8987; Handling time: @(selectedShippingPolicy.HandlingTimeDays == 0 ? "Same business day" : $"{selectedShippingPolicy.HandlingTimeDays} business day{(selectedShippingPolicy.HandlingTimeDays > 1 ? "s" : "")}")
                                 </div>
                             </div>
                         }
                     </div>
                 }
 
-                <div class="ebay-card">
-                    <h4 class="ebay-card-title">Chính sách Bán Hàng & Trạng Thái</h4>
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Shipping Policy</label>
-                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.ShippingPolicyId">
-                                <option value="">-- Chọn Shipping Policy --</option>
-                                @foreach (var p in shippingPolicies)
-                                {
-                                    <option value="@p.Id">@p.Name</option>
-                                }
-                            </InputSelect>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Return Policy</label>
-                            <InputSelect class="form-select" @bind-Value="fullRequest.ReturnPolicyId">
-                                <option value="">-- Chọn Return Policy --</option>
-                                @foreach (var p in returnPolicies)
-                                {
-                                    <option value="@p.Id">@p.Name</option>
-                                }
-                            </InputSelect>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Payment Policy</label>
-                            <InputSelect class="form-select ebay-input" @bind-Value="fullRequest.PaymentPolicyId">
-                                <option value="">-- Chọn Payment Policy (bỏ trống = dùng Default) --</option>
-                                @foreach (var p in paymentPolicies)
-                                {
-                                    <option value="@p.Id">@p.Name</option>
-                                }
-                            </InputSelect>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Trạng Thái Hiển Thị</label>
-                            <InputSelect class="form-select" @bind-Value="fullRequest.Status">
-                                <option value="DRAFT">DRAFT (Bản Nháp)</option>
-                                <option value="ACTIVE">ACTIVE (Mở Bán)</option>
-                                <option value="SCHEDULED">SCHEDULED (Hẹn Giờ)</option>
-                                <option value="HIDDEN">HIDDEN (Ẩn)</option>
-                                <option value="ENDED">ENDED (Kết Thúc)</option>
-                                @if (fullRequest.Status == "OUT_OF_STOCK")
-                                {
-                                    <option value="OUT_OF_STOCK" disabled>OUT_OF_STOCK (Tự động - Hết hàng)</option>
-                                }
-                            </InputSelect>
-                            @if (fullRequest.Status == "OUT_OF_STOCK")
-                            {
-                                <div class="text-warning mt-1" style="font-size: 12px;">⚠️ Trạng thái này tự động khi tất cả biến thể hết hàng. Nhập kho để chuyển về ACTIVE.</div>
-                            }
-                            @if (fullRequest.Status == "ENDED")
-                            {
-                                <div class="text-danger mt-1" style="font-size: 12px;">🛑 Listing đã kết thúc. Không thể chỉnh sửa hoặc mở lại. Hãy tạo listing mới (relist).</div>
-                            }
-                        </div>
+                <div class="mb-3">
+                    <label class="form-label">Package weight <span class="text-muted" style="font-size: 12px;">(optional)</span></label>
+                    <div style="display: flex; align-items: center; gap: 8px; max-width: 200px;">
+                        <input type="number" class="form-control" @bind="packageWeightGram" placeholder="0" />
+                        <span class="text-muted" style="white-space: nowrap;">gram</span>
                     </div>
                 </div>
 
-                <div class="ebay-card">
-                    <h4 class="ebay-card-title">📦 Quản lý Biến thể (Variants)</h4>
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Phân loại (Attributes)</th>
-                                    <th>SKU Code</th>
-                                    <th>Giá Bán (₫)</th>
-                                    <th>Kho hàng</th>
-                                    <th>Khối lượng (g)</th>
-                                    <th>Ảnh</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var v in fullRequest.Variants)
-                                {
-                                    <tr>
-                                        <td>
-                                            @foreach (var attr in v.Attributes)
-                                            {
-                                                <div class="badge bg-light text-dark me-1 border">@attr.Key: @attr.Value</div>
-                                            }
-                                        </td>
-                                        <td>
-                                            <input type="text" class="form-control form-control-sm" @bind="v.SkuCode" />
-                                        </td>
-                                        <td>
-                                            <input type="number" class="form-control form-control-sm" @bind="v.Price" step="1000" />
-                                        </td>
-                                        <td>
-                                            <input type="number" class="form-control form-control-sm" @bind="v.Quantity" min="0" />
-                                        </td>
-                                        <td>
-                                            <input type="number" class="form-control form-control-sm" @bind="v.WeightGram" min="1" placeholder="gram" />
-                                        </td>
-                                        <td>
-                                            @if (!string.IsNullOrEmpty(v.ImageUrl))
-                                            {
-                                                <div style="position: relative; display: inline-block;">
-                                                    <img src="@v.ImageUrl" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;" />
-                                                    <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; font-size: 8px;" @onclick="() => v.ImageUrl = null">✕</button>
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <div style="width: 45px; height: 45px; border: 1px dashed #aaa; border-radius: 4px; display: flex; align-items: center; justify-content: center; position: relative;">
-                                                    @if (uploadingVariants.Contains(v))
-                                                    {
-                                                        <div class="spinner-border spinner-border-sm text-primary"></div>
-                                                    }
-                                                    
-                                                    @* Luôn giữ InputFile *@
-                                                    <div style="@($"display: {(uploadingVariants.Contains(v) ? "none" : "flex")}; align-items: center; justify-content: center; width: 100%; height: 100%;")">
-                                                        <span style="font-size: 12px; color: #888;">+ 📷</span>
-                                                        <InputFile OnChange="(e) => UploadVariantImage(e, v)" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
-                                                    </div>
-                                                </div>
-                                            }
-                                        </td>
-                                        <td>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => fullRequest.Variants.Remove(v)">Xóa</button>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
+                <div class="mb-3">
+                    <label class="form-label">Package dimensions <span class="text-muted" style="font-size: 12px;">(optional)</span></label>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <InputNumber class="form-control" style="max-width: 90px;" @bind-Value="fullRequest.PackageLengthCm" placeholder="L" />
+                        <span>x</span>
+                        <InputNumber class="form-control" style="max-width: 90px;" @bind-Value="fullRequest.PackageWidthCm" placeholder="W" />
+                        <span>x</span>
+                        <InputNumber class="form-control" style="max-width: 90px;" @bind-Value="fullRequest.PackageHeightCm" placeholder="H" />
+                        <span class="text-muted">cm</span>
+                    </div>
                 </div>
 
-                @* ─── FORM THÊM BIẾN THỂ MỚI ─── *@
+                @* Country of Origin *@
+                <div class="mb-3">
+                    <label class="form-label">Country of Origin</label>
+                    <select class="form-select" style="max-width: 320px;"
+                            value="@fullRequest.CountryOfOrigin"
+                            @onchange="(e) => fullRequest.CountryOfOrigin = e.Value?.ToString()">
+                        <option value="">-- Select country --</option>
+                        <option value="VN">Vietnam</option>
+                        <option value="CN">China</option>
+                        <option value="US">United States</option>
+                        <option value="DE">Germany</option>
+                        <option value="JP">Japan</option>
+                        <option value="KR">South Korea</option>
+                        <option value="GB">United Kingdom</option>
+                        <option value="FR">France</option>
+                        <option value="IT">Italy</option>
+                        <option value="IN">India</option>
+                        <option value="TH">Thailand</option>
+                        <option value="TW">Taiwan</option>
+                        <option value="AU">Australia</option>
+                        <option value="CA">Canada</option>
+                        <option value="SG">Singapore</option>
+                    </select>
+                </div>
+
+                <div class="mb-0" style="max-width: 360px;">
+                    <label class="form-label">Return policy</label>
+                    <InputSelect class="form-select" @bind-Value="fullRequest.ReturnPolicyId">
+                        <option value="">-- Select return policy --</option>
+                        @foreach (var p in returnPolicies)
+                        { <option value="@p.Id">@p.Name</option> }
+                    </InputSelect>
+                </div>
+            </div>
+
+            @* ======= 9. PAYMENT ======= *@
+            <div class="listing-section mb-3">
+                <div class="section-header">
+                    <span class="section-title mb-0">Payment</span>
+                </div>
+                <div style="max-width: 360px;">
+                    <label class="form-label">Payment policy</label>
+                    <InputSelect class="form-select" @bind-Value="fullRequest.PaymentPolicyId">
+                        <option value="">-- Default payment policy --</option>
+                        @foreach (var p in paymentPolicies)
+                        { <option value="@p.Id">@p.Name</option> }
+                    </InputSelect>
+                </div>
+            </div>
+
+            @* ======= 10. STATUS ======= *@
+            <div class="listing-section mb-3">
+                <div class="section-header">
+                    <span class="section-title mb-0">Listing Status</span>
+                </div>
+                <div style="max-width: 260px;">
+                    <InputSelect class="form-select" @bind-Value="fullRequest.Status">
+                        <option value="DRAFT">DRAFT</option>
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="SCHEDULED">SCHEDULED</option>
+                        <option value="HIDDEN">HIDDEN</option>
+                        <option value="ENDED">ENDED</option>
+                        @if (fullRequest.Status == "OUT_OF_STOCK")
+                        {
+                            <option value="OUT_OF_STOCK" disabled>OUT_OF_STOCK (auto)</option>
+                        }
+                    </InputSelect>
+                    @if (fullRequest.Status == "ENDED")
+                    {
+                        <div class="text-danger mt-1" style="font-size: 12px;">🛑 Listing ended. Cannot edit or reopen. Create a new listing (relist).</div>
+                    }
+                </div>
+            </div>
+
+            @* ======= 11. VARIANTS ======= *@
+            <div class="listing-section">
+                <div class="section-header">
+                    <span class="section-title mb-0">Variants (SKUs)</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Attributes</th>
+                                <th>SKU Code</th>
+                                <th>Price</th>
+                                <th>Quantity</th>
+                                <th>Weight (g)</th>
+                                <th>Photo</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in fullRequest.Variants)
+                            {
+                                <tr>
+                                    <td>
+                                        @foreach (var attr in v.Attributes)
+                                        {
+                                            <div class="badge bg-light text-dark me-1 border">@attr.Key: @attr.Value</div>
+                                        }
+                                    </td>
+                                    <td><input type="text" class="form-control form-control-sm" @bind="v.SkuCode" /></td>
+                                    <td><input type="number" class="form-control form-control-sm" @bind="v.Price" step="1000" /></td>
+                                    <td><input type="number" class="form-control form-control-sm" @bind="v.Quantity" min="0" /></td>
+                                    <td><input type="number" class="form-control form-control-sm" @bind="v.WeightGram" min="1" placeholder="gram" /></td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(v.ImageUrl))
+                                        {
+                                            <div style="position: relative; display: inline-block;">
+                                                <img src="@v.ImageUrl" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;" />
+                                                <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; font-size: 8px;" @onclick="() => v.ImageUrl = null">✕</button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div style="width: 45px; height: 45px; border: 1px dashed #aaa; border-radius: 4px; display: flex; align-items: center; justify-content: center; position: relative;">
+                                                @if (uploadingVariants.Contains(v))
+                                                {
+                                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                                }
+                                                <div style="@($"display: {(uploadingVariants.Contains(v) ? "none" : "flex")}; align-items: center; justify-content: center; width: 100%; height: 100%;")">
+                                                    <span style="font-size: 12px; color: #888;">+ 📷</span>
+                                                    <InputFile OnChange="(e) => UploadVariantImage(e, v)" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
+                                                </div>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => fullRequest.Variants.Remove(v)">✕</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* Add new variant form *@
                 <div class="mt-3 border-top pt-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted" style="font-size: 13px;">
-                            Tổng: @fullRequest.Variants.Count / 250 biến thể
-                        </span>
-                        <button type="button" class="ebay-btn-outline btn-sm" 
+                        <span class="text-muted" style="font-size: 13px;">Total: @fullRequest.Variants.Count / 250 variants</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
                                 @onclick="ToggleAddVariantForm"
                                 disabled="@(fullRequest.Variants.Count >= 250 || (fullRequest.ListingFormat == "AUCTION" && fullRequest.Variants.Count >= 1))">
-                            @(showAddVariantForm ? "✕ Đóng" : "+ Thêm Biến Thể Mới")
+                            @(showAddVariantForm ? "✕ Close" : "+ Add New Variant")
                         </button>
                     </div>
 
                     @if (showAddVariantForm)
                     {
-                        <div class="border p-3 bg-light" style="border-radius: 8px; border-color: var(--primary-color) !important; border-width: 2px !important;">
-                            <h6 class="fw-bold mb-3" style="color: var(--primary-color);">📝 Nhập thông tin biến thể mới</h6>
+                        <div class="border p-3 bg-light" style="border-radius: 8px;">
+                            <h6 class="fw-bold mb-3">New variant details</h6>
                             <div class="row g-2">
                                 <div class="col-md-3">
-                                    <label class="form-label" style="font-size: 12px;">Mã SKU *</label>
-                                    <input type="text" class="form-control form-control-sm" @bind="newVariant.SkuCode" placeholder="VD: SHIRT-RED-M" />
+                                    <label class="form-label" style="font-size: 12px;">SKU Code *</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="newVariant.SkuCode" placeholder="e.g. SKU-RED-M" />
                                 </div>
                                 <div class="col-md-2">
-                                    <label class="form-label" style="font-size: 12px;">Giá (₫) *</label>
+                                    <label class="form-label" style="font-size: 12px;">Price *</label>
                                     <input type="number" class="form-control form-control-sm" @bind="newVariant.Price" step="1000" min="100" />
                                 </div>
                                 <div class="col-md-2">
-                                    <label class="form-label" style="font-size: 12px;">Kho hàng *</label>
+                                    <label class="form-label" style="font-size: 12px;">Quantity *</label>
                                     <input type="number" class="form-control form-control-sm" @bind="newVariant.Quantity" min="0" />
                                 </div>
                                 <div class="col-md-2">
-                                    <label class="form-label" style="font-size: 12px;">Khối lượng (g)</label>
+                                    <label class="form-label" style="font-size: 12px;">Weight (g)</label>
                                     <input type="number" class="form-control form-control-sm" @bind="newVariant.WeightGram" min="1" placeholder="gram" />
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label" style="font-size: 12px;">Ảnh</label>
-                                    <div class="d-flex align-items-center gap-2">
-                                        @if (!string.IsNullOrEmpty(newVariant.ImageUrl))
-                                        {
-                                            <img src="@newVariant.ImageUrl" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px;" />
-                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => newVariant.ImageUrl = null">✕</button>
-                                        }
-                                        else
-                                        {
-                                            <div style="width: 36px; height: 36px; border: 1px dashed #aaa; border-radius: 4px; position: relative; display: flex; align-items: center; justify-content: center;">
-                                                @if (isUploadingNewVariantImage)
-                                                {
-                                                    <div class="spinner-border spinner-border-sm text-primary"></div>
-                                                }
-                                                else
-                                                {
-                                                    <span style="font-size: 12px; color: #888;">📷</span>
-                                                    <InputFile OnChange="UploadNewVariantImage" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
-                                                }
-                                            </div>
-                                        }
-                                    </div>
                                 </div>
                             </div>
 
-                            @* Thuộc tính cho variant mới *@
                             <div class="mt-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="fw-bold text-secondary mb-0" style="font-size: 13px;">Thuộc tính (VD: Color - Red)</h6>
-                                    <div>
-                                        <span class="text-muted me-2" style="font-size: 12px;">@newVariantAttributes.Count / 5</span>
-                                        <button type="button" class="btn btn-sm btn-info text-white" 
-                                                @onclick="AddNewVariantAttribute" 
-                                                disabled="@(newVariantAttributes.Count >= 5)">
-                                            + Thuộc tính
-                                        </button>
-                                    </div>
+                                    <h6 class="fw-bold text-secondary mb-0" style="font-size: 13px;">Attributes (e.g. Color - Red)</h6>
+                                    <button type="button" class="btn btn-sm btn-info text-white"
+                                            @onclick="AddNewVariantAttribute"
+                                            disabled="@(newVariantAttributes.Count >= 5)">+ Attribute</button>
                                 </div>
                                 @foreach (var attr in newVariantAttributes)
                                 {
                                     <div class="d-flex mb-2 gap-2">
-                                        <input type="text" class="form-control form-control-sm" placeholder="Tên (VD: Màu)" @bind="attr.Key" />
-                                        <input type="text" class="form-control form-control-sm" placeholder="Giá trị (VD: Đỏ)" @bind="attr.Value" />
+                                        <input type="text" class="form-control form-control-sm" placeholder="Key (e.g. Color)" @bind="attr.Key" />
+                                        <input type="text" class="form-control form-control-sm" placeholder="Value (e.g. Red)" @bind="attr.Value" />
                                         <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => newVariantAttributes.Remove(attr)">✕</button>
                                     </div>
                                 }
                             </div>
 
                             <div class="d-flex gap-2 mt-3">
-                                <button type="button" class="btn btn-sm btn-success" @onclick="ConfirmAddVariant">
-                                    ✓ Thêm vào danh sách
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleAddVariantForm">
-                                    Hủy
-                                </button>
+                                <button type="button" class="btn btn-sm btn-success" @onclick="ConfirmAddVariant">✓ Add to list</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleAddVariantForm">Cancel</button>
                             </div>
 
                             @if (!string.IsNullOrEmpty(addVariantError))
@@ -455,23 +618,25 @@
                         </div>
                     }
                 </div>
-                </div>
+            </div>
 
-                <div class="d-flex mb-5 gap-3">
-                    <button type="button" class="btn btn-outline-secondary btn-lg w-50" @onclick='() => NavigationManager.NavigateTo("/listings")'>
-                        Hủy Bỏ
-                    </button>
-                    <button type="submit" class="ebay-btn-primary btn-lg w-50">
-                        @if (isSubmitting)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu...</span>
-                        }
-                        else
-                        {
-                            <span>Lưu thay đổi</span>
-                        }
-                    </button>
-                </div>
+            @* ======= SUBMIT ======= *@
+            <div class="d-flex mb-5 gap-3">
+                <button type="button" class="btn btn-outline-secondary btn-lg w-50" @onclick='() => NavigationManager.NavigateTo("/listings")'>
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary btn-lg w-50" style="background: #0064d2; border-color: #0064d2;">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span><span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Changes</span>
+                    }
+                </button>
+            </div>
+
             </fieldset>
         </EditForm>
     }
@@ -488,17 +653,20 @@
     private List<PaymentPolicyDto> paymentPolicies = new();
     private List<CategoryDto> categories = new();
     private List<CategoryItemSpecificDto> categoryItemSpecifics = new();
-    
+    private ShippingPolicyDto? selectedShippingPolicy;
+
     private bool isLoading = true;
     private bool isSubmitting = false;
     private string? errorMessage;
+    private bool showSchedulePicker;
+    private int? packageWeightGram;
 
     private List<string> extraImageUrls = new();
     private bool isUploadingPrimary = false;
     private bool isUploadingExtra = false;
     private HashSet<UpdateVariantDto> uploadingVariants = new();
 
-    // ─── State cho form thêm biến thể mới ───
+    // New variant form
     private bool showAddVariantForm = false;
     private UpdateVariantDto newVariant = new();
     private List<AttributePair> newVariantAttributes = new();
@@ -510,6 +678,186 @@
         public string Key { get; set; } = "";
         public string Value { get; set; } = "";
     }
+
+    // ---- INIT ----
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+
+            var cats = await CategoryService.GetCategoriesAsync();
+            categories = cats.ToList();
+
+            var sp = await PolicyService.GetShippingPoliciesAsync();
+            shippingPolicies = sp.ToList();
+
+            var rp = await PolicyService.GetReturnPoliciesAsync();
+            returnPolicies = rp.ToList();
+
+            var pp = await PolicyService.GetPaymentPoliciesAsync();
+            paymentPolicies = pp.ToList();
+
+            var product = await ProductService.GetProductByIdAsync(Id);
+            if (product == null)
+            {
+                errorMessage = "Listing not found.";
+            }
+            else
+            {
+                fullRequest.Name = product.Name;
+                fullRequest.Description = product.Description;
+                fullRequest.Brand = product.Brand;
+                fullRequest.CategoryId = product.CategoryId;
+                fullRequest.ShippingPolicyId = product.ShippingPolicyId;
+                fullRequest.ReturnPolicyId = product.ReturnPolicyId;
+                fullRequest.PaymentPolicyId = product.PaymentPolicyId;
+                fullRequest.Status = product.Status;
+                fullRequest.PrimaryImageUrl = product.PrimaryImageUrl;
+                fullRequest.RowVersion = product.RowVersion;
+                fullRequest.Condition = product.Condition;
+                fullRequest.ConditionDescription = product.ConditionDescription;
+                fullRequest.ListingFormat = product.ListingFormat;
+                fullRequest.AllowOffers = product.AllowOffers;
+                fullRequest.AutoAcceptPrice = product.AutoAcceptPrice;
+                fullRequest.AutoDeclinePrice = product.AutoDeclinePrice;
+                fullRequest.Subtitle = product.Subtitle;
+                fullRequest.RequireImmediatePayment = product.RequireImmediatePayment;
+                fullRequest.IsVariationListing = product.IsVariationListing;
+                fullRequest.CountryOfOrigin = product.CountryOfOrigin;
+                fullRequest.PackageLengthCm = product.PackageLengthCm;
+                fullRequest.PackageWidthCm = product.PackageWidthCm;
+                fullRequest.PackageHeightCm = product.PackageHeightCm;
+                fullRequest.ScheduledAt = product.ScheduledAt;
+                showSchedulePicker = product.ScheduledAt.HasValue;
+
+                // Shipping preview
+                if (product.ShippingPolicyId.HasValue)
+                    selectedShippingPolicy = shippingPolicies.FirstOrDefault(p => p.Id == product.ShippingPolicyId.Value);
+
+                if (!string.IsNullOrEmpty(product.ImageUrls))
+                {
+                    extraImageUrls = JsonSerializer.Deserialize<List<string>>(product.ImageUrls) ?? new();
+                }
+
+                if (product.Variants != null)
+                {
+                    fullRequest.Variants = product.Variants.Select(v => new UpdateVariantDto {
+                        Id = v.Id,
+                        SkuCode = v.SkuCode,
+                        Price = v.Price,
+                        Quantity = v.Quantity,
+                        WeightGram = v.WeightGram,
+                        ImageUrl = v.ImageUrl,
+                        Attributes = JsonSerializer.Deserialize<Dictionary<string, string>>(v.Attributes ?? "{}") ?? new()
+                    }).ToList();
+
+                    // Package weight from first variant
+                    if (fullRequest.Variants.Any() && fullRequest.Variants[0].WeightGram.HasValue)
+                        packageWeightGram = fullRequest.Variants[0].WeightGram;
+                }
+
+                if (product.ItemSpecifics != null && product.ItemSpecifics.Any())
+                {
+                    fullRequest.ItemSpecifics = product.ItemSpecifics.Select(s => new ItemSpecificInput
+                    {
+                        Name = s.Name,
+                        Value = s.Value
+                    }).ToList();
+                }
+                else
+                {
+                    fullRequest.ItemSpecifics = new List<ItemSpecificInput>();
+                }
+
+                if (product.CategoryId != Guid.Empty)
+                {
+                    try
+                    {
+                        categoryItemSpecifics = (await CategoryService.GetItemSpecificsByCategoryIdAsync(product.CategoryId)).ToList();
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // ---- CATEGORY ----
+
+    private async Task OnCategoryChanged()
+    {
+        categoryItemSpecifics = new();
+        if (fullRequest.CategoryId != Guid.Empty)
+        {
+            try
+            {
+                categoryItemSpecifics = (await CategoryService.GetItemSpecificsByCategoryIdAsync(fullRequest.CategoryId)).ToList();
+            }
+            catch { }
+        }
+    }
+
+    // ---- SHIPPING POLICY PREVIEW ----
+
+    private void OnShippingPolicyChanged(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var policyId))
+        {
+            fullRequest.ShippingPolicyId = policyId;
+            selectedShippingPolicy = shippingPolicies.FirstOrDefault(p => p.Id == policyId);
+        }
+        else
+        {
+            fullRequest.ShippingPolicyId = null;
+            selectedShippingPolicy = null;
+        }
+    }
+
+    // ---- SCHEDULE ----
+
+    private void OnScheduleToggle(ChangeEventArgs e)
+    {
+        showSchedulePicker = e.Value is true || e.Value?.ToString() == "true";
+        if (!showSchedulePicker) fullRequest.ScheduledAt = null;
+    }
+
+    private void OnScheduledAtChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            fullRequest.ScheduledAt = new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Local));
+        else
+            fullRequest.ScheduledAt = null;
+    }
+
+    // ---- ITEM SPECIFICS ----
+
+    private void SetItemSpecificValue(string name, string? value)
+    {
+        fullRequest.ItemSpecifics ??= new List<ItemSpecificInput>();
+        var existing = fullRequest.ItemSpecifics.FirstOrDefault(s => s.Name == name);
+        if (existing != null)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                fullRequest.ItemSpecifics.Remove(existing);
+            else
+                existing.Value = value;
+        }
+        else if (!string.IsNullOrWhiteSpace(value))
+        {
+            fullRequest.ItemSpecifics.Add(new ItemSpecificInput { Name = name, Value = value });
+        }
+    }
+
+    // ---- VARIANT MANAGEMENT ----
 
     private void ToggleAddVariantForm()
     {
@@ -532,39 +880,28 @@
     {
         addVariantError = null;
 
-        // Validate
         if (string.IsNullOrWhiteSpace(newVariant.SkuCode))
-        { addVariantError = "Mã SKU là bắt buộc."; return; }
+        { addVariantError = "SKU Code is required."; return; }
 
         if (newVariant.Price <= 0)
-        { addVariantError = "Giá phải lớn hơn 0."; return; }
+        { addVariantError = "Price must be greater than 0."; return; }
 
         if (newVariant.Quantity < 0)
-        { addVariantError = "Kho hàng không được âm."; return; }
+        { addVariantError = "Quantity cannot be negative."; return; }
 
-        // Check SKU trùng với variant hiện có
         if (fullRequest.Variants.Any(v => v.SkuCode.Equals(newVariant.SkuCode, StringComparison.OrdinalIgnoreCase)))
-        { addVariantError = $"SKU '{newVariant.SkuCode}' đã tồn tại trong danh sách."; return; }
+        { addVariantError = $"SKU '{newVariant.SkuCode}' already exists."; return; }
 
-        // Validate attributes
         var validAttrs = newVariantAttributes
             .Where(a => !string.IsNullOrWhiteSpace(a.Key) && !string.IsNullOrWhiteSpace(a.Value))
             .ToList();
-        
+
         if (!validAttrs.Any())
-        { addVariantError = "Cần ít nhất 1 thuộc tính (VD: Color - Red)."; return; }
+        { addVariantError = "At least 1 attribute required (e.g. Color - Red)."; return; }
 
-        var dupKeys = validAttrs.GroupBy(a => a.Key, StringComparer.OrdinalIgnoreCase)
-                                .Where(g => g.Count() > 1)
-                                .Select(g => g.Key)
-                                .ToList();
-        if (dupKeys.Any())
-        { addVariantError = $"Tên thuộc tính bị trùng: {string.Join(", ", dupKeys)}"; return; }
-
-        // Build variant DTO (Id = null → BE sẽ tạo mới)
         var variantToAdd = new UpdateVariantDto
         {
-            Id = null, // Signal cho BE: tạo mới
+            Id = null,
             SkuCode = newVariant.SkuCode,
             Price = newVariant.Price,
             Quantity = newVariant.Quantity,
@@ -574,212 +911,52 @@
         };
 
         fullRequest.Variants.Add(variantToAdd);
-
-        // Reset form
         newVariant = new UpdateVariantDto();
         newVariantAttributes = new List<AttributePair>();
         showAddVariantForm = false;
         addVariantError = null;
     }
 
-    private async Task UploadNewVariantImage(InputFileChangeEventArgs e)
-    {
-        isUploadingNewVariantImage = true;
-        StateHasChanged();
-        try
-        {
-            var url = await FileUploadService.UploadImageAsync(e.File);
-            newVariant.ImageUrl = url;
-        }
-        catch (Exception ex)
-        {
-            addVariantError = $"Lỗi upload ảnh: {ex.Message}";
-        }
-        finally
-        {
-            isUploadingNewVariantImage = false;
-        }
-    }
-
-    private void SetItemSpecificValue(string name, string? value)
-    {
-        fullRequest.ItemSpecifics ??= new List<ItemSpecificInput>();
-        var existing = fullRequest.ItemSpecifics.FirstOrDefault(s => s.Name == name);
-        if (existing != null)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                fullRequest.ItemSpecifics.Remove(existing);
-            else
-                existing.Value = value;
-        }
-        else if (!string.IsNullOrWhiteSpace(value))
-        {
-            fullRequest.ItemSpecifics.Add(new ItemSpecificInput { Name = name, Value = value });
-        }
-    }
+    // ---- PHOTO UPLOAD ----
 
     private async Task UploadPrimaryImage(InputFileChangeEventArgs e)
     {
         try
         {
-            isUploadingPrimary = true;
-            StateHasChanged();
+            isUploadingPrimary = true; StateHasChanged();
             var url = await FileUploadService.UploadImageAsync(e.File);
             fullRequest.PrimaryImageUrl = url;
         }
-        catch (Exception ex)
-        {
-            errorMessage = $"Lỗi upload ảnh chính: {ex.Message}";
-        }
-        finally
-        {
-            isUploadingPrimary = false;
-            StateHasChanged();
-        }
+        catch (Exception ex) { errorMessage = $"Upload error: {ex.Message}"; }
+        finally { isUploadingPrimary = false; StateHasChanged(); }
     }
 
     private async Task UploadExtraImage(InputFileChangeEventArgs e)
     {
+        if (extraImageUrls.Count >= 23) return;
         try
         {
-            isUploadingExtra = true;
-            StateHasChanged();
+            isUploadingExtra = true; StateHasChanged();
             var url = await FileUploadService.UploadImageAsync(e.File);
             extraImageUrls.Add(url);
         }
-        catch (Exception ex)
-        {
-            errorMessage = $"Lỗi upload ảnh phụ: {ex.Message}";
-        }
-        finally
-        {
-            isUploadingExtra = false;
-            StateHasChanged();
-        }
+        catch (Exception ex) { errorMessage = $"Upload error: {ex.Message}"; }
+        finally { isUploadingExtra = false; StateHasChanged(); }
     }
 
     private async Task UploadVariantImage(InputFileChangeEventArgs e, UpdateVariantDto v)
     {
         try
         {
-            uploadingVariants.Add(v);
-            StateHasChanged();
+            uploadingVariants.Add(v); StateHasChanged();
             var url = await FileUploadService.UploadImageAsync(e.File);
             v.ImageUrl = url;
         }
-        catch (Exception ex)
-        {
-            errorMessage = $"Lỗi upload ảnh biến thể: {ex.Message}";
-        }
-        finally
-        {
-            uploadingVariants.Remove(v);
-            StateHasChanged();
-        }
+        catch (Exception ex) { errorMessage = $"Upload error: {ex.Message}"; }
+        finally { uploadingVariants.Remove(v); StateHasChanged(); }
     }
 
-    protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            isLoading = true;
-
-            // Load Metadata
-            var cats = await CategoryService.GetCategoriesAsync();
-            categories = cats.ToList();
-
-            var sp = await PolicyService.GetShippingPoliciesAsync();
-            shippingPolicies = sp.ToList();
-
-            var rp = await PolicyService.GetReturnPoliciesAsync();
-            returnPolicies = rp.ToList();
-
-            var pp = await PolicyService.GetPaymentPoliciesAsync();
-            paymentPolicies = pp.ToList();
-
-            // Load Master Data của Product để Fill vào Form
-            var product = await ProductService.GetProductByIdAsync(Id);
-            if (product == null)
-            {
-                errorMessage = "Không tìm thấy dữ liệu sản phẩm này.";
-            }
-            else
-            {
-                fullRequest.Name = product.Name;
-                fullRequest.Description = product.Description;
-                fullRequest.Brand = product.Brand;
-                fullRequest.CategoryId = product.CategoryId;
-                fullRequest.ShippingPolicyId = product.ShippingPolicyId;
-                fullRequest.ReturnPolicyId = product.ReturnPolicyId;
-                fullRequest.PaymentPolicyId = product.PaymentPolicyId;
-                fullRequest.Status = product.Status;
-                fullRequest.PrimaryImageUrl = product.PrimaryImageUrl;
-                fullRequest.RowVersion = product.RowVersion;
-
-                // [A2] Load Condition
-                fullRequest.Condition = product.Condition;
-                fullRequest.ConditionDescription = product.ConditionDescription;
-
-                // [A3] Load ListingFormat + Offers
-                fullRequest.ListingFormat = product.ListingFormat;
-                fullRequest.AllowOffers = product.AllowOffers;
-                fullRequest.AutoAcceptPrice = product.AutoAcceptPrice;
-                fullRequest.AutoDeclinePrice = product.AutoDeclinePrice;
-                fullRequest.Subtitle = product.Subtitle;
-
-                if (!string.IsNullOrEmpty(product.ImageUrls))
-                {
-                    extraImageUrls = JsonSerializer.Deserialize<List<string>>(product.ImageUrls) ?? new();
-                }
-
-                // Load Variants để sửa
-                if (product.Variants != null)
-                {
-                    fullRequest.Variants = product.Variants.Select(v => new UpdateVariantDto {
-                        Id = v.Id,
-                        SkuCode = v.SkuCode,
-                        Price = v.Price,
-                        Quantity = v.Quantity,
-                        WeightGram = v.WeightGram,
-                        ImageUrl = v.ImageUrl,
-                        Attributes = JsonSerializer.Deserialize<Dictionary<string, string>>(v.Attributes ?? "{}") ?? new()
-                    }).ToList();
-                }
-
-                // [A5] Load existing Item Specifics
-                if (product.ItemSpecifics != null && product.ItemSpecifics.Any())
-                {
-                    fullRequest.ItemSpecifics = product.ItemSpecifics.Select(s => new ItemSpecificInput
-                    {
-                        Name = s.Name,
-                        Value = s.Value
-                    }).ToList();
-                }
-                else
-                {
-                    fullRequest.ItemSpecifics = new List<ItemSpecificInput>();
-                }
-
-                // [GAP-2] Load category item specifics cho dynamic form
-                if (product.CategoryId != Guid.Empty)
-                {
-                    try
-                    {
-                        categoryItemSpecifics = (await CategoryService.GetItemSpecificsByCategoryIdAsync(product.CategoryId)).ToList();
-                    }
-                    catch { /* Category may not have item specifics */ }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
+    // ---- SUBMIT ----
 
     private async Task HandleSubmit()
     {
@@ -788,17 +965,14 @@
 
         try
         {
-            // Sync extra images
             fullRequest.ImageUrls = extraImageUrls;
 
-            // [GAP-2] Sync Item Specifics from form
-            // Merge: giữ existing values + cập nhật từ form
-            // (fullRequest.ItemSpecifics đã được bind trực tiếp qua SetItemSpecificValue)
+            if (!showSchedulePicker) fullRequest.ScheduledAt = null;
 
-            // Gọi 1 API duy nhất để cập nhật toàn bộ (Atomic)
+            if (packageWeightGram.HasValue && fullRequest.Variants.Any())
+                fullRequest.Variants[0].WeightGram = packageWeightGram.Value;
+
             await ProductService.UpdateFullProductAsync(Id, fullRequest);
-            
-            // Thành công -> Điều hướng về trang danh sách kho
             NavigationManager.NavigateTo("/listings");
         }
         catch (Exception ex)

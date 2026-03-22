@@ -243,5 +243,55 @@ namespace EbayClone.API.Controllers
                 return BadRequest(new { Error = ex.Message });
             }
         }
+        // ==================== GĐ6: BUYER MOCK — FEEDBACK ====================
+
+        /// <summary>
+        /// Buyer mock: Để lại feedback cho order (sau DELIVERED/COMPLETED)
+        /// </summary>
+        [HttpPost("feedback")]
+        public async Task<IActionResult> LeaveFeedback(
+            [FromBody] EbayClone.Shared.DTOs.Feedbacks.LeaveFeedbackRequest request,
+            [FromServices] EbayClone.Application.UseCases.Feedbacks.ILeaveFeedbackUseCase leaveFeedbackUseCase)
+        {
+            if (!_env.IsDevelopment()) return NotFound();
+
+            try
+            {
+                // Dùng mock buyer (buyer đầu tiên trong DB)
+                var mockBuyer = _db.Users.FirstOrDefault(u => u.Role == "BUYER")
+                              ?? _db.Users.FirstOrDefault();
+                if (mockBuyer == null)
+                    return BadRequest(new { Error = "Không tìm thấy buyer trong DB." });
+
+                var result = await leaveFeedbackUseCase.ExecuteAsync(mockBuyer.Id, request);
+                return Ok(new { Message = "Feedback đã được ghi nhận!", Feedback = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Buyer mock: Check đã để feedback cho order chưa
+        /// </summary>
+        [HttpGet("feedback/{orderId}")]
+        public async Task<IActionResult> GetFeedbackByOrder(
+            Guid orderId,
+            [FromServices] EbayClone.Application.UseCases.Feedbacks.IGetFeedbackByOrderUseCase getFeedbackByOrderUseCase)
+        {
+            if (!_env.IsDevelopment()) return NotFound();
+
+            try
+            {
+                var result = await getFeedbackByOrderUseCase.ExecuteAsync(orderId);
+                if (result == null) return Ok(new { HasFeedback = false });
+                return Ok(new { HasFeedback = true, Feedback = result });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Error = ex.Message });
+            }
+        }
     }
 }

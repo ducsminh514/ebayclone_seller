@@ -25,6 +25,10 @@ namespace EbayClone.Shared.DTOs.Policies
         public int HandlingTimeDays { get; set; }
         public bool IsDefault { get; set; }
 
+        // Shipping Method (master dropdown)
+        public string ShippingMethod { get; set; } = "Standard";
+        public bool OfferLocalPickup { get; set; }
+
         // Free Shipping
         public bool OfferFreeShipping { get; set; }
         
@@ -63,10 +67,12 @@ namespace EbayClone.Shared.DTOs.Policies
         public bool IsDomesticAccepted { get; set; }
         public int DomesticReturnDays { get; set; }
         public string DomesticShippingPaidBy { get; set; } = string.Empty;
+        public string DomesticRefundMethod { get; set; } = "MoneyBack";
 
         public bool IsInternationalAccepted { get; set; }
         public int InternationalReturnDays { get; set; }
         public string InternationalShippingPaidBy { get; set; } = string.Empty;
+        public string InternationalRefundMethod { get; set; } = "MoneyBack";
 
         public bool AutoAcceptReturns { get; set; }
         public bool SendImmediateRefund { get; set; }

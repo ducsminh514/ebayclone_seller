@@ -1,0 +1,228 @@
+@page "/marketing/vouchers"
+@using EbayClone.Shared.DTOs.Vouchers
+@using EbayClone.Frontend.Services
+@inject VoucherService VoucherService
+@inject NavigationManager Nav
+@inject IJSRuntime JSRuntime
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="ebay-page-title mb-0">🏷️ Quản lý Voucher</h2>
+        <a href="/marketing/vouchers/create" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Tạo Voucher mới
+        </a>
+    </div>
+
+    <!-- Status Tabs -->
+    <ul class="nav nav-tabs mb-3">
+        @foreach (var tab in new[] { "ALL", "DRAFT", "ACTIVE", "PAUSED", "ENDED" })
+        {
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == tab ? "active" : "")"
+                        @onclick="() => SwitchTab(tab)">
+                    @tab
+                </button>
+            </li>
+        }
+    </ul>
+
+    @if (isLoading)
+    {
+        <div class="text-center p-5"><span class="spinner-border"></span> Đang tải...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (!vouchers.Any())
+    {
+        <div class="alert alert-info">
+            Chưa có voucher nào @(activeTab != "ALL" ? $"ở trạng thái {activeTab}" : "").
+            <a href="/marketing/vouchers/create">Tạo voucher đầu tiên</a>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã</th>
+                        <th>Tên campaign</th>
+                        <th>Loại giảm</th>
+                        <th>Giá trị</th>
+                        <th>Đã dùng</th>
+                        <th>Ngân sách</th>
+                        <th>Hạn dùng</th>
+                        <th>Status</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in vouchers)
+                    {
+                        <tr>
+                            <td><code class="fw-bold">@v.Code</code></td>
+                            <td>@v.Name</td>
+                            <td>
+                                @if (v.DiscountType == "PERCENTAGE")
+                                {
+                                    <span class="badge bg-info">@v.Value% off</span>
+                                    @if (v.MaxDiscountAmount.HasValue)
+                                    {
+                                        <small class="text-muted"> (max @v.MaxDiscountAmount.Value.ToString("N0")đ)</small>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">-@v.Value.ToString("N0")đ</span>
+                                }
+                            </td>
+                            <td>
+                                <small>Tối thiểu: @v.MinOrderValue.ToString("N0")đ</small>
+                            </td>
+                            <td>
+                                <span class="@(v.UsedCount >= v.UsageLimit && v.UsageLimit > 0 ? "text-danger" : "")">
+                                    @v.UsedCount / @(v.UsageLimit == 0 ? "∞" : v.UsageLimit.ToString())
+                                </span>
+                            </td>
+                            <td>
+                                @if (v.MaxBudget.HasValue)
+                                {
+                                    <small>@v.UsedBudget.ToString("N0") / @v.MaxBudget.Value.ToString("N0")đ</small>
+                                }
+                                else
+                                {
+                                    <small class="text-muted">Không giới hạn</small>
+                                }
+                            </td>
+                            <td>
+                                <small>@v.ValidFrom.ToString("dd/MM/yy") — @v.ValidTo.ToString("dd/MM/yy")</small>
+                                @if (v.IsExpired)
+                                {
+                                    <span class="badge bg-secondary ms-1">Hết hạn</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusClass(v.Status)">@v.Status</span>
+                                <span class="badge @(v.Visibility == "PUBLIC" ? "bg-success" : "bg-secondary") ms-1" style="font-size:0.65em">@v.Visibility</span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    @if (v.Status == "DRAFT")
+                                    {
+                                        <button class="btn btn-success" @onclick="() => LaunchVoucher(v.Id)" title="Khởi chạy">
+                                            🚀
+                                        </button>
+                                    }
+                                    @if (v.Status == "ACTIVE")
+                                    {
+                                        <button class="btn btn-warning" @onclick="() => PauseVoucher(v.Id)" title="Tạm dừng">
+                                            ⏸
+                                        </button>
+                                    }
+                                    @if (v.Status == "PAUSED")
+                                    {
+                                        <button class="btn btn-info" @onclick="() => ResumeVoucher(v.Id)" title="Tiếp tục">
+                                            ▶
+                                        </button>
+                                    }
+                                    @if (v.Status != "ENDED")
+                                    {
+                                        @* [FIX-MEDIUM] Edit page chưa có → disabled với tooltip *@
+                                        <button class="btn btn-outline-primary disabled" title="Chức năng đang phát triển" disabled>✏️</button>
+                                    }
+                                    @if (v.Status == "DRAFT")
+                                    {
+                                        <button class="btn btn-outline-danger" @onclick="() => ConfirmDelete(v.Id)" title="Xóa">🗑️</button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(actionMessage))
+    {
+        <div class="alert alert-success mt-3">@actionMessage</div>
+    }
+</div>
+
+@code {
+    private List<VoucherDto> vouchers = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? actionMessage;
+    private string activeTab = "ALL";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVouchers();
+    }
+
+    private async Task LoadVouchers()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var status = activeTab == "ALL" ? null : activeTab;
+            vouchers = await VoucherService.GetVouchersAsync(status);
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        activeTab = tab;
+        await LoadVouchers();
+    }
+
+    private async Task LaunchVoucher(Guid id)
+    {
+        await VoucherService.UpdateStatusAsync(id, "ACTIVE");
+        actionMessage = "✅ Voucher đã được khởi chạy!";
+        await LoadVouchers();
+    }
+
+    private async Task PauseVoucher(Guid id)
+    {
+        await VoucherService.UpdateStatusAsync(id, "PAUSED");
+        actionMessage = "⏸ Voucher đã tạm dừng.";
+        await LoadVouchers();
+    }
+
+    private async Task ResumeVoucher(Guid id)
+    {
+        await VoucherService.UpdateStatusAsync(id, "ACTIVE");
+        actionMessage = "▶ Voucher đã tiếp tục.";
+        await LoadVouchers();
+    }
+
+    private async Task DeleteVoucher(Guid id)
+    {
+        await VoucherService.DeleteAsync(id);
+        actionMessage = "🗑️ Voucher đã xóa.";
+        await LoadVouchers();
+    }
+
+    // [FIX-MEDIUM] Confirm trước khi xóa — tránh xóa nhầm
+    private async Task ConfirmDelete(Guid id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa voucher này không? Hành động này không thể hoàn tác.");
+        if (confirmed)
+            await DeleteVoucher(id);
+    }
+
+    private string GetStatusClass(string status) => status switch
+    {
+        "ACTIVE" => "bg-success",
+        "PAUSED" => "bg-warning text-dark",
+        "ENDED"  => "bg-secondary",
+        _        => "bg-light text-dark"  // DRAFT
+    };
+}

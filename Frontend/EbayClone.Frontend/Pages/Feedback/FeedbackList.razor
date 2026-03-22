@@ -1,0 +1,259 @@
+@page "/feedback"
+@using EbayClone.Shared.DTOs.Feedbacks
+@using EbayClone.Frontend.Services
+@inject FeedbackService FeedbackService
+
+<div class="container-fluid mt-3">
+    <h2 class="ebay-page-title mb-4"><i class="bi bi-star-fill text-warning"></i> Feedback Manager</h2>
+
+    @* --- STATS HEADER --- *@
+    @if (stats != null)
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="fs-1 fw-bold text-primary">@stats.FeedbackScore</div>
+                        <small class="text-muted">Feedback Score</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center border-0 shadow-sm">
+                    <div class="card-body">
+                        <div class="fs-1 fw-bold @(stats.PositivePercent >= 98 ? "text-success" : stats.PositivePercent >= 95 ? "text-warning" : "text-danger")">
+                            @stats.PositivePercent%
+                        </div>
+                        <small class="text-muted">Positive</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center border-0 shadow-sm" style="border-left: 3px solid #27ae60 !important;">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold text-success">@stats.TotalPositive</div>
+                        <small class="text-muted">😊 Positive</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center border-0 shadow-sm" style="border-left: 3px solid #f39c12 !important;">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold text-warning">@stats.TotalNeutral</div>
+                        <small class="text-muted">😐 Neutral</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center border-0 shadow-sm" style="border-left: 3px solid #e74c3c !important;">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold text-danger">@stats.TotalNegative</div>
+                        <small class="text-muted">😠 Negative</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* --- FILTER TABS --- *@
+    <ul class="nav nav-tabs mb-3">
+        @foreach (var tab in new[] { "ALL", "POSITIVE", "NEUTRAL", "NEGATIVE" })
+        {
+            <li class="nav-item">
+                <a class="nav-link @(currentFilter == tab ? "active" : "")" href="javascript:void(0)" @onclick="() => ChangeFilter(tab)">
+                    @tab
+                    @if (tab == "ALL") { <span class="badge bg-secondary ms-1">@totalCount</span> }
+                </a>
+            </li>
+        }
+    </ul>
+
+    @* --- FEEDBACK LIST --- *@
+    @if (isLoading)
+    {
+        <div class="text-center p-5"><span class="spinner-border"></span> Đang tải...</div>
+    }
+    else if (!feedbacks.Any())
+    {
+        <div class="alert alert-info">Chưa có feedback nào.</div>
+    }
+    else
+    {
+        @foreach (var fb in feedbacks)
+        {
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="badge @GetRatingBadgeClass(fb.Rating) me-2 fs-6">
+                                @GetRatingEmoji(fb.Rating) @fb.Rating
+                            </span>
+                            <span class="text-muted small">
+                                bởi <strong>@fb.BuyerName</strong> — đơn #@fb.OrderNumber
+                                — @fb.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                            </span>
+                        </div>
+                        <span class="text-muted small">@fb.OrderAmount.ToString("N0")₫</span>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(fb.Comment))
+                    {
+                        <p class="mt-2 mb-1" style="font-style: italic;">
+                            "@fb.Comment"
+                        </p>
+                    }
+
+                    @* Seller Reply *@
+                    @if (!string.IsNullOrEmpty(fb.SellerReply))
+                    {
+                        <div class="mt-2 p-2 bg-light rounded border-start border-3 border-primary">
+                            <small class="text-muted"><i class="bi bi-reply-fill"></i> Phản hồi của bạn — @fb.SellerRepliedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                            <p class="mb-0 mt-1">@fb.SellerReply</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @* Reply form *@
+                        @if (replyingFeedbackId == fb.Id)
+                        {
+                            <div class="mt-2">
+                                <textarea class="form-control" rows="2" placeholder="Nhập phản hồi (tối đa 1000 ký tự)..."
+                                          @bind="replyText" maxlength="1000"></textarea>
+                                <div class="mt-2">
+                                    <button class="btn btn-primary btn-sm" disabled="@isReplying" @onclick="() => SubmitReply(fb.Id)">
+                                        @if (isReplying) { <span class="spinner-border spinner-border-sm"></span> }
+                                        Gửi phản hồi
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => replyingFeedbackId = null">Hủy</button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-primary btn-sm mt-2" @onclick="() => { replyingFeedbackId = fb.Id; replyText = string.Empty; }">
+                                <i class="bi bi-reply"></i> Reply
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        }
+
+        @* --- PAGINATION --- *@
+        @if (totalPages > 1)
+        {
+            <nav>
+                <ul class="pagination justify-content-center">
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        var pageNum = i;
+                        <li class="page-item @(currentPage == pageNum ? "active" : "")">
+                            <a class="page-link" href="javascript:void(0)" @onclick="() => GoToPage(pageNum)">@pageNum</a>
+                        </li>
+                    }
+                </ul>
+            </nav>
+        }
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">@errorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success mt-3">@successMessage</div>
+    }
+</div>
+
+@code {
+    private List<FeedbackDto> feedbacks = new();
+    private FeedbackStatsDto? stats;
+    private bool isLoading = true;
+    private string currentFilter = "ALL";
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalCount = 0;
+    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
+
+    private Guid? replyingFeedbackId;
+    private string replyText = string.Empty;
+    private bool isReplying = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+        await LoadFeedbacks();
+    }
+
+    private async Task LoadStats()
+    {
+        try { stats = await FeedbackService.GetStatsAsync(); } catch { }
+    }
+
+    private async Task LoadFeedbacks()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            var result = await FeedbackService.GetFeedbacksAsync(currentPage, pageSize, currentFilter);
+            if (result != null)
+            {
+                feedbacks = result.Items?.ToList() ?? new();
+                totalCount = result.TotalCount;
+            }
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        isLoading = false;
+    }
+
+    private async Task ChangeFilter(string filter)
+    {
+        currentFilter = filter;
+        currentPage = 1;
+        await LoadFeedbacks();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        currentPage = page;
+        await LoadFeedbacks();
+    }
+
+    private async Task SubmitReply(Guid feedbackId)
+    {
+        if (string.IsNullOrWhiteSpace(replyText)) return;
+        isReplying = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            await FeedbackService.ReplyFeedbackAsync(feedbackId, replyText);
+            successMessage = "Đã gửi phản hồi thành công!";
+            replyingFeedbackId = null;
+            await LoadFeedbacks();
+            await LoadStats();
+        }
+        catch (Exception ex) { errorMessage = $"Lỗi: {ex.Message}"; }
+        isReplying = false;
+    }
+
+    private string GetRatingEmoji(string rating) => rating switch
+    {
+        "POSITIVE" => "😊",
+        "NEUTRAL" => "😐",
+        "NEGATIVE" => "😠",
+        _ => "❓"
+    };
+
+    private string GetRatingBadgeClass(string rating) => rating switch
+    {
+        "POSITIVE" => "bg-success",
+        "NEUTRAL" => "bg-warning text-dark",
+        "NEGATIVE" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

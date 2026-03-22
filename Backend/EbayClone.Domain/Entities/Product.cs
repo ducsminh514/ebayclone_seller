@@ -31,6 +31,21 @@ namespace EbayClone.Domain.Entities
         public decimal? AutoAcceptPrice { get; set; }   // Tự chấp nhận offer ≥ X
         public decimal? AutoDeclinePrice { get; set; }  // Tự từ chối offer < Y
 
+        // ========== [A4] Listing Meta ==========
+        // RequireImmediatePayment: eBay "Require immediate payment when buyer uses Buy It Now"
+        public bool RequireImmediatePayment { get; set; } = false;
+        // IsVariationListing: true = multi-variation (có bảng SKU), false = single-item (Price/Qty ở Pricing section)
+        public bool IsVariationListing { get; set; } = false;
+
+        // ========== [SHIPPING] Package Info ==========
+        // CountryOfOrigin: ISO 3166-1 alpha-2 code (VD: "VN", "CN", "US")
+        // Required cho international visibility — eBay yêu cầu khai báo xuất xứ
+        public string? CountryOfOrigin { get; set; }
+        // Package dimensions (cm) — metric, convert sang inches ở FE nếu cần
+        public decimal? PackageLengthCm { get; set; }
+        public decimal? PackageWidthCm { get; set; }
+        public decimal? PackageHeightCm { get; set; }
+
         // ========== Status & Scheduling ==========
         // Values: DRAFT, ACTIVE, SCHEDULED, OUT_OF_STOCK, HIDDEN, ENDED
         public string Status { get; set; } = "DRAFT";

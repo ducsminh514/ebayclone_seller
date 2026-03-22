@@ -15,7 +15,7 @@ builder.Services.AddTransient<AuthTokenHandler>();
 // Đăng ký cấu hình HttpClient chuẩn cho Blazor WebAssembly thông qua HttpMessageHandler
 builder.Services.AddHttpClient("API", client =>
 {
-    client.BaseAddress = new Uri("https://localhost:5072");
+    client.BaseAddress = new Uri("https://localhost:7250");
 })
 .AddHttpMessageHandler<AuthTokenHandler>();
 
@@ -35,6 +35,8 @@ builder.Services.AddScoped<FileUploadService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<SellerService>();
 builder.Services.AddScoped<WalletService>();
+builder.Services.AddScoped<VoucherService>();
+builder.Services.AddScoped<FeedbackService>();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddMudServices();
 

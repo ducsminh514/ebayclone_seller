@@ -15,26 +15,10 @@ namespace EbayClone.Domain.Entities
         // Navigation
         public Shop? Shop { get; set; }
     }
-    
-    public class Review
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
-        public Guid OrderId { get; set; }
-        public Guid ProductId { get; set; }
-        public Guid BuyerId { get; set; }
-        
-        public int? Rating { get; set; }
-        public string? Comment { get; set; }
-        public string? SellerReply { get; set; }
-        public DateTimeOffset? RepliedAt { get; set; }
-        public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-        // Navigation
-        public Order? Order { get; set; }
-        public Product? Product { get; set; }
-        public User? Buyer { get; set; }
-    }
-    
+    // Review entity REMOVED — replaced by Feedback entity (Phần 6 CRM)
+    // See: EbayClone.Domain.Entities.Feedback
+
     public class ProductViewLog
     {
         public long Id { get; set; }

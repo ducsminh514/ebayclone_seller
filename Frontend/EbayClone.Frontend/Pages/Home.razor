@@ -1,10 +1,12 @@
 @page "/"
+@using System.Linq
 @using EbayClone.Frontend.Services
 @using EbayClone.Shared.DTOs.Dashboard
-@using Microsoft.AspNetCore.Authorization
+@using MudBlazor
 @attribute [Authorize]
 @inject DashboardService DashboardService
 @inject NavigationManager Navigation
+@using Microsoft.AspNetCore.Authorization
 
 <PageTitle>Overview - Ebay Seller Hub</PageTitle>
 
@@ -54,7 +56,7 @@ else
                     </MudItem>
                     <MudItem xs="6" md="4" Class="d-flex flex-column align-center">
                         <MudText Typo="Typo.h4" Style="font-weight: 700; color: #111820;">@_stats.TotalSales90Days.ToString("C")</MudText>
-                        <MudText Typo="Typo.caption" Style="color: #707070;">90-day total <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" /></MudText>
+                        <MudText Typo="Typo.caption" Style="color: #707070;">Total Sales <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" /></MudText>
                     </MudItem>
                     <MudItem xs="12" md="4" Class="d-flex justify-end">
                         <MudButton Href="/listings/create" Color="Color.Primary" Variant="Variant.Filled" Style="border-radius: 999px; text-transform: none; font-weight: 600;" Size="Size.Large" Class="px-8">
@@ -63,6 +65,97 @@ else
                     </MudItem>
                 </MudGrid>
             </MudPaper>
+
+            <!-- SELLER PERFORMANCE SECTION -->
+            <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight: 700; color: #111820;">Seller Performance</MudText>
+            <MudGrid Class="mb-8">
+                <!-- Seller Level Badge -->
+                <MudItem xs="12" md="3">
+                    <MudPaper Elevation="0" Class="pa-5 text-center" Style="@($"border: 2px solid {GetLevelColor(_stats.SellerLevel)}; border-radius: 12px;")">
+                        <MudIcon Icon="@GetLevelIcon(_stats.SellerLevel)" 
+                                 Style="@($"color: {GetLevelColor(_stats.SellerLevel)}; font-size: 40px;")" 
+                                 Class="mb-2" />
+                        <MudText Typo="Typo.subtitle1" Style="@($"font-weight: 700; color: {GetLevelColor(_stats.SellerLevel)};")">
+                            @GetLevelDisplayName(_stats.SellerLevel)
+                        </MudText>
+                        <MudText Typo="Typo.caption" Style="color: #707070;" Class="mt-1">Seller Level</MudText>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- Defect Rate -->
+                <MudItem xs="6" md="3">
+                    <MudPaper Elevation="0" Class="pa-5" Style="border: 1px solid #E5E5E5; border-radius: 12px;">
+                        <MudStack Spacing="1">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Outlined.Warning" Style="@($"color: {GetDefectColor(_stats.DefectRate)};")" Size="Size.Small" />
+                                <MudText Typo="Typo.caption" Style="color: #707070;">Transaction Defect Rate</MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.h5" Style="@($"font-weight: 700; color: {GetDefectColor(_stats.DefectRate)};")">
+                                @_stats.DefectRate.ToString("F2")%
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color: #707070;">
+                                @_stats.DefectCount defects / @_stats.TotalTransactions transactions
+                            </MudText>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- Late Shipment -->
+                <MudItem xs="6" md="3">
+                    <MudPaper Elevation="0" Class="pa-5" Style="border: 1px solid #E5E5E5; border-radius: 12px;">
+                        <MudStack Spacing="1">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Outlined.LocalShipping" Color="Color.Warning" Size="Size.Small" />
+                                <MudText Typo="Typo.caption" Style="color: #707070;">Late Shipments</MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.h5" Style="font-weight: 700; color: #111820;">
+                                @_stats.LateShipmentCount
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color: #707070;">
+                                @(GetLateShipmentRate().ToString("F1"))% of transactions
+                            </MudText>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- Feedback Score -->
+                <MudItem xs="6" md="3">
+                    <MudPaper Elevation="0" Class="pa-5" Style="border: 1px solid #E5E5E5; border-radius: 12px;">
+                        <MudStack Spacing="1">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Outlined.Star" Style="color: #F5AF02;" Size="Size.Small" />
+                                <MudText Typo="Typo.caption" Style="color: #707070;">Feedback Score</MudText>
+                            </MudStack>
+                            <MudText Typo="Typo.h5" Style="font-weight: 700; color: #111820;">
+                                @_stats.FeedbackScore
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="color: #707070;">
+                                @_stats.PositivePercent.ToString("F1")% positive
+                            </MudText>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+
+            <!-- SALES CHART (31-day trend) -->
+            @if (_stats.SalesChart != null && _stats.SalesChart.Any())
+            {
+                <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight: 700; color: #111820;">Sales (Last 31 Days)</MudText>
+                <MudPaper Elevation="0" Class="pa-6 mb-8" Style="border: 1px solid #E5E5E5; border-radius: 8px;">
+                    <MudChart ChartType="ChartType.Bar"
+                              ChartSeries="@_chartSeries"
+                              XAxisLabels="@_chartLabels"
+                              Width="100%"
+                              Height="280px" />
+                </MudPaper>
+            }
+            else
+            {
+                <MudPaper Elevation="0" Class="pa-6 mb-8 d-flex flex-column align-center justify-center" Style="border: 1px solid #E5E5E5; border-radius: 8px; min-height: 200px;">
+                    <MudIcon Icon="@Icons.Material.Outlined.BarChart" Size="Size.Large" Style="color: #C4C4C4;" Class="mb-2" />
+                    <MudText Typo="Typo.body1" Style="color: #707070;">No sales data yet. Complete some orders to see your sales chart!</MudText>
+                </MudPaper>
+            }
 
             <!-- EDUCATIONAL BANNER -->
             <MudPaper Elevation="0" Class="pa-6 mb-10" Style="border: 1px solid #E5E5E5; border-radius: 8px;">
@@ -214,12 +307,17 @@ else
     private bool _loading = true;
     private string? _errorMessage;
 
+    // Chart data
+    private List<ChartSeries<double>> _chartSeries = new();
+    private string[] _chartLabels = Array.Empty<string>();
+
     protected override async Task OnInitializedAsync()
     {
         try 
         {
             _loading = true;
             _stats = await DashboardService.GetStatsAsync();
+            BuildChartData();
         }
         catch (Exception ex)
         {
@@ -230,6 +328,58 @@ else
         {
             _loading = false;
         }
+    }
+
+    private void BuildChartData()
+    {
+        if (_stats.SalesChart == null || !_stats.SalesChart.Any()) return;
+
+        _chartLabels = _stats.SalesChart.Select(d => d.Date.ToString("dd/MM")).ToArray();
+        _chartSeries = new List<ChartSeries<double>>
+        {
+            new ChartSeries<double>
+            {
+                Name = "Revenue",
+                Data = _stats.SalesChart.Select(d => (double)d.Revenue).ToArray()
+            }
+        };
+    }
+
+    private decimal GetLateShipmentRate()
+    {
+        if (_stats.TotalTransactions <= 0) return 0;
+        return Math.Round((decimal)_stats.LateShipmentCount / _stats.TotalTransactions * 100, 1);
+    }
+
+    private string GetLevelColor(string level) => level switch
+    {
+        "TOP_RATED" => "#137A20",
+        "ABOVE_STANDARD" => "#0654BA",
+        "BELOW_STANDARD" => "#E0103A",
+        _ => "#707070" // NEW
+    };
+
+    private string GetLevelIcon(string level) => level switch
+    {
+        "TOP_RATED" => Icons.Material.Filled.WorkspacePremium,
+        "ABOVE_STANDARD" => Icons.Material.Filled.Verified,
+        "BELOW_STANDARD" => Icons.Material.Filled.ErrorOutline,
+        _ => Icons.Material.Filled.NewReleases // NEW
+    };
+
+    private string GetLevelDisplayName(string level) => level switch
+    {
+        "TOP_RATED" => "Top Rated",
+        "ABOVE_STANDARD" => "Above Standard",
+        "BELOW_STANDARD" => "Below Standard",
+        _ => "New Seller"
+    };
+
+    private string GetDefectColor(decimal rate)
+    {
+        if (rate <= 0.5m) return "#137A20"; // Green — eligible for Top Rated
+        if (rate <= 2.0m) return "#E68A00"; // Orange — Above Standard threshold
+        return "#E0103A"; // Red — Below Standard risk
     }
 
     // Mock Data for Drafts

@@ -42,6 +42,28 @@ namespace EbayClone.Application.UseCases.Policies
                 {
                     throw new InvalidOperationException("You have reached the maximum limit of 100 return policies.");
                 }
+                // Whitelist validation — eBay chỉ cho phép 14, 30, 60 days
+                var allowedDays = new HashSet<int> { 14, 30, 60 };
+                var allowedRefundMethods = new HashSet<string> { "MoneyBack", "MoneyBackOrReplacement", "MoneyBackOrExchange" };
+
+                if (request.IsDomesticAccepted && !allowedDays.Contains(request.DomesticReturnDays))
+                    throw new InvalidOperationException("DomesticReturnDays must be 14, 30, or 60.");
+                if (request.IsInternationalAccepted && !allowedDays.Contains(request.InternationalReturnDays))
+                    throw new InvalidOperationException("InternationalReturnDays must be 14, 30, or 60.");
+                if (request.IsDomesticAccepted && !allowedRefundMethods.Contains(request.DomesticRefundMethod))
+                    throw new InvalidOperationException("Invalid DomesticRefundMethod.");
+                if (request.IsInternationalAccepted && !allowedRefundMethods.Contains(request.InternationalRefundMethod))
+                    throw new InvalidOperationException("Invalid InternationalRefundMethod.");
+
+                // Conditional clear: khi Accept=false → reset fields về default
+                // Tránh lưu data vô nghĩa vào DB
+                var domesticDays = request.IsDomesticAccepted ? request.DomesticReturnDays : 30;
+                var domesticPaidBy = request.IsDomesticAccepted ? request.DomesticShippingPaidBy : "BUYER";
+                var domesticRefund = request.IsDomesticAccepted ? request.DomesticRefundMethod : "MoneyBack";
+                var intlDays = request.IsInternationalAccepted ? request.InternationalReturnDays : 30;
+                var intlPaidBy = request.IsInternationalAccepted ? request.InternationalShippingPaidBy : "BUYER";
+                var intlRefund = request.IsInternationalAccepted ? request.InternationalRefundMethod : "MoneyBack";
+
                 var policy = new ReturnPolicy
                 {
                     ShopId = shopId,
@@ -49,12 +71,14 @@ namespace EbayClone.Application.UseCases.Policies
                     Description = request.Description,
                     
                     IsDomesticAccepted = request.IsDomesticAccepted,
-                    DomesticReturnDays = request.DomesticReturnDays,
-                    DomesticShippingPaidBy = request.DomesticShippingPaidBy,
+                    DomesticReturnDays = domesticDays,
+                    DomesticShippingPaidBy = domesticPaidBy,
+                    DomesticRefundMethod = domesticRefund,
 
                     IsInternationalAccepted = request.IsInternationalAccepted,
-                    InternationalReturnDays = request.InternationalReturnDays,
-                    InternationalShippingPaidBy = request.InternationalShippingPaidBy,
+                    InternationalReturnDays = intlDays,
+                    InternationalShippingPaidBy = intlPaidBy,
+                    InternationalRefundMethod = intlRefund,
 
                     AutoAcceptReturns = request.AutoAcceptReturns,
                     SendImmediateRefund = request.SendImmediateRefund,

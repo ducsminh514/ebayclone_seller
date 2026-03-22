@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EbayClone.Domain.Entities;
@@ -18,5 +19,10 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task DecrementTotalShippingPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
         Task DecrementTotalReturnPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
         Task DecrementTotalPaymentPoliciesAsync(Guid id, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Lấy tất cả shops active cho batch evaluation (Seller Level job).
+        /// </summary>
+        Task<List<Shop>> GetAllActiveShopsAsync(CancellationToken cancellationToken = default);
     }
 }

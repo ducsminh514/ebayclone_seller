@@ -72,21 +72,25 @@
         @if (_model.IsDomesticAccepted)
         {
             <MudDivider Class="my-6" />
-            <MudGrid Spacing="4">
-                <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_model.DomesticReturnDays" Label="Return window" Variant="Variant.Outlined">
-                        <MudSelectItem Value="14">14 days</MudSelectItem>
-                        <MudSelectItem Value="30">30 days</MudSelectItem>
-                        <MudSelectItem Value="60">60 days</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_model.DomesticShippingPaidBy" Label="Return shipping paid by" Variant="Variant.Outlined">
-                        <MudSelectItem Value="@("BUYER")">Buyer</MudSelectItem>
-                        <MudSelectItem Value="@("SELLER")">Free returns (Seller pays)</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-            </MudGrid>
+            <MudText Typo="Typo.body2" Class="mb-1" Style="color: #111820; font-weight: 600;">Allowed within</MudText>
+            <MudSelect @bind-Value="_model.DomesticReturnDays" Variant="Variant.Outlined" Style="max-width: 400px;">
+                <MudSelectItem Value="14">14 Days</MudSelectItem>
+                <MudSelectItem Value="30">30 Days</MudSelectItem>
+                <MudSelectItem Value="60">60 Days</MudSelectItem>
+            </MudSelect>
+
+            <MudText Typo="Typo.body2" Class="mt-4 mb-1" Style="color: #111820; font-weight: 600;">Return shipping paid by</MudText>
+            <MudSelect @bind-Value="_model.DomesticShippingPaidBy" Variant="Variant.Outlined" Style="max-width: 400px;">
+                <MudSelectItem Value="@("BUYER")">Buyer</MudSelectItem>
+                <MudSelectItem Value="@("SELLER")">Seller (Free returns)</MudSelectItem>
+            </MudSelect>
+
+            <MudText Typo="Typo.body2" Class="mt-4 mb-1" Style="color: #111820; font-weight: 600;">Refund method</MudText>
+            <MudSelect @bind-Value="_model.DomesticRefundMethod" Variant="Variant.Outlined" Style="max-width: 400px;">
+                <MudSelectItem Value="@("MoneyBack")">Money back</MudSelectItem>
+                <MudSelectItem Value="@("MoneyBackOrReplacement")">Money back or replacement (buyer's choice)</MudSelectItem>
+                <MudSelectItem Value="@("MoneyBackOrExchange")">Money back or exchange (buyer's choice)</MudSelectItem>
+            </MudSelect>
         }
     </MudPaper>
 
@@ -107,54 +111,29 @@
         @if (_model.IsInternationalAccepted)
         {
             <MudDivider Class="my-6" />
-            <MudGrid Spacing="4">
-                <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_model.InternationalReturnDays" Label="Return window" Variant="Variant.Outlined">
-                        <MudSelectItem Value="14">14 days</MudSelectItem>
-                        <MudSelectItem Value="30">30 days</MudSelectItem>
-                        <MudSelectItem Value="60">60 days</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" sm="6">
-                    <MudSelect @bind-Value="_model.InternationalShippingPaidBy" Label="Return shipping paid by" Variant="Variant.Outlined">
-                        <MudSelectItem Value="@("BUYER")">Buyer</MudSelectItem>
-                        <MudSelectItem Value="@("SELLER")">Free returns (Seller pays)</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-            </MudGrid>
+            <MudText Typo="Typo.body2" Class="mb-1" Style="color: #111820; font-weight: 600;">Allowed within</MudText>
+            <MudSelect @bind-Value="_model.InternationalReturnDays" Variant="Variant.Outlined" Style="max-width: 400px;">
+                <MudSelectItem Value="14">14 Days</MudSelectItem>
+                <MudSelectItem Value="30">30 Days</MudSelectItem>
+                <MudSelectItem Value="60">60 Days</MudSelectItem>
+            </MudSelect>
+
+            <MudText Typo="Typo.body2" Class="mt-4 mb-1" Style="color: #111820; font-weight: 600;">Return shipping paid by</MudText>
+            <MudSelect @bind-Value="_model.InternationalShippingPaidBy" Variant="Variant.Outlined" Style="max-width: 400px;">
+                <MudSelectItem Value="@("BUYER")">Buyer</MudSelectItem>
+                <MudSelectItem Value="@("SELLER")">Seller (Free returns)</MudSelectItem>
+            </MudSelect>
+
+            <MudText Typo="Typo.body2" Class="mt-4 mb-1" Style="color: #111820; font-weight: 600;">Refund method</MudText>
+            <MudSelect @bind-Value="_model.InternationalRefundMethod" Variant="Variant.Outlined" Style="max-width: 400px;">
+                <MudSelectItem Value="@("MoneyBack")">Money back</MudSelectItem>
+                <MudSelectItem Value="@("MoneyBackOrReplacement")">Money back or replacement (buyer's choice)</MudSelectItem>
+                <MudSelectItem Value="@("MoneyBackOrExchange")">Money back or exchange (buyer's choice)</MudSelectItem>
+            </MudSelect>
         }
     </MudPaper>
 
-    <!-- ADVANCED RETURN OPTIONS -->
-    <MudText Typo="Typo.h6" Style="font-weight: bold;" Class="mt-8 mb-4">Advanced options</MudText>
-
-    <MudPaper Elevation="0" Outlined="true" Class="pa-6 mb-6" Style="border-color: #E5E5E5; border-radius: 12px;">
-        <!-- Auto Accept Returns -->
-        <MudGrid Justify="Justify.SpaceBetween" Class="align-center mb-4">
-            <MudItem>
-                <MudText Typo="Typo.body1" Style="font-weight: bold; color: #111820;">Auto-accept returns</MudText>
-                <MudText Typo="Typo.body2" Style="color: #707070;">Automatically accept return requests from buyers without manual review.</MudText>
-            </MudItem>
-            <MudItem>
-                <MudSwitch @bind-Value="_model.AutoAcceptReturns" Color="Color.Primary" Size="Size.Large" />
-            </MudItem>
-        </MudGrid>
-
-        <MudDivider Class="my-4" />
-
-        <!-- Send Immediate Refund -->
-        <MudGrid Justify="Justify.SpaceBetween" Class="align-center mb-4">
-            <MudItem>
-                <MudText Typo="Typo.body1" Style="font-weight: bold; color: #111820;">Send immediate refund</MudText>
-                <MudText Typo="Typo.body2" Style="color: #707070;">Issue refund as soon as buyer ships the return, without waiting for delivery.</MudText>
-            </MudItem>
-            <MudItem>
-                <MudSwitch @bind-Value="_model.SendImmediateRefund" Color="Color.Primary" Size="Size.Large" />
-            </MudItem>
-        </MudGrid>
-
-
-    </MudPaper>
+    @* Advanced Options (Auto-accept, Immediate refund) thuộc Account Settings, không phải per-policy trên eBay *@
 
     <!-- Spacer -->
     <div style="height: 100px;"></div>
@@ -194,12 +173,11 @@
                 IsDomesticAccepted = _model.IsDomesticAccepted,
                 DomesticReturnDays = _model.DomesticReturnDays,
                 DomesticShippingPaidBy = _model.DomesticShippingPaidBy,
+                DomesticRefundMethod = _model.DomesticRefundMethod,
                 IsInternationalAccepted = _model.IsInternationalAccepted,
                 InternationalReturnDays = _model.InternationalReturnDays,
                 InternationalShippingPaidBy = _model.InternationalShippingPaidBy,
-                AutoAcceptReturns = _model.AutoAcceptReturns,
-                SendImmediateRefund = _model.SendImmediateRefund,
-
+                InternationalRefundMethod = _model.InternationalRefundMethod,
             };
 
             var message = await PolicyService.CreateReturnPolicyAsync(request);
@@ -225,14 +203,11 @@
         public bool IsDomesticAccepted { get; set; } = false;
         public int DomesticReturnDays { get; set; } = 30;
         public string DomesticShippingPaidBy { get; set; } = "BUYER";
+        public string DomesticRefundMethod { get; set; } = "MoneyBack";
 
         public bool IsInternationalAccepted { get; set; } = false;
         public int InternationalReturnDays { get; set; } = 30;
         public string InternationalShippingPaidBy { get; set; } = "BUYER";
-
-        // New fields
-        public bool AutoAcceptReturns { get; set; } = false;
-        public bool SendImmediateRefund { get; set; } = false;
-
+        public string InternationalRefundMethod { get; set; } = "MoneyBack";
     }
 }

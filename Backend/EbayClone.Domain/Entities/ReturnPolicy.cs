@@ -13,11 +13,13 @@ namespace EbayClone.Domain.Entities
         public bool IsDomesticAccepted { get; set; } = false;
         public int DomesticReturnDays { get; set; } = 30;
         public string DomesticShippingPaidBy { get; set; } = "BUYER"; // 'BUYER' or 'SELLER'
+        public string DomesticRefundMethod { get; set; } = "MoneyBack"; // MoneyBack, MoneyBackOrReplacement, MoneyBackOrExchange
 
         // International
         public bool IsInternationalAccepted { get; set; } = false;
         public int InternationalReturnDays { get; set; } = 30;
         public string InternationalShippingPaidBy { get; set; } = "BUYER";
+        public string InternationalRefundMethod { get; set; } = "MoneyBack"; // MoneyBack, MoneyBackOrReplacement, MoneyBackOrExchange
 
         // Auto-Accept Returns (eBay: tự động chấp nhận return request từ buyer)
         public bool AutoAcceptReturns { get; set; } = false;

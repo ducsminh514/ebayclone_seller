@@ -16,6 +16,13 @@ namespace EbayClone.Shared.DTOs.Policies
 
         public bool IsDefault { get; set; } = false;
 
+        // Shipping Method (eBay: top-level dropdown)
+        [Required]
+        [RegularExpression("Standard|Freight|NoShipping", ErrorMessage = "Shipping method must be Standard, Freight, or NoShipping")]
+        public string ShippingMethod { get; set; } = "Standard";
+
+        public bool OfferLocalPickup { get; set; } = false;
+
         // Free Shipping
         public bool OfferFreeShipping { get; set; } = false;
 
@@ -48,7 +55,7 @@ namespace EbayClone.Shared.DTOs.Policies
     public class CreateReturnPolicyRequest
     {
         [Required]
-        [MaxLength(100)]
+        [MaxLength(64)]
         public string Name { get; set; } = string.Empty;
 
         [MaxLength(250)]
@@ -62,11 +69,15 @@ namespace EbayClone.Shared.DTOs.Policies
         [RegularExpression("BUYER|SELLER", ErrorMessage = "Chỉ chấp nhận BUYER hoặc SELLER")]
         public string DomesticShippingPaidBy { get; set; } = "BUYER";
 
+        public string DomesticRefundMethod { get; set; } = "MoneyBack";
+
         public bool IsInternationalAccepted { get; set; } = false;
         public int InternationalReturnDays { get; set; } = 30;
 
         [RegularExpression("BUYER|SELLER", ErrorMessage = "Chỉ chấp nhận BUYER hoặc SELLER")]
         public string InternationalShippingPaidBy { get; set; } = "BUYER";
+
+        public string InternationalRefundMethod { get; set; } = "MoneyBack";
 
         // Auto-Accept Returns
         public bool AutoAcceptReturns { get; set; } = false;

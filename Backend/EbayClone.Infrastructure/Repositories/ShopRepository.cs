@@ -84,5 +84,10 @@ namespace EbayClone.Infrastructure.Repositories
                 .Where(s => s.Id == id && s.TotalPaymentPolicies > 0)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.TotalPaymentPolicies, x => x.TotalPaymentPolicies - 1), cancellationToken);
         }
+
+        public async Task<List<Shop>> GetAllActiveShopsAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Shops.ToListAsync(cancellationToken);
+        }
     }
 }

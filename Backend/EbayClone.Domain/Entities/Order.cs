@@ -14,7 +14,33 @@ namespace EbayClone.Domain.Entities
         public decimal TotalAmount { get; set; }
         public decimal ShippingFee { get; set; }
         public decimal PlatformFee { get; set; } = 0;
-        
+
+        // ── Voucher / Discount ──────────────────────────────────────────
+        /// <summary>FK đến Voucher đã dùng. Null nếu không dùng voucher.</summary>
+        public Guid? VoucherId { get; set; }
+
+        /// <summary>Số tiền đã giảm (sau khi apply voucher). 0 nếu không có voucher.</summary>
+        public decimal DiscountAmount { get; set; } = 0;
+
+        /// <summary>
+        /// Giá gốc subtotal TRƯỚC khi trừ discount (ItemSubtotal + DiscountAmount).
+        /// Dùng để tính PlatformFee chuẩn eBay — fee tính trên giá gốc, không phải giá sau coupon.
+        /// 0 = order cũ (backward compat), fallback về ItemSubtotal.
+        /// </summary>
+        public decimal OriginalSubtotal { get; set; } = 0;
+
+        /// <summary>
+        /// Item subtotal = TotalAmount - ShippingFee (đã trừ discount).
+        /// Dùng cho refund logic (buyer thực trả).
+        /// </summary>
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public decimal ItemSubtotal => TotalAmount - ShippingFee;
+
+        /// <summary>Giá gốc để tính PlatformFee. Fallback về ItemSubtotal nếu OriginalSubtotal = 0.</summary>
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public decimal PlatformFeeBase => OriginalSubtotal > 0 ? OriginalSubtotal : ItemSubtotal;
+
+
         // --- STATUS ---
         // Valid: PENDING_PAYMENT, PAID, SHIPPED, DELIVERED, COMPLETED,
         //        CANCELLED, RETURN_REQUESTED, RETURN_IN_PROGRESS, 
@@ -42,6 +68,7 @@ namespace EbayClone.Domain.Entities
         public string? CancelReason { get; private set; }         // "BUYER_ASKED", "OUT_OF_STOCK", "ADDRESS_ISSUE", "BUYER_HASNT_PAID"
         public string? CancelRequestedBy { get; private set; }    // "BUYER", "SELLER", "SYSTEM"
         public bool IsEscrowReleased { get; private set; }
+        public bool IsLateShipment { get; private set; } = false;
 
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
@@ -82,6 +109,12 @@ namespace EbayClone.Domain.Entities
             ShippingCarrier = carrier;
             TrackingCode = trackingCode;
             ShippedAt = DateTimeOffset.UtcNow;
+
+            // Auto-detect late shipment
+            if (ShipByDate.HasValue && ShippedAt > ShipByDate)
+            {
+                IsLateShipment = true;
+            }
         }
 
         /// <summary>
@@ -190,6 +223,8 @@ namespace EbayClone.Domain.Entities
         public int Quantity { get; set; }
         public decimal PriceAtPurchase { get; set; }
         
+        // [M6-NOTE] DB computed column: [Quantity] * [PriceAtPurchase] (stored: true)
+        // EF Core đọc giá trị từ DB, không cần set ở C# — private set cho EF mapping
         public decimal TotalLineAmount { get; private set; }
 
         // Navigation

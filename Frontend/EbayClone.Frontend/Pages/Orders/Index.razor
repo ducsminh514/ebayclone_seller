@@ -3,6 +3,7 @@
 @using EbayClone.Shared.DTOs.Orders
 @using EbayClone.Shared.DTOs.Products
 @inject OrderService OrderService
+@inject VoucherService VoucherService
 @inject NavigationManager NavigationManager
 
 <div class="seller-hub-container">
@@ -375,6 +376,56 @@
                                 <small class="text-muted">Tối đa: @selectedVariantQty</small>
                             </div>
 
+                            @* Step 4: Voucher (tùy chọn) *@
+                            <div style="margin-bottom: 16px;">
+                                <label class="form-label fw-bold">4. Mã giảm giá (tùy chọn)</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" class="form-control" placeholder="Nhập mã voucher..." @bind="testVoucherCode" />
+                                    <button class="btn-ebay-secondary" style="white-space: nowrap; padding: 6px 16px;"
+                                            disabled="@(string.IsNullOrWhiteSpace(testVoucherCode) || isPreviewingVoucher)"
+                                            @onclick="PreviewVoucher">
+                                        @if (isPreviewingVoucher)
+                                        {
+                                            <span class="spinner-border spinner-border-sm"></span>
+                                        }
+                                        else
+                                        {
+                                            <span>Áp dụng</span>
+                                        }
+                                    </button>
+                                </div>
+                                @if (voucherPreviewDiscount > 0)
+                                {
+                                    <div class="alert alert-success py-2 px-3 mt-2" style="font-size: 13px; margin-bottom: 0;">
+                                        ✅ Giảm <strong>@voucherPreviewDiscount.ToString("N0") ₫</strong>
+                                        — Thanh toán: <strong>@((selectedVariantPrice * buyQuantity - voucherPreviewDiscount).ToString("N0")) ₫</strong>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(voucherPreviewError))
+                                {
+                                    <div class="alert alert-danger py-2 px-3 mt-2" style="font-size: 13px; margin-bottom: 0;">@voucherPreviewError</div>
+                                }
+                            </div>
+
+                            @* Order Summary *@
+                            <div style="background: #f7f7f7; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 14px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span>Giá sản phẩm:</span>
+                                    <span>@((selectedVariantPrice * buyQuantity).ToString("N0")) ₫</span>
+                                </div>
+                                @if (voucherPreviewDiscount > 0)
+                                {
+                                    <div style="display: flex; justify-content: space-between; color: #267500; margin-bottom: 4px;">
+                                        <span>Giảm giá voucher:</span>
+                                        <span>-@voucherPreviewDiscount.ToString("N0") ₫</span>
+                                    </div>
+                                }
+                                <div style="display: flex; justify-content: space-between; font-weight: 700; border-top: 1px solid #ddd; padding-top: 6px;">
+                                    <span>Tổng cộng:</span>
+                                    <span style="color: #e53238;">@((selectedVariantPrice * buyQuantity - voucherPreviewDiscount).ToString("N0")) ₫</span>
+                                </div>
+                            </div>
+
                             @* Place Order button *@
                             <button class="btn-ebay-primary w-100" style="background: #e53238; border-color: #e53238; padding: 12px; font-size: 16px; font-weight: 700;"
                                     disabled="@isPlacingOrder" @onclick="PlaceTestOrder">
@@ -469,7 +520,14 @@
     private ProductDto? selectedProduct;
     private Guid selectedVariantId;
     private int selectedVariantQty;
+    private decimal selectedVariantPrice;
     private int buyQuantity = 1;
+
+    // Voucher
+    private string testVoucherCode = "";
+    private decimal voucherPreviewDiscount;
+    private string? voucherPreviewError;
+    private bool isPreviewingVoucher;
 
     protected override async Task OnInitializedAsync()
     {
@@ -595,8 +653,13 @@
     {
         selectedVariantId = variant.Id;
         selectedVariantQty = variant.Quantity;
+        selectedVariantPrice = variant.Price;
         buyQuantity = 1;
         modalError = null;
+        // Reset voucher khi đổi variant
+        testVoucherCode = "";
+        voucherPreviewDiscount = 0;
+        voucherPreviewError = null;
     }
 
     private async Task PlaceTestOrder()
@@ -617,7 +680,8 @@
                 IdempotencyKey = Guid.NewGuid().ToString(),
                 VariantId = selectedVariantId,
                 Quantity = buyQuantity,
-                ReceiverInfo = "{\"name\":\"Test Buyer\",\"phone\":\"0901234567\",\"address\":\"123 Test Street, HCM\"}"
+                ReceiverInfo = "{\"name\":\"Test Buyer\",\"phone\":\"0901234567\",\"address\":\"123 Test Street, HCM\"}",
+                VoucherCode = string.IsNullOrWhiteSpace(testVoucherCode) ? null : testVoucherCode.Trim().ToUpperInvariant()
             };
 
             var message = await OrderService.TestBuyerCheckoutAsync(request);
@@ -638,6 +702,34 @@
         finally
         {
             isPlacingOrder = false;
+        }
+    }
+
+    private async Task PreviewVoucher()
+    {
+        if (string.IsNullOrWhiteSpace(testVoucherCode) || selectedProduct == null) return;
+
+        isPreviewingVoucher = true;
+        voucherPreviewDiscount = 0;
+        voucherPreviewError = null;
+
+        try
+        {
+            var subtotal = selectedVariantPrice * buyQuantity;
+            var result = await VoucherService.PreviewDiscountAsync(
+                testVoucherCode.Trim().ToUpperInvariant(),
+                selectedProduct.ShopId,
+                subtotal);
+
+            voucherPreviewDiscount = result.DiscountAmount;
+        }
+        catch (Exception ex)
+        {
+            voucherPreviewError = ex.Message;
+        }
+        finally
+        {
+            isPreviewingVoucher = false;
         }
     }
 }

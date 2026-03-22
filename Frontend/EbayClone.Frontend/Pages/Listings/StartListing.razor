@@ -150,7 +150,7 @@
 
     private void HandleCategoryConditionConfirmed(CategoryConditionModal.CategoryConditionResult result)
     {
-        var url = $"/listings/create?categoryId={result.CategoryId}&condition={Uri.EscapeDataString(result.Condition)}&conditionDesc={Uri.EscapeDataString(result.ConditionDescription)}";
+        var url = $"/listings/create?categoryId={result.CategoryId}&condition={Uri.EscapeDataString(result.Condition)}&conditionDesc={Uri.EscapeDataString(result.ConditionDescription)}&title={Uri.EscapeDataString(keyword.Trim())}";
         NavigationManager.NavigateTo(url);
     }
 }
