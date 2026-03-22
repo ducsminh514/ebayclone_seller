@@ -219,7 +219,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll",
         policy =>
         {
-            policy.WithOrigins("https://localhost:7251", "http://localhost:7252") // Port của Frontend
+            policy.WithOrigins("https://localhost:7251", "http://localhost:7252", "http://localhost", "http://127.0.0.1") // Cho phép Frontend trên Visual Studio (5071/5070) và Docker (localhost port 80)
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });
@@ -234,7 +234,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Tắt HTTPS Redirection trong Docker để không bị lỗi 307 Redirect dẫn tới ERR_EMPTY_RESPONSE cho CORS Preflight request
 
 // Kích hoạt CORS Pipeline cho Frontend Blazor (port 5002) gọi sang Backend (7132)
 app.UseCors("AllowAll");
@@ -277,6 +277,23 @@ app.MapGet("/test-db", async (EbayClone.Infrastructure.Data.EbayDbContext dbCont
 // [A7] Seed categories + item specifics khi khởi động (idempotent)
 using (var seedScope = app.Services.CreateScope())
 {
+    var dbContext = seedScope.ServiceProvider.GetRequiredService<EbayClone.Infrastructure.Data.EbayDbContext>();
+    
+    // Thêm Retry loop 5 lần (đợi 5 giây) để chờ SQL Server trong Docker khởi động xong
+    for (int i = 0; i < 5; i++)
+    {
+        try
+        {
+            dbContext.Database.Migrate(); // Tự động tạo bảng vào Database Ảo.
+            break;
+        }
+        catch (Exception)
+        {
+            if (i == 4) throw; // Lần cuối cùng vẫn lỗi thì văng lỗi luôn
+            System.Threading.Thread.Sleep(5000); // Đợi 5s cho SQL Server boot xong
+        }
+    }
+    
     var categorySeeder = seedScope.ServiceProvider.GetRequiredService<ICategorySeeder>();
     await categorySeeder.SeedCategoriesAsync();
 }

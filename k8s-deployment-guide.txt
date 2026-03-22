@@ -1,0 +1,65 @@
+HƯỚNG DẪN TRIỂN KHAI DỰ ÁN LÊN DOCKER VÀ KUBERNETES (K8S)
+
+--- PHẦN 1: CHẠY THỬ TRÊN MÁY CÁ NHÂN VỚI DOCKER COMPOSE ---
+Đây là cách nhanh nhất để test xem cả hệ thống (Backend, Frontend, Database) có đang hoạt động tốt với nhau hay không.
+
+1. Yêu cầu: Đã cài đặt phần mềm Docker Desktop.
+2. Mở Terminal (Command Prompt / PowerShell) tại thư mục chứa dự án: 
+   d:\PRN232_Clone\ebayclone_seller
+3. Chạy lệnh sau để khởi động:
+   docker-compose up --build
+   docker-compose up -d
+   (Lệnh này sẽ tự động tải các phần mềm cần thiết, build code .NET và Blazor của bạn, sau đó gom nhóm tất cả chạy lên).
+
+4. Để truy cập thử:
+   - Truy cập Frontend UI: http://localhost:80
+   - Truy cập Backend API (Swagger): http://localhost:8080/swagger
+   - Cổng SQL Server nếu muốn đăng nhập từ phần mềm Management Studio (SSMS): localhost, cổng 1433 (User: sa, Mật khẩu: YourStrong@Pass123).
+
+5. Tắt hệ thống:
+   Nhấn Ctrl + C trong Terminal, hoặc gõ lệnh: docker-compose down
+
+
+--- PHẦN 2: TRIỂN KHAI LÊN CLUSTER KUBERNETES (K8S) ---
+Phần này dùng khi bạn cần đưa dự án lên một hệ thống K8s ảo ở máy tính (Minikube/Kind) hoặc đưa lên Cloud K8s (AWS EKS, Google GKE). Toàn bộ file cấu hình đều cho bước này nằm trong thư mục k8s/.
+
+Bước 1: Build Image Docker
+K8s cần các "kiện hàng image" đã đóng gói sẵn để lấy ra chạy.
+- Bạn cần chạy lệnh build ở thư mục gốc d:\PRN232_Clone\ebayclone_seller:
+  docker build -t ebay-backend:latest -f Backend/Dockerfile .
+  docker build -t ebay-frontend:latest -f Frontend/Dockerfile .
+
+(Lưu ý: Nếu bạn đưa lên Cloud K8s thật trên mạng, bạn sẽ phải push các image này lên Docker Hub, và vào đổi "image: name" trong các file k8s/backend.yaml thành đường link Docker Hub của bạn).
+
+Bước 2: Nạp cấu hình bảo mật vào K8s (Connection string, Environment variable)
+  kubectl apply -f k8s/config.yaml
+
+Bước 3: Chạy Database ảo
+  kubectl apply -f k8s/database.yaml
+(Bạn có thể bỏ qua file database.yaml này nếu bạn mua Database thật trên Cloud như Google Cloud SQL hay Amazon RDS).
+
+Bước 4: Chạy App Backend và Frontend
+  kubectl apply -f k8s/backend.yaml
+  kubectl apply -f k8s/frontend.yaml
+
+Bước 5: Thêm điều hướng vào mạng của app
+  kubectl apply -f k8s/ingress.yaml
+
+Bước 6: Kiểm tra tiến trình
+- Gõ lệnh để xem các app đã được tạo lên và chạy hay chưa (chờ cột Status báo Running là đẹp):
+  kubectl get pods
+- Gõ lệnh để xem các dịch vụ:
+  kubectl get services
+
+
+
+--- LƯU Ý QUAN TRỌNG VỀ DATABASE (SQL SERVER) ---
+Vì hệ thống này đang dùng Database Ảo Hóa cho cả chức năng Docker Compose và K8s, nên Database sinh ra dù có mật khẩu nhưng bên trong LÀ TRỐNG TRƠN (CHƯA CÓ BẢNG, CHƯA CÓ DATA).
+
+Để hệ thống hoàn chỉnh, bạn nên vào Code Backend (file Program.cs), yêu cầu Entity Framework tự động chạy lệnh Migration tạo bảng lúc app vừa được gọi khởi động.
+Ví dụ:
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<YourDbContext>();
+    dbContext.Database.Migrate(); // Tự động tạo bảng vào Database Ảo.
+}

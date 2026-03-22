@@ -12,10 +12,12 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 // Đăng ký AuthTokenHandler như một Dependency
 builder.Services.AddTransient<AuthTokenHandler>();
 
-// Đăng ký cấu hình HttpClient chuẩn cho Blazor WebAssembly thông qua HttpMessageHandler
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:8080";
+//var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7250";
+
 builder.Services.AddHttpClient("API", client =>
 {
-    client.BaseAddress = new Uri("https://localhost:7250");
+    client.BaseAddress = new Uri(apiBaseUrl);
 })
 .AddHttpMessageHandler<AuthTokenHandler>();
 
