@@ -19,6 +19,7 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<Voucher> Vouchers { get; set; }
+        public DbSet<VoucherUsage> VoucherUsages { get; set; }
         public DbSet<SellerWallet> SellerWallets { get; set; }
         public DbSet<WalletTransaction> WalletTransactions { get; set; }
         public DbSet<ShopAnalyticsDaily> ShopAnalyticsDaily { get; set; }
@@ -305,6 +306,45 @@ namespace EbayClone.Infrastructure.Data
             // Reviews
             modelBuilder.Entity<Review>(entity => {
                 entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).IsRequired(false);
+            });
+
+            // Voucher
+            modelBuilder.Entity<Voucher>(entity => {
+                entity.HasIndex(e => new { e.ShopId, e.Code }).IsUnique();
+                entity.Property(e => e.Code).HasMaxLength(15).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(200);
+                entity.Property(e => e.DiscountType).HasMaxLength(20).HasDefaultValue("PERCENTAGE");
+                entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("DRAFT");
+                entity.Property(e => e.Visibility).HasMaxLength(20).HasDefaultValue("PRIVATE");
+                entity.Property(e => e.Scope).HasMaxLength(20).HasDefaultValue("SHOP");
+                entity.Property(e => e.Value).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.MaxDiscountAmount).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.MinOrderValue).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.MaxBudget).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.UsedBudget).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.RowVersion).IsRowVersion();
+                entity.HasOne(e => e.Shop).WithMany().HasForeignKey(e => e.ShopId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // VoucherUsage
+            modelBuilder.Entity<VoucherUsage>(entity => {
+                entity.HasIndex(e => new { e.VoucherId, e.BuyerId });
+                entity.HasIndex(e => e.OrderId);
+                entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18, 2)");
+                entity.HasOne(e => e.Voucher).WithMany().HasForeignKey(e => e.VoucherId).OnDelete(DeleteBehavior.Restrict);
+                // [FIX-MEDIUM] FK VoucherUsage → Order: enforce DB-level referential integrity
+                // Restrict: không tự xóa VoucherUsage khi Order bị xóa (phải xóa tay qua RollbackApplyAsync)
+                entity.HasOne<Order>().WithMany()
+                    .HasForeignKey(e => e.OrderId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Order — voucher fields
+            modelBuilder.Entity<Order>(entity => {
+                entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18, 2)").HasDefaultValue(0m);
+                entity.Property(e => e.OriginalSubtotal).HasColumnType("decimal(18, 2)").HasDefaultValue(0m);
+                entity.HasOne<Voucher>().WithMany().HasForeignKey(e => e.VoucherId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             });
 
             // Prevent SQL Server multiple cascade path errors

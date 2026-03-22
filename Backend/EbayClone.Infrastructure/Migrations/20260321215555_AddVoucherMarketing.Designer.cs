@@ -4,6 +4,7 @@ using EbayClone.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EbayClone.Infrastructure.Migrations
 {
     [DbContext(typeof(EbayDbContext))]
-    partial class EbayDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260321215555_AddVoucherMarketing")]
+    partial class AddVoucherMarketing
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1850,11 +1853,6 @@ namespace EbayClone.Infrastructure.Migrations
 
             modelBuilder.Entity("EbayClone.Domain.Entities.VoucherUsage", b =>
                 {
-                    b.HasOne("EbayClone.Domain.Entities.Order", null)
-                        .WithMany()
-                        .HasForeignKey("OrderId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("EbayClone.Domain.Entities.Voucher", "Voucher")
                         .WithMany()
                         .HasForeignKey("VoucherId")

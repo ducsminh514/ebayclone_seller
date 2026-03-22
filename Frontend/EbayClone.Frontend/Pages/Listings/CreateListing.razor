@@ -805,11 +805,13 @@
 
             <div class="mb-0" style="max-width: 360px;">
                 <label class="form-label">Return policy</label>
-                <InputSelect class="form-select" @bind-Value="request.ReturnPolicyId">
+                <select class="form-select"
+                        value="@(request.ReturnPolicyId?.ToString() ?? "")"
+                        @onchange="(e) => request.ReturnPolicyId = Guid.TryParse(e.Value?.ToString(), out var g) ? g : null">
                     <option value="">-- Select return policy --</option>
                     @foreach (var p in returnPolicies)
                     { <option value="@p.Id">@p.Name</option> }
-                </InputSelect>
+                </select>
             </div>
         </div>
 
@@ -820,11 +822,13 @@
             </div>
             <div style="max-width: 360px;">
                 <label class="form-label">Payment policy</label>
-                <InputSelect class="form-select" @bind-Value="request.PaymentPolicyId">
+                <select class="form-select"
+                        value="@(request.PaymentPolicyId?.ToString() ?? "")"
+                        @onchange="(e) => request.PaymentPolicyId = Guid.TryParse(e.Value?.ToString(), out var g) ? g : null">
                     <option value="">-- Default payment policy --</option>
                     @foreach (var p in paymentPolicies)
                     { <option value="@p.Id">@p.Name</option> }
-                </InputSelect>
+                </select>
             </div>
         </div>
 

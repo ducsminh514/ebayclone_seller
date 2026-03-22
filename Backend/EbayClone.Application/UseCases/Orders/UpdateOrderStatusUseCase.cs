@@ -25,6 +25,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IWalletTransactionRepository _walletTransactionRepository;
         private readonly IProductRepository _productRepository;
         private readonly IPolicyRepository _policyRepository;
+        private readonly IVoucherRepository _voucherRepository; // [FIX-CRITICAL-2] Rollback voucher khi CANCEL
         private readonly IUnitOfWork _unitOfWork;
 
         public UpdateOrderStatusUseCase(
@@ -34,6 +35,7 @@ namespace EbayClone.Application.UseCases.Orders
             IWalletTransactionRepository walletTransactionRepository,
             IProductRepository productRepository,
             IPolicyRepository policyRepository,
+            IVoucherRepository voucherRepository, // [FIX-CRITICAL-2]
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
@@ -42,6 +44,7 @@ namespace EbayClone.Application.UseCases.Orders
             _walletTransactionRepository = walletTransactionRepository;
             _productRepository = productRepository;
             _policyRepository = policyRepository;
+            _voucherRepository = voucherRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -107,13 +110,53 @@ namespace EbayClone.Application.UseCases.Orders
                             }, cancellationToken);
                         }
 
-                        // [FIX-M7] Set PlatformFee ngay khi PAID — đảm bảo dispute/release sớm luôn có fee đúng
-                        var itemSubPaid = order.TotalAmount - order.ShippingFee;
-                        order.PlatformFee = itemSubPaid * PLATFORM_FEE_RATE;
+                        // [FIX] PlatformFee = 5% trên OriginalSubtotal (chuẩn eBay — tính trên giá gốc trước discount)
+                        // PlatformFeeBase: nếu OriginalSubtotal > 0 dùng giá gốc, còn lại fallback về ItemSubtotal (backward compat)
+                        order.PlatformFee = order.PlatformFeeBase * PLATFORM_FEE_RATE;
                         break;
 
                     case "SHIPPED":
                         order.MarkAsShipped(request.ShippingCarrier ?? "Unknown", request.TrackingCode ?? "");
+                        break;
+
+                    case "COMPLETED":
+                        order.MarkAsCompleted();
+
+                        // eBay Managed Payments: Khi order COMPLETED → giải ngân escrow
+                        // Trừ PendingBalance → cộng AvailableBalance (sau phí sàn)
+                        // Dùng ProcessRelease() — resilient: không throw nếu Pending < expected (drift)
+                        var walletComplete = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
+                        if (walletComplete != null && order.TotalAmount > 0)
+                        {
+                            // netPayout = tiền seller nhận thực = TotalAmount - PlatformFee
+                            decimal netPayout = order.TotalAmount - order.PlatformFee;
+                            if (netPayout <= 0) netPayout = order.TotalAmount; // safety fallback
+
+                            var (actualDebit, actualCredit) = walletComplete.ProcessRelease(
+                                totalDebit: order.TotalAmount,
+                                availableCredit: netPayout);
+
+                            _walletRepository.Update(walletComplete);
+
+                            if (actualDebit > 0)
+                            {
+                                var payoutDesc = order.DiscountAmount > 0
+                                    ? $"Giải ngân {actualCredit:N0}đ từ #{order.OrderNumber} (sau phí {order.PlatformFee:N0}đ, voucher -{order.DiscountAmount:N0}đ)"
+                                    : $"Giải ngân {actualCredit:N0}đ từ #{order.OrderNumber} (sau phí sàn {order.PlatformFee:N0}đ)";
+
+                                await _walletTransactionRepository.AddAsync(new WalletTransaction
+                                {
+                                    ShopId = shopId,
+                                    Amount = actualCredit,
+                                    Type = "PAYOUT",
+                                    ReferenceId = order.Id,
+                                    ReferenceType = "ORDER",
+                                    OrderNumber = order.OrderNumber,
+                                    Description = payoutDesc,
+                                    BalanceAfter = walletComplete.TotalBalance
+                                }, cancellationToken);
+                            }
+                        }
                         break;
 
                     case "DELIVERED":
@@ -246,6 +289,19 @@ namespace EbayClone.Application.UseCases.Orders
                                     await _productRepository.UpdateAsync(cancelProd, cancellationToken);
                                 }
                             }
+                        }
+
+                        // [FIX-CRITICAL-2] Hoàn lượt voucher nếu đơn hàng có dùng voucher
+                        // Compensating Transaction (Saga pattern): reverse các side-effects của AtomicApply
+                        if (order.VoucherId.HasValue && order.DiscountAmount > 0)
+                        {
+                            await _voucherRepository.RollbackApplyAsync(
+                                order.VoucherId.Value,
+                                order.DiscountAmount,
+                                order.Id);
+                            // RollbackApplyAsync:
+                            // 1. SQL UPDATE giảm UsedCount/UsedBudget (atomic, không để âm)
+                            // 2. Xóa VoucherUsage record → SaveChanges gọi bên dưới
                         }
                         break;
 

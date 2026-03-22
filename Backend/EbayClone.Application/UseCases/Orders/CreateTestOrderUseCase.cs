@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using EbayClone.Shared.DTOs.Orders;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
+using EbayClone.Application.UseCases.Vouchers;
 using EbayClone.Domain.Entities;
 
 namespace EbayClone.Application.UseCases.Orders
@@ -23,6 +24,8 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _walletTransactionRepository;
         private readonly IPolicyRepository _policyRepository;
+        private readonly IVoucherRepository _voucherRepository;
+        private readonly ApplyVoucherUseCase _applyVoucherUseCase; // [FIX-HIGH-3] Inject thay vì tự new
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateTestOrderUseCase(
@@ -31,6 +34,8 @@ namespace EbayClone.Application.UseCases.Orders
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository walletTransactionRepository,
             IPolicyRepository policyRepository,
+            IVoucherRepository voucherRepository,
+            ApplyVoucherUseCase applyVoucherUseCase, // [FIX-HIGH-3]
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
@@ -38,6 +43,8 @@ namespace EbayClone.Application.UseCases.Orders
             _walletRepository = walletRepository;
             _walletTransactionRepository = walletTransactionRepository;
             _policyRepository = policyRepository;
+            _voucherRepository = voucherRepository;
+            _applyVoucherUseCase = applyVoucherUseCase;
             _unitOfWork = unitOfWork;
         }
 
@@ -143,6 +150,9 @@ namespace EbayClone.Application.UseCases.Orders
                 var shortGuid = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
                 var timestamp = DateTime.UtcNow.ToString("yyMMddHHmm");
 
+                // Tính OriginalSubtotal (giá gốc trước discount) — dùng cho PlatformFee
+                decimal itemSubtotal = 0; // sẽ tính sau khi có OrderItem
+
                 var newOrder = new Order
                 {
                     OrderNumber = $"ORD-{timestamp}-{shortGuid}",
@@ -151,10 +161,10 @@ namespace EbayClone.Application.UseCases.Orders
                     BuyerId = buyerId,
                     ReceiverInfo = request.ReceiverInfo,
                     ShippingFee = shippingFee,
-                    PlatformFee = 0      
+                    PlatformFee = 0
                 };
 
-                // 3. Tạo Order Item
+                // 3b. Tạo Order Item
                 var orderItem = new OrderItem
                 {
                     ProductId = product.Id,
@@ -164,8 +174,31 @@ namespace EbayClone.Application.UseCases.Orders
                     PriceAtPurchase = variant.Price
                 };
 
-                newOrder.TotalAmount = (orderItem.Quantity * orderItem.PriceAtPurchase) + newOrder.ShippingFee;
+                itemSubtotal = orderItem.Quantity * orderItem.PriceAtPurchase;
+                newOrder.OriginalSubtotal = itemSubtotal; // Lưu giá gốc trước discount
                 newOrder.Items.Add(orderItem);
+
+                // 3c. Apply Voucher (optional)
+                Guid? appliedVoucherId = null;
+                decimal discountAmount = 0;
+                if (!string.IsNullOrWhiteSpace(request.VoucherCode))
+                {
+                    // [FIX-HIGH-3] Dùng injected UseCase thay vì tự new
+                    var productIdsInCart = new List<Guid> { product.Id };
+                    var voucherResult = await _applyVoucherUseCase.ExecuteAsync(
+                        request.VoucherCode,
+                        product.ShopId,
+                        buyerId,
+                        itemSubtotal,
+                        productIdsInCart);
+                    discountAmount = voucherResult.DiscountAmount;
+                    appliedVoucherId = voucherResult.VoucherId;
+                    newOrder.VoucherId = appliedVoucherId;
+                    newOrder.DiscountAmount = discountAmount;
+                }
+
+                // TotalAmount = OriginalSubtotal + ShippingFee - Discount
+                newOrder.TotalAmount = itemSubtotal + shippingFee - discountAmount;
 
                 // 4. Lưu DB
                 await _orderRepository.AddAsync(newOrder, cancellationToken);
@@ -175,11 +208,22 @@ namespace EbayClone.Application.UseCases.Orders
                 newOrder.MarkAsPaid();
                 newOrder.SetShipByDate(handlingDays);
 
-                // [FIX-M7] Set PlatformFee ngay khi PAID (đồng bộ với UpdateOrderStatusUseCase)
-                var itemSubtotalForFee = newOrder.TotalAmount - newOrder.ShippingFee;
-                newOrder.PlatformFee = itemSubtotalForFee * 0.05m; // 5% on item subtotal
+                // [FIX] PlatformFee = 5% trên OriginalSubtotal (giá gốc trước discount) — chuẩn eBay
+                newOrder.PlatformFee = newOrder.PlatformFeeBase * 0.05m;
 
                 _orderRepository.Update(newOrder);
+
+                // 6b. Ghi VoucherUsage nếu có dùng voucher
+                if (appliedVoucherId.HasValue)
+                {
+                    await _voucherRepository.AddUsageAsync(new VoucherUsage
+                    {
+                        VoucherId = appliedVoucherId.Value,
+                        BuyerId = buyerId,
+                        OrderId = newOrder.Id,
+                        DiscountAmount = discountAmount
+                    });
+                }
 
                 // 6. Wallet Escrow — ghi nhận doanh thu treo khi PAID (giống UpdateOrderStatusUseCase)
                 var wallet = await _walletRepository.GetByShopIdAsync(product.ShopId, cancellationToken);
@@ -188,6 +232,11 @@ namespace EbayClone.Application.UseCases.Orders
                     wallet.AddPending(newOrder.TotalAmount);
                     _walletRepository.Update(wallet);
 
+                    // [FIX-MEDIUM] Enrich description với discount info để Finance audit rõ hơn
+                    var txDescription = newOrder.DiscountAmount > 0
+                        ? $"Tạm giữ {newOrder.TotalAmount:N0}đ từ #{newOrder.OrderNumber} (Voucher -{newOrder.DiscountAmount:N0}đ, gốc: {newOrder.OriginalSubtotal:N0}đ)"
+                        : $"Tạm giữ {newOrder.TotalAmount:N0}đ (Escrow) từ đơn hàng #{newOrder.OrderNumber}";
+
                     await _walletTransactionRepository.AddAsync(new WalletTransaction
                     {
                         ShopId = product.ShopId,
@@ -195,7 +244,7 @@ namespace EbayClone.Application.UseCases.Orders
                         Type = "ORDER_INCOME",
                         ReferenceId = newOrder.Id,
                         ReferenceType = "ORDER",
-                        Description = $"Tạm giữ {newOrder.TotalAmount:N0} đ (Escrow) từ đơn hàng #{newOrder.OrderNumber}",
+                        Description = txDescription,
                         BalanceAfter = wallet.TotalBalance
                     }, cancellationToken);
                 }

@@ -15,10 +15,32 @@ namespace EbayClone.Domain.Entities
         public decimal ShippingFee { get; set; }
         public decimal PlatformFee { get; set; } = 0;
 
-        /// <summary>Item subtotal = TotalAmount - ShippingFee. Dùng cho refund logic.</summary>
+        // ── Voucher / Discount ──────────────────────────────────────────
+        /// <summary>FK đến Voucher đã dùng. Null nếu không dùng voucher.</summary>
+        public Guid? VoucherId { get; set; }
+
+        /// <summary>Số tiền đã giảm (sau khi apply voucher). 0 nếu không có voucher.</summary>
+        public decimal DiscountAmount { get; set; } = 0;
+
+        /// <summary>
+        /// Giá gốc subtotal TRƯỚC khi trừ discount (ItemSubtotal + DiscountAmount).
+        /// Dùng để tính PlatformFee chuẩn eBay — fee tính trên giá gốc, không phải giá sau coupon.
+        /// 0 = order cũ (backward compat), fallback về ItemSubtotal.
+        /// </summary>
+        public decimal OriginalSubtotal { get; set; } = 0;
+
+        /// <summary>
+        /// Item subtotal = TotalAmount - ShippingFee (đã trừ discount).
+        /// Dùng cho refund logic (buyer thực trả).
+        /// </summary>
         [System.ComponentModel.DataAnnotations.Schema.NotMapped]
         public decimal ItemSubtotal => TotalAmount - ShippingFee;
-        
+
+        /// <summary>Giá gốc để tính PlatformFee. Fallback về ItemSubtotal nếu OriginalSubtotal = 0.</summary>
+        [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+        public decimal PlatformFeeBase => OriginalSubtotal > 0 ? OriginalSubtotal : ItemSubtotal;
+
+
         // --- STATUS ---
         // Valid: PENDING_PAYMENT, PAID, SHIPPED, DELIVERED, COMPLETED,
         //        CANCELLED, RETURN_REQUESTED, RETURN_IN_PROGRESS, 

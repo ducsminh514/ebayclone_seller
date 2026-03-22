@@ -8,6 +8,8 @@ namespace EbayClone.Shared.DTOs.Orders
         public Guid VariantId { get; set; }
         public int Quantity { get; set; }
         public string ReceiverInfo { get; set; } = string.Empty;
+        /// <summary>Mã giảm giá (optional). Null = không dùng voucher.</summary>
+        public string? VoucherCode { get; set; }
     }
 
     public class BuyerCancelRequest

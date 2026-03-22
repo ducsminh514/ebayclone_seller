@@ -70,6 +70,8 @@ namespace EbayClone.Application.UseCases.Orders
                 TotalAmount = order.TotalAmount,
                 ShippingFee = order.ShippingFee,
                 PlatformFee = order.PlatformFee,
+                OriginalSubtotal = order.OriginalSubtotal,
+                DiscountAmount = order.DiscountAmount,
                 Status = order.Status,
                 PaymentStatus = order.PaymentStatus,
                 ShippingCarrier = order.ShippingCarrier,

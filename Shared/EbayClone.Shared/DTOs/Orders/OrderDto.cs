@@ -19,6 +19,9 @@ namespace EbayClone.Shared.DTOs.Orders
         public decimal TotalAmount { get; set; }
         public decimal ShippingFee { get; set; }
         public decimal PlatformFee { get; set; } = 0;
+        // Voucher fields — giá gốc trước discount và số tiền giảm
+        public decimal OriginalSubtotal { get; set; } = 0;
+        public decimal DiscountAmount { get; set; } = 0;
 
         public string Status { get;  set; } = "PENDING_PAYMENT";
         public string PaymentStatus { get;  set; } = "UNPAID";
