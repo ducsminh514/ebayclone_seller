@@ -1,0 +1,186 @@
+@page "/marketing/vouchers/create"
+@using EbayClone.Shared.DTOs.Vouchers
+@using EbayClone.Frontend.Services
+@inject VoucherService VoucherService
+@inject NavigationManager Nav
+
+<div class="container mt-4" style="max-width: 700px;">
+    <div class="d-flex align-items-center mb-4 gap-2">
+        <a href="/marketing/vouchers" class="btn btn-outline-secondary btn-sm">← Quay lại</a>
+        <h2 class="ebay-page-title mb-0">Tạo Voucher mới</h2>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    <div class="card">
+        <div class="card-body">
+            <EditForm Model="request" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+                
+                <!-- Bước 1: Thông tin cơ bản -->
+                <h5 class="fw-bold border-bottom pb-2 mb-3">1. Thông tin cơ bản</h5>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Mã giảm giá <span class="text-danger">*</span></label>
+                        <input class="form-control text-uppercase" @bind="request.Code" @bind:event="oninput" maxlength="15" placeholder="VD: SAVE20" />
+                        <div class="form-text">Tối đa 15 ký tự. Buyer nhập mã này.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Tên campaign (nội bộ)</label>
+                        <input class="form-control" @bind="request.Name" placeholder="VD: Khuyến mãi tháng 3" />
+                    </div>
+                </div>
+
+                <!-- Bước 2: Loại giảm -->
+                <h5 class="fw-bold border-bottom pb-2 mb-3">2. Loại giảm giá</h5>
+                <div class="mb-3">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio"
+                               checked="@(request.DiscountType == "PERCENTAGE")"
+                               @onclick='() => request.DiscountType = "PERCENTAGE"' id="pct" />
+                        <label class="form-check-label" for="pct">Giảm theo % (ví dụ: 20% off)</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio"
+                               checked="@(request.DiscountType == "FIXED_AMOUNT")"
+                               @onclick='() => request.DiscountType = "FIXED_AMOUNT"' id="fixed" />
+                        <label class="form-check-label" for="fixed">Giảm cố định (ví dụ: -50.000đ)</label>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            @(request.DiscountType == "PERCENTAGE" ? "Phần trăm giảm (%)" : "Số tiền giảm (đ)")
+                            <span class="text-danger">*</span>
+                        </label>
+                        <input class="form-control" type="number" @bind="request.Value" min="0.01" step="any" />
+                    </div>
+                    @if (request.DiscountType == "PERCENTAGE")
+                    {
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Giảm tối đa (đ) <span class="text-danger">*</span></label>
+                            <input class="form-control" type="number" @bind="request.MaxDiscountAmount" min="1" placeholder="VD: 100000" />
+                            <div class="form-text text-danger">Bắt buộc cho % discount để kiểm soát chi phí.</div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Bước 3: Điều kiện -->
+                <h5 class="fw-bold border-bottom pb-2 mb-3">3. Điều kiện áp dụng</h5>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Đơn tối thiểu (đ)</label>
+                        <input class="form-control" type="number" @bind="request.MinOrderValue" min="0" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Tổng lượt dùng <small class="text-muted">(0 = unlimited)</small></label>
+                        <input class="form-control" type="number" @bind="request.UsageLimit" min="0" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Mỗi buyer (lần)</label>
+                        <input class="form-control" type="number" @bind="request.PerBuyerLimit" min="1" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ngân sách tối đa (đ) <small class="text-muted">(để trống = không giới hạn)</small></label>
+                    <input class="form-control" type="number" @bind="request.MaxBudget" min="0" placeholder="VD: 5000000" />
+                </div>
+
+                <!-- Bước 4: Phạm vi -->
+                <h5 class="fw-bold border-bottom pb-2 mb-3">4. Phạm vi áp dụng</h5>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               checked="@(request.Scope == "SHOP")"
+                               @onclick='() => request.Scope = "SHOP"' id="scopeShop" />
+                        <label class="form-check-label" for="scopeShop">Toàn shop</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               checked="@(request.Scope == "PRODUCTS")"
+                               @onclick='() => request.Scope = "PRODUCTS"' id="scopeProducts" />
+                        <label class="form-check-label" for="scopeProducts">Sản phẩm cụ thể</label>
+                    </div>
+                </div>
+
+                <!-- Bước 5: Hiển thị -->
+                <h5 class="fw-bold border-bottom pb-2 mb-3">5. Hiển thị</h5>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               checked="@(request.Visibility == "PRIVATE")"
+                               @onclick='() => request.Visibility = "PRIVATE"' id="visPrivate" />
+                        <label class="form-check-label" for="visPrivate">Riêng tư (Private) — Seller tự share</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio"
+                               checked="@(request.Visibility == "PUBLIC")"
+                               @onclick='() => request.Visibility = "PUBLIC"' id="visPublic" />
+                        <label class="form-check-label" for="visPublic">Công khai (Public) — Hiện trên trang sản phẩm</label>
+                    </div>
+                </div>
+
+                <!-- Bước 6: Thời gian -->
+                <h5 class="fw-bold border-bottom pb-2 mb-3">6. Thời gian hiệu lực</h5>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Bắt đầu <span class="text-danger">*</span></label>
+                        <input class="form-control" type="datetime-local" @bind="validFromLocal" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Kết thúc <span class="text-danger">*</span></label>
+                        <input class="form-control" type="datetime-local" @bind="validToLocal" />
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                        @if (isSaving) { <span class="spinner-border spinner-border-sm"></span> }
+                        💾 Lưu Nháp (DRAFT)
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private CreateVoucherRequest request = new()
+    {
+        DiscountType = "PERCENTAGE",
+        Scope = "SHOP",
+        Visibility = "PRIVATE",
+        UsageLimit = 100,
+        PerBuyerLimit = 1,
+        MinOrderValue = 0
+    };
+    private DateTime validFromLocal = DateTime.Now;
+    private DateTime validToLocal = DateTime.Now.AddDays(30);
+    private bool isSaving = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private async Task HandleSubmit()
+    {
+        isSaving = true;
+        errorMessage = null;
+        try
+        {
+            request.ValidFrom = new DateTimeOffset(validFromLocal, TimeZoneInfo.Local.GetUtcOffset(validFromLocal));
+            request.ValidTo = new DateTimeOffset(validToLocal, TimeZoneInfo.Local.GetUtcOffset(validToLocal));
+            await VoucherService.CreateAsync(request);
+            // [FIX-MEDIUM] Redirect về danh sách sau khi tạo thành công
+            Nav.NavigateTo("/marketing/vouchers");
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isSaving = false; }
+    }
+}

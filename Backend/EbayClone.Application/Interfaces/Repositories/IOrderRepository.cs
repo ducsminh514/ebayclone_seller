@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EbayClone.Domain.Entities;
+using EbayClone.Shared.DTOs.Dashboard;
 
 namespace EbayClone.Application.Interfaces.Repositories
 {
@@ -25,7 +26,19 @@ namespace EbayClone.Application.Interfaces.Repositories
         Task<int> CountByStatusAsync(Guid shopId, string status, CancellationToken cancellationToken = default);
         Task<int> CountTotalOrdersAsync(Guid shopId, CancellationToken cancellationToken = default);
         Task<decimal> SumSalesAsync(Guid shopId, int days, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Single aggregate query: GROUP BY date → sales chart data.
+        /// Performance: 1 query thay vì N queries cho mỗi ngày.
+        /// </summary>
+        Task<List<DailySalesPoint>> GetSalesChartDataAsync(Guid shopId, int days, CancellationToken cancellationToken = default);
+
         // Financials
         Task<IEnumerable<Order>> GetOrdersEligibleForFundReleaseAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Đếm transactions (non-cancelled) trong evaluation period cho Seller Level evaluation.
+        /// </summary>
+        Task<int> CountCompletedInPeriodAsync(Guid shopId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default);
     }
 }

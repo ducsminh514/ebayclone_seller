@@ -72,9 +72,21 @@ namespace EbayClone.API.BackgroundServices
 
             var nowUtc = DateTimeOffset.UtcNow;
 
-            // Atomic UPDATE trực tiếp xuống SQL - không cần fetch vào RAM
-            // WHERE Status = 'SCHEDULED' AND ScheduledAt <= NOW AND IsDeleted = 0
-            // → SET Status = 'ACTIVE', UpdatedAt = NOW
+            // Bước 1: Lấy danh sách ShopIds bị ảnh hưởng TRƯỚC khi update
+            // (Cần biết mỗi shop có bao nhiêu products sẽ activate để update denormalized count)
+            var affectedShops = await dbContext.Products
+                .Where(p =>
+                    p.Status == "SCHEDULED" &&
+                    p.ScheduledAt.HasValue &&
+                    p.ScheduledAt.Value <= nowUtc &&
+                    !p.IsDeleted)
+                .GroupBy(p => p.ShopId)
+                .Select(g => new { ShopId = g.Key, Count = g.Count() })
+                .ToListAsync(cancellationToken);
+
+            if (affectedShops.Count == 0) return;
+
+            // Bước 2: Atomic UPDATE products SCHEDULED → ACTIVE
             var updatedCount = await dbContext.Products
                 .Where(p =>
                     p.Status == "SCHEDULED" &&
@@ -86,11 +98,21 @@ namespace EbayClone.API.BackgroundServices
                     .SetProperty(p => p.UpdatedAt, nowUtc),
                 cancellationToken);
 
+            // Bước 3: [PERF Phase 2] Update denormalized ActiveListingCount cho mỗi shop
+            foreach (var shopGroup in affectedShops)
+            {
+                await dbContext.Shops
+                    .Where(s => s.Id == shopGroup.ShopId)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(x => x.ActiveListingCount, x => x.ActiveListingCount + shopGroup.Count),
+                    cancellationToken);
+            }
+
             if (updatedCount > 0)
             {
                 _logger.LogInformation(
-                    "ScheduledListingActivator: Activated {Count} product(s) at {Time}",
-                    updatedCount, nowUtc);
+                    "ScheduledListingActivator: Activated {Count} product(s) across {ShopCount} shop(s) at {Time}",
+                    updatedCount, affectedShops.Count, nowUtc);
             }
         }
     }

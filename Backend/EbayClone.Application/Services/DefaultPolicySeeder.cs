@@ -32,6 +32,7 @@ namespace EbayClone.Application.Services
                 Description = "Default shipping policy (Free 2-5 business days)",
                 HandlingTimeDays = 2,
                 IsDefault = true,
+                ShippingMethod = "Standard",
                 DomesticCostType = "Flat",
                 DomesticServicesJson = "[{\"ServiceId\":\"usps_ground_adv\",\"ServiceName\":\"USPS Ground Advantage (2-5 business days)\",\"Cost\":0,\"AdditionalItemCost\":0,\"IsFreeShipping\":true}]",
                 InternationalServicesJson = "[]",
@@ -49,7 +50,9 @@ namespace EbayClone.Application.Services
                 IsDomesticAccepted = true,
                 DomesticReturnDays = 30,
                 DomesticShippingPaidBy = "BUYER",
-                IsInternationalAccepted = false
+                DomesticRefundMethod = "MoneyBack",
+                IsInternationalAccepted = false,
+                InternationalRefundMethod = "MoneyBack"
             };
             await _policyRepository.AddReturnPolicyAsync(defaultReturn, cancellationToken);
 

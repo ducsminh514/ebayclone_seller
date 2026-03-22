@@ -19,10 +19,11 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<Order> Orders { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<Voucher> Vouchers { get; set; }
+        public DbSet<VoucherUsage> VoucherUsages { get; set; }
         public DbSet<SellerWallet> SellerWallets { get; set; }
         public DbSet<WalletTransaction> WalletTransactions { get; set; }
         public DbSet<ShopAnalyticsDaily> ShopAnalyticsDaily { get; set; }
-        public DbSet<Review> Reviews { get; set; }
+        public DbSet<SellerDefect> SellerDefects { get; set; }
         public DbSet<ProductViewLog> ProductViewLogs { get; set; }
         public DbSet<VariantAttributeValue> VariantAttributeValues { get; set; }
         public DbSet<CategoryItemSpecific> CategoryItemSpecifics { get; set; }
@@ -31,6 +32,7 @@ namespace EbayClone.Infrastructure.Data
         public DbSet<OrderCancellation> OrderCancellations { get; set; }
         public DbSet<OrderDispute> OrderDisputes { get; set; }
         public DbSet<EscrowHold> EscrowHolds { get; set; }
+        public DbSet<Feedback> Feedbacks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -120,6 +122,12 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.PrimaryImageUrl).HasMaxLength(500);
                 entity.Property(e => e.IsDeleted).HasDefaultValue(false);
                 
+                // [A4] Listing Meta + Package Info
+                entity.Property(e => e.CountryOfOrigin).HasMaxLength(2);
+                entity.Property(e => e.PackageLengthCm).HasColumnType("decimal(10, 2)");
+                entity.Property(e => e.PackageWidthCm).HasColumnType("decimal(10, 2)");
+                entity.Property(e => e.PackageHeightCm).HasColumnType("decimal(10, 2)");
+                
                 // Global Query Filter: tự động loại trừ SP đã Soft Delete
                 entity.HasQueryFilter(e => !e.IsDeleted);
 
@@ -205,6 +213,7 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.RefundAmount).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.DeductionAmount).HasColumnType("decimal(18, 2)");
                 entity.Property(e => e.PartialOfferAmount).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.ReturnShippingCost).HasColumnType("decimal(18, 2)");
                 entity.HasIndex(e => e.OrderId);
                 entity.HasIndex(e => e.Status); // Performance: filter by return status
                 entity.Property(e => e.RowVersion).IsRowVersion().IsConcurrencyToken();
@@ -295,9 +304,64 @@ namespace EbayClone.Infrastructure.Data
                 entity.Property(e => e.ViewerIP).HasMaxLength(50);
             });
 
-            // Reviews
-            modelBuilder.Entity<Review>(entity => {
-                entity.HasOne(e => e.Product).WithMany().HasForeignKey(e => e.ProductId).IsRequired(false);
+            // SellerDefects
+            modelBuilder.Entity<SellerDefect>(entity => {
+                entity.HasIndex(e => new { e.ShopId, e.CreatedAt }).HasDatabaseName("IX_SellerDefects_ShopId_CreatedAt");
+                entity.Property(e => e.DefectType).HasMaxLength(30).IsRequired();
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.HasOne(e => e.Shop).WithMany().HasForeignKey(e => e.ShopId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Order).WithMany().HasForeignKey(e => e.OrderId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Voucher
+            modelBuilder.Entity<Voucher>(entity => {
+                entity.HasIndex(e => new { e.ShopId, e.Code }).IsUnique();
+                entity.Property(e => e.Code).HasMaxLength(15).IsRequired();
+                entity.Property(e => e.Name).HasMaxLength(200);
+                entity.Property(e => e.DiscountType).HasMaxLength(20).HasDefaultValue("PERCENTAGE");
+                entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("DRAFT");
+                entity.Property(e => e.Visibility).HasMaxLength(20).HasDefaultValue("PRIVATE");
+                entity.Property(e => e.Scope).HasMaxLength(20).HasDefaultValue("SHOP");
+                entity.Property(e => e.Value).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.MaxDiscountAmount).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.MinOrderValue).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.MaxBudget).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.UsedBudget).HasColumnType("decimal(18, 2)");
+                entity.Property(e => e.RowVersion).IsRowVersion();
+                entity.HasOne(e => e.Shop).WithMany().HasForeignKey(e => e.ShopId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // VoucherUsage
+            modelBuilder.Entity<VoucherUsage>(entity => {
+                entity.HasIndex(e => new { e.VoucherId, e.BuyerId });
+                entity.HasIndex(e => e.OrderId);
+                entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18, 2)");
+                entity.HasOne(e => e.Voucher).WithMany().HasForeignKey(e => e.VoucherId).OnDelete(DeleteBehavior.Restrict);
+                // [FIX-MEDIUM] FK VoucherUsage → Order: enforce DB-level referential integrity
+                // Restrict: không tự xóa VoucherUsage khi Order bị xóa (phải xóa tay qua RollbackApplyAsync)
+                entity.HasOne<Order>().WithMany()
+                    .HasForeignKey(e => e.OrderId)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Order — voucher fields
+            modelBuilder.Entity<Order>(entity => {
+                entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18, 2)").HasDefaultValue(0m);
+                entity.Property(e => e.OriginalSubtotal).HasColumnType("decimal(18, 2)").HasDefaultValue(0m);
+                entity.HasOne<Voucher>().WithMany().HasForeignKey(e => e.VoucherId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Feedback
+            modelBuilder.Entity<Feedback>(entity => {
+                entity.HasIndex(e => e.OrderId).IsUnique(); // 1 order = 1 feedback
+                entity.HasIndex(e => new { e.ShopId, e.CreatedAt }).HasDatabaseName("IX_Feedbacks_ShopId_CreatedAt");
+                entity.Property(e => e.Rating).HasMaxLength(10).IsRequired();
+                entity.Property(e => e.Comment).HasMaxLength(500);
+                entity.Property(e => e.SellerReply).HasMaxLength(1000);
+                entity.HasOne(e => e.Order).WithMany().HasForeignKey(e => e.OrderId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Buyer).WithMany().HasForeignKey(e => e.BuyerId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Shop).WithMany().HasForeignKey(e => e.ShopId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // Prevent SQL Server multiple cascade path errors
@@ -312,11 +376,7 @@ namespace EbayClone.Infrastructure.Data
                 {
                     fk.DeleteBehavior = DeleteBehavior.Restrict;
                 }
-                if (fk.DeclaringEntityType.ClrType == typeof(Review) && 
-                    (fk.Properties.Any(p => p.Name == "ProductId" || p.Name == "OrderId")))
-                {
-                    fk.DeleteBehavior = DeleteBehavior.Restrict;
-                }
+
                 // Prevent cascade for new Order child tables
                 if ((fk.DeclaringEntityType.ClrType == typeof(OrderReturn) ||
                      fk.DeclaringEntityType.ClrType == typeof(OrderCancellation) ||

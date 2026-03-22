@@ -45,6 +45,17 @@ namespace EbayClone.Domain.Entities
             UpdatedAt = DateTimeOffset.UtcNow;
         }
 
+        /// <summary>[FIX-L5] Cộng trực tiếp vào Available (fee credit, correction).</summary>
+        public void AddAvailable(decimal amount)
+        {
+            if (amount <= 0) throw new ArgumentException("Amount must be positive.");
+            AvailableBalance += amount;
+            UpdatedAt = DateTimeOffset.UtcNow;
+        }
+
+        /// <summary>[FIX-L3] Check nếu Available bị âm — dùng cho monitoring.</summary>
+        public bool HasNegativeBalance => AvailableBalance < 0;
+
         /// <summary>
         /// [Phase 3] Khi return/dispute mở → chuyển tiền từ Pending/Available sang OnHold.
         /// Giữ lại cho đến khi resolve.

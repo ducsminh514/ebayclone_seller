@@ -1,0 +1,132 @@
+@page "/buyer-test/feedback/{OrderId:guid}"
+@using EbayClone.Shared.DTOs.Feedbacks
+@using EbayClone.Frontend.Services
+@inject FeedbackService FeedbackService
+@inject NavigationManager Navigation
+
+<div class="container mt-4" style="max-width: 600px;">
+    <div class="alert alert-info">
+        <strong>🧪 Mock Buyer:</strong> Đây là trang giả lập Buyer để lại feedback cho đơn hàng.
+    </div>
+
+    <h3 class="mb-4"><i class="bi bi-star"></i> Để lại Feedback</h3>
+
+    @if (existingFeedback != null)
+    {
+        <div class="alert alert-warning">
+            <strong>Đã có feedback cho đơn hàng này!</strong>
+            <div class="mt-2">
+                <span class="badge @GetBadgeClass(existingFeedback.Rating)">@existingFeedback.Rating</span>
+                @if (!string.IsNullOrEmpty(existingFeedback.Comment))
+                {
+                    <p class="mt-1 mb-0 fst-italic">"@existingFeedback.Comment"</p>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <label class="form-label fw-bold">Đánh giá tổng thể</label>
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn @(selectedRating == "POSITIVE" ? "btn-success" : "btn-outline-success") flex-fill"
+                            @onclick='() => selectedRating = "POSITIVE"'>
+                        😊 Positive
+                    </button>
+                    <button class="btn @(selectedRating == "NEUTRAL" ? "btn-warning" : "btn-outline-warning") flex-fill"
+                            @onclick='() => selectedRating = "NEUTRAL"'>
+                        😐 Neutral
+                    </button>
+                    <button class="btn @(selectedRating == "NEGATIVE" ? "btn-danger" : "btn-outline-danger") flex-fill"
+                            @onclick='() => selectedRating = "NEGATIVE"'>
+                        😠 Negative
+                    </button>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Comment (tùy chọn, tối đa 500 ký tự)</label>
+                    <textarea class="form-control" rows="3" maxlength="500"
+                              placeholder="Chia sẻ trải nghiệm mua hàng..."
+                              @bind="comment"></textarea>
+                    <small class="text-muted">@(comment?.Length ?? 0)/500</small>
+                </div>
+
+                <button class="btn btn-primary w-100" disabled="@(string.IsNullOrEmpty(selectedRating) || isSubmitting)"
+                        @onclick="SubmitFeedback">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span> <span>Đang gửi...</span>
+                    }
+                    else
+                    {
+                        <span>✅ Gửi Feedback</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">@errorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success mt-3">
+            @successMessage
+            <div class="mt-2">
+                <a href="/orders/@OrderId" class="btn btn-sm btn-outline-primary">← Quay lại đơn hàng</a>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid OrderId { get; set; }
+
+    private FeedbackDto? existingFeedback;
+    private string? selectedRating;
+    private string? comment;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        existingFeedback = await FeedbackService.CheckFeedbackAsync(OrderId);
+    }
+
+    private async Task SubmitFeedback()
+    {
+        if (string.IsNullOrEmpty(selectedRating)) return;
+        isSubmitting = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            await FeedbackService.LeaveFeedbackAsync(new LeaveFeedbackRequest
+            {
+                OrderId = OrderId,
+                Rating = selectedRating,
+                Comment = comment
+            });
+            successMessage = "Feedback đã được ghi nhận! Cảm ơn bạn. 🎉";
+            existingFeedback = await FeedbackService.CheckFeedbackAsync(OrderId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        isSubmitting = false;
+    }
+
+    private string GetBadgeClass(string rating) => rating switch
+    {
+        "POSITIVE" => "bg-success",
+        "NEUTRAL" => "bg-warning text-dark",
+        "NEGATIVE" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

@@ -1,4 +1,5 @@
 @page "/listings/create"
+@attribute [Authorize]
 @using EbayClone.Shared.DTOs.Products
 @using EbayClone.Shared.DTOs.Policies
 @using EbayClone.Frontend.Services
@@ -9,519 +10,908 @@
 @inject FileUploadService FileUploadService
 @inject NavigationManager NavigationManager
 
-<div class="container mt-4">
-    <h2>Tạo Sản Phẩm Mới</h2>
-    <hr />
+<style>
+    .listing-section {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 24px;
+        margin-bottom: 16px;
+    }
+    .section-title {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: #191919;
+        margin-bottom: 16px;
+    }
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    .ebay-toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 14px 0;
+        border-top: 1px solid #f0f0f0;
+    }
+    .ebay-toggle-row .toggle-label strong { font-size: 14px; }
+    .ebay-toggle-row .toggle-label small { color: #707070; font-size: 12px; display: block; margin-top: 2px; }
+    .form-switch .form-check-input { width: 44px; height: 24px; cursor: pointer; }
+    .variant-row {
+        background: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 10px;
+    }
+    .char-counter { font-size: 12px; color: #707070; text-align: right; }
+    .char-counter.warn { color: #e65c00; font-weight: 600; }
+    .char-counter.danger { color: #d93025; font-weight: 700; }
+</style>
+
+<div class="container-lg mt-4" style="max-width: 860px;">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="mb-0" style="font-size: 22px;">Complete your listing</h2>
+        <a href="/listings/start" class="btn btn-sm btn-outline-secondary" style="border-radius: 20px; font-size: 12px;">
+            ← Start over
+        </a>
+    </div>
 
     @if (!string.IsNullOrEmpty(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger alert-dismissible mb-3" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
     }
 
     <EditForm Model="request" OnValidSubmit="HandleSubmit">
         <DataAnnotationsValidator />
-        <ValidationSummary />
 
         <fieldset disabled="@isSubmitting">
 
-        <div class="ebay-card">
-            <h4 class="ebay-card-title">Thông tin cơ bản</h4>
+        @* ======= 1. PHOTOS & VIDEO ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Photos &amp; Video</span>
+                <small class="text-muted">@(extraImageUrls.Count + (string.IsNullOrEmpty(request.PrimaryImageUrl) ? 0 : 1)) / 24 photos</small>
+            </div>
+            <div class="mb-3 text-muted" style="font-size: 13px;">You can add up to 24 photos. Buyers want to see all details and angles.</div>
+
+            @* Primary image *@
             <div class="mb-3">
-                <label class="form-label">Tên Sản Phẩm *</label>
-                <InputText class="form-control ebay-input" @bind-Value="request.Name" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Thương hiệu</label>
-                <InputText class="form-control ebay-input" @bind-Value="request.Brand" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Mô tả</label>
-                <InputTextArea class="form-control ebay-input" @bind-Value="request.Description" rows="3" />
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Danh Mục *</label>
-                    <InputSelect class="form-select ebay-input" @bind-Value="request.CategoryId"
-                                 @bind-Value:after="OnCategoryChanged">
-                        <option value="">-- Chọn Danh Mục --</option>
-                        @foreach (var c in categories)
-                        {
-                            var prefix = c.ParentId.HasValue ? "   └ " : "";
-                            <option value="@c.Id">@prefix@c.Name</option>
-                        }
-                    </InputSelect>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Tình trạng sản phẩm *</label>
-                    <InputSelect class="form-select ebay-input" @bind-Value="request.Condition">
-                        <option value="New">Mới (New)</option>
-                        <option value="New Other">Mới khác (New Other)</option>
-                        <option value="Open Box">Đã khui hộp (Open Box)</option>
-                        <option value="Seller Refurbished">Đã tân trang (Refurbished)</option>
-                        <option value="Used">Đã qua sử dụng (Used)</option>
-                        <option value="For Parts">Dùng linh kiện (For Parts)</option>
-                    </InputSelect>
-                </div>
-            </div>
-            @if (request.Condition != "New")
-            {
-                <div class="mb-3">
-                    <label class="form-label">Mô tả tình trạng (vết xước, thiếu phụ kiện...)</label>
-                    <InputTextArea class="form-control ebay-input" @bind-Value="request.ConditionDescription" rows="2" placeholder="Mô tả chi tiết tình trạng sản phẩm để người mua hiểu rõ..." />
-                </div>
-            }
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Hình thức bán</label>
-                    <InputSelect class="form-select ebay-input" @bind-Value="request.ListingFormat">
-                        <option value="FIXED_PRICE">Giá cố định (Fixed Price)</option>
-                        <option value="AUCTION">Đấu giá (Auction)</option>
-                    </InputSelect>
-                    @if (request.ListingFormat == "AUCTION" && request.Variants.Count > 1)
-                    {
-                        <div class="text-danger mt-1" style="font-size: 12px;">⚠️ Auction chỉ hỗ trợ 1 biến thể. Vui lòng xóa bớt.</div>
-                    }
-                </div>
-                <div class="col-md-4 mb-3">
-                    <label class="form-label">Subtitle (phụ đề SEO)</label>
-                    <InputText class="form-control ebay-input" @bind-Value="request.Subtitle" placeholder="Hiển thị dưới tiêu đề trong kết quả tìm kiếm" />
-                </div>
-                <div class="col-md-4 mb-3 d-flex align-items-end">
-                    <div class="form-check">
-                        <InputCheckbox class="form-check-input" @bind-Value="request.AllowOffers" />
-                        <label class="form-check-label">Cho phép đặt giá (Best Offer)</label>
-                    </div>
-                </div>
-            </div>
-
-            @if (request.AllowOffers)
-            {
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Tự chấp nhận offer ≥ (₫)</label>
-                        <InputNumber class="form-control ebay-input" @bind-Value="request.AutoAcceptPrice" />
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Tự từ chối offer &lt; (₫)</label>
-                        <InputNumber class="form-control ebay-input" @bind-Value="request.AutoDeclinePrice" />
-                    </div>
-                </div>
-            }
-
-            @if (suggestedAttributes.Any())
-            {
-                <div class="mb-3" style="background: #f0f7ff; border: 1px solid #c2dff7; border-radius: 8px; padding: 12px;">
-                    <div class="fw-bold mb-2" style="font-size: 13px; color: #1a6bbf;">
-                        💡 Gợi ý thuộc tính cho danh mục này:
-                    </div>
-                    <div class="d-flex flex-wrap gap-2">
-                        @foreach (var hint in suggestedAttributes)
-                        {
-                            <button type="button"
-                                    class="badge rounded-pill @(usedHints.Contains(hint) ? "bg-primary" : "bg-light border text-dark")"
-                                    style="font-size: 12px; padding: 5px 10px; cursor: pointer;"
-                                    @onclick="() => ApplyHintToVariants(hint)">
-                                @(usedHints.Contains(hint) ? "✔ " : "+ ")@hint
-                            </button>
-                        }
-                    </div>
-                    <div class="text-muted mt-1" style="font-size: 11px;">Bấm vào một gợi ý để tự động thêm vào thuộc tính các biến thể.</div>
-                </div>
-            }
-        </div>
-
-        @* ─────────────── ITEM SPECIFICS (A5) ─────────────── *@
-        @if (categoryItemSpecifics.Any())
-        {
-            <div class="ebay-card">
-                <h4 class="ebay-card-title">📋 Thông Tin Chi Tiết (Item Specifics)</h4>
-                <div class="text-muted mb-3" style="font-size: 12px;">Các trường đánh dấu <span class="text-danger fw-bold">*</span> là bắt buộc trước khi đăng bán.</div>
-                
-                @foreach (var spec in categoryItemSpecifics.OrderBy(s => s.SortOrder))
-                {
-                    var existing = itemSpecificsValues.FirstOrDefault(v => v.Name == spec.Name);
-                    var isRequired = spec.Requirement == "REQUIRED";
-                    var badgeClass = spec.Requirement switch
-                    {
-                        "REQUIRED" => "bg-danger",
-                        "RECOMMENDED" => "bg-warning text-dark",
-                        _ => "bg-secondary"
-                    };
-                    
-                    <div class="mb-2 row align-items-center">
-                        <div class="col-md-3">
-                            <label class="form-label mb-0">
-                                @spec.Name
-                                @if (isRequired) { <span class="text-danger">*</span> }
-                                <span class="badge @badgeClass ms-1" style="font-size: 10px;">@spec.Requirement</span>
-                            </label>
-                        </div>
-                        <div class="col-md-9">
-                            @if (!string.IsNullOrEmpty(spec.SuggestedValues))
-                            {
-                                var suggestions = spec.SuggestedValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                                <select class="form-select form-select-sm ebay-input" 
-                                        value="@(existing != null ? existing.Value : string.Empty)"
-                                        @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())">
-                                    <option value="">-- Chọn --</option>
-                                    @foreach (var sug in suggestions)
-                                    {
-                                        <option value="@sug">@sug</option>
-                                    }
-                                </select>
-                            }
-                            else
-                            {
-                                <input type="text" class="form-control form-control-sm ebay-input" 
-                                       placeholder="Nhập giá trị..."
-                                       value="@(existing != null ? existing.Value : string.Empty)"
-                                       @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())" />
-                            }
-                        </div>
-                    </div>
-                }
-            </div>
-        }
-
-        @* ─────────────── ẢNH SẢN PHẨM ─────────────── *@
-        <div class="ebay-card">
-            <h4 class="ebay-card-title">Ảnh Sản Phẩm</h4>
-
-            @* Ảnh bìa *@
-            <div class="mb-4">
-                <label class="form-label fw-bold">Ảnh Bìa (Primary Image) <span class="text-danger">*</span></label>
-                <div class="upload-area @(isDraggingPrimary ? "dragging" : "")"
-                     style="border: 2px dashed var(--border-color); border-radius: 10px; padding: 20px; text-align: center; background: #fafafa; position: relative; cursor: pointer;"
+                <div class="upload-area @(isDraggingPrimary ? "border-primary" : "")"
+                     style="border: 2px dashed @(isDraggingPrimary ? "#0064d2" : "#ccc"); border-radius: 10px; padding: 30px; text-align: center; background: #fafafa; position: relative; cursor: pointer; min-height: 160px; display:flex; align-items:center; justify-content:center; flex-direction:column;"
                      @ondragover:preventDefault @ondragover="() => isDraggingPrimary = true"
                      @ondragleave="() => isDraggingPrimary = false"
                      @ondrop:preventDefault>
                     @if (!string.IsNullOrEmpty(request.PrimaryImageUrl))
                     {
                         <div style="position: relative; display: inline-block;">
-                            <img src="@request.PrimaryImageUrl" alt="Ảnh bìa" style="max-height: 180px; max-width: 100%; border-radius: 8px; object-fit: contain;" />
-                            <button type="button" class="btn btn-sm btn-danger" style="position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-size: 12px;"
-                                    @onclick="() => request.PrimaryImageUrl = null">✕</button>
+                            <img src="@request.PrimaryImageUrl" alt="Primary" style="max-height: 160px; max-width: 100%; border-radius: 8px; object-fit: contain;" />
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    style="position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; padding: 0; border-radius: 50%; font-size: 12px;"
+                                    @onclick="() => request.PrimaryImageUrl = null">&#10005;</button>
                         </div>
-                        <div class="mt-2 text-muted" style="font-size: 12px;">✅ Đã có ảnh bìa. Bấm ✕ để xóa và chọn ảnh khác.</div>
                     }
-                    @if (isUploadingPrimary)
+                    else if (isUploadingPrimary)
                     {
-                        <div class="upload-loading-overlay" style="position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 3;">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <div class="text-muted mt-2">Đang tải ảnh lên...</div>
-                        </div>
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <div class="text-muted mt-2" style="font-size: 13px;">Uploading...</div>
                     }
-
-                    <InputFile OnChange="UploadPrimaryImage" accept="image/*" 
-                               style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; z-index: 2; display: {(isUploadingPrimary ? "none" : "block")}")" />
-                    
-                    @if (string.IsNullOrEmpty(request.PrimaryImageUrl))
+                    else
                     {
-                        <div class="my-2" style="display: @(isUploadingPrimary ? "none" : "block")">
-                            <span style="font-size: 36px;">📷</span>
-                            <div class="mt-2 fw-bold">Kéo thả ảnh vào đây hoặc</div>
-                            <div class="text-muted" style="font-size: 12px;">JPG, PNG, WEBP — Tối đa 10MB</div>
-                        </div>
+                        <span style="font-size: 32px; color: #aaa;">&#128444;</span>
+                        <div class="mt-2 fw-bold" style="font-size: 14px;">Drag and drop files</div>
+                        <div class="mt-1" style="font-size: 12px; color: #888;">JPG, PNG, WEBP - max 10MB each</div>
                     }
+                    <InputFile OnChange="UploadPrimaryImage" accept="image/*"
+                               style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; display: {(isUploadingPrimary ? "none" : "block")}")" />
                 </div>
             </div>
 
-            @* Ảnh phụ *@
-            <div class="mb-2">
-                <label class="form-label fw-bold">Ảnh Phụ (tối đa 5)</label>
+            @* Extra images *@
+            @if (!string.IsNullOrEmpty(request.PrimaryImageUrl) || extraImageUrls.Count > 0)
+            {
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     @for (int i = 0; i < extraImageUrls.Count; i++)
                     {
                         var idx = i;
-                        <div style="position: relative; width: 90px; height: 90px;">
-                            <img src="@extraImageUrls[idx]" alt="Ảnh phụ @(idx+1)"
-                                 style="width: 90px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color);" />
+                        <div style="position: relative; width: 80px; height: 80px;">
+                            <img src="@extraImageUrls[idx]" alt="Photo @(idx+2)"
+                                 style="width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd;" />
                             <button type="button" class="btn btn-sm btn-danger"
-                                    style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 10px;"
-                                    @onclick="() => extraImageUrls.RemoveAt(idx)">✕</button>
+                                    style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; padding: 0; border-radius: 50%; font-size: 10px;"
+                                    @onclick="() => extraImageUrls.RemoveAt(idx)">&#10005;</button>
                         </div>
                     }
-
-                    @if (extraImageUrls.Count < 5)
+                    @if (extraImageUrls.Count < 23)
                     {
-                        <div style="width: 90px; height: 90px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; background: #fafafa;">
-                            @if (isUploadingExtra)
-                            {
-                                <div class="spinner-border spinner-border-sm text-primary"></div>
-                            }
-
-                            @* Luôn giữ InputFile *@
-                            <span style="font-size: 24px; color: #aaa; display: @(isUploadingExtra ? "none" : "block")">+</span>
-                            <InputFile OnChange="UploadExtraImage" accept="image/*" 
+                        <div style="width: 80px; height: 80px; border: 2px dashed #ccc; border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; background: #fafafa;">
+                            @if (isUploadingExtra) { <div class="spinner-border spinner-border-sm text-primary"></div> }
+                            else { <span style="font-size: 24px; color: #aaa;">+</span> }
+                            <InputFile OnChange="UploadExtraImage" accept="image/*"
                                        style="@($"position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; display: {(isUploadingExtra ? "none" : "block")}")" />
                         </div>
                     }
                 </div>
-                <small class="text-muted">Bấm ô + để thêm ảnh từ máy tính</small>
-            </div>
+            }
         </div>
 
-        <div class="ebay-card">
-            <h4 class="ebay-card-title">Chính sách Bán Hàng</h4>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Shipping Policy</label>
-                    <InputSelect class="form-select ebay-input" @bind-Value="request.ShippingPolicyId">
-                        <option value="">-- Chọn Shipping Policy --</option>
-                        @foreach (var p in shippingPolicies)
-                        {
-                            <option value="@p.Id">@p.Name</option>
-                        }
-                    </InputSelect>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label class="form-label">Return Policy</label>
-                    <InputSelect class="form-select" @bind-Value="request.ReturnPolicyId">
-                        <option value="">-- Chọn Return Policy --</option>
-                        @foreach (var p in returnPolicies)
-                        {
-                            <option value="@p.Id">@p.Name</option>
-                        }
-                    </InputSelect>
-                </div>
+        @* ======= 2. TITLE ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Title</span>
             </div>
-            <div class="row">
-                <div class="col-md-12 mb-3">
-                    <label class="form-label">Payment Policy</label>
-                    <InputSelect class="form-select ebay-input" @bind-Value="request.PaymentPolicyId">
-                        <option value="">-- Chọn Payment Policy (bỏ trống = dùng Default) --</option>
-                        @foreach (var p in paymentPolicies)
-                        {
-                            <option value="@p.Id">@p.Name</option>
-                        }
-                    </InputSelect>
+            <div class="mb-3">
+                <label class="form-label">Item title <span class="text-danger">*</span></label>
+                <InputText class="form-control" @bind-Value="request.Name" maxlength="80"
+                           placeholder="Describe what you're selling - be specific about brand, model, color, size" />
+                <div class="char-counter @(request.Name.Length > 70 ? (request.Name.Length >= 80 ? "danger" : "warn") : "")">
+                    @request.Name.Length / 80
+                </div>
+                <ValidationMessage For="() => request.Name" />
+            </div>
+            <div class="mb-0">
+                <label class="form-label">Subtitle <span class="text-muted" style="font-size: 12px;">(optional - appears below title in search results)</span></label>
+                <InputText class="form-control" @bind-Value="request.Subtitle" maxlength="55"
+                           placeholder="Add more detail to attract buyers" />
+                <div class="char-counter @((request.Subtitle?.Length ?? 0) > 45 ? "warn" : "")">
+                    @(request.Subtitle?.Length ?? 0) / 55
                 </div>
             </div>
         </div>
 
-        @* ─────────────── BIẾN THỂ / SKU ─────────────── *@
-        <div class="ebay-card">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 class="ebay-card-title mb-0">Biến thể Sản Phẩm (SKUs)</h4>
-                <div>
-                    <span class="text-muted me-2">Số lượng: @request.Variants.Count / 250</span>
-                    <button type="button" class="ebay-btn-outline btn-sm" @onclick="AddVariant" 
+        @* ======= 3. ITEM CATEGORY ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Item Category</span>
+                <a href="/listings/start" class="btn btn-sm btn-link p-0" style="font-size: 13px;">Edit</a>
+            </div>
+            @if (!string.IsNullOrEmpty(selectedCategoryFullPath))
+            {
+                <div style="font-size: 14px; font-weight: 600; color: #0064d2;">@selectedCategoryFullPath</div>
+            }
+            else
+            {
+                <InputSelect class="form-select" @bind-Value="request.CategoryId" @bind-Value:after="OnCategoryChanged">
+                    <option value="">-- Select a category --</option>
+                    @foreach (var c in categories)
+                    {
+                        var prefix = c.ParentId.HasValue ? "   - " : "";
+                        <option value="@c.Id">@prefix@c.Name</option>
+                    }
+                </InputSelect>
+                <div class="mt-1" style="font-size: 11px; color: #999;">
+                    Use the <a href="/listings/start" style="color: #0064d2;">listing wizard</a> to get AI category suggestions
+                </div>
+            }
+        </div>
+
+        @* ======= 4. VARIATIONS ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Variations</span>
+                @if (request.ListingFormat == "FIXED_PRICE")
+                {
+                    <button type="button" class="btn btn-sm btn-link p-0" style="font-size: 13px;"
+                            @onclick="ToggleVariationListing">
+                        @(request.IsVariationListing ? "Edit" : "+ Add variations")
+                    </button>
+                }
+            </div>
+
+            @if (request.ListingFormat == "AUCTION")
+            {
+                <div class="p-3 text-muted" style="font-size: 13px; background: #f8f8f8; border-radius: 6px;">
+                    <strong>Variations not available for Auction listings.</strong><br/>
+                    Switch to <em>Buy It Now</em> format in the Pricing section to add variations.
+                </div>
+            }
+            else if (!request.IsVariationListing)
+            {
+                <p class="text-muted mb-0" style="font-size: 13px;">
+                    Save time by listing multiple variations of your item (e.g., different sizes or colors) in one listing.
+                    <button type="button" class="btn btn-link p-0" style="font-size: 13px;"
+                            @onclick="ToggleVariationListing">Add variations</button>
+                </p>
+            }
+            else
+            {
+                @if (suggestedAttributes.Any())
+                {
+                    <div class="mb-3 p-2" style="background: #f0f7ff; border: 1px solid #c2dff7; border-radius: 6px;">
+                        <div style="font-size: 12px; color: #1a6bbf; font-weight: 600; margin-bottom: 6px;">
+                            Suggested variation types for this category:
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var hint in suggestedAttributes)
+                            {
+                                <button type="button"
+                                        class="badge rounded-pill @(usedHints.Contains(hint) ? "bg-primary" : "bg-light border text-dark")"
+                                        style="font-size: 12px; padding: 5px 10px; cursor: pointer;"
+                                        @onclick="() => ApplyHintToVariants(hint)">
+                                    @(usedHints.Contains(hint) ? "V " : "+ ")@hint
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted" style="font-size: 12px;">@request.Variants.Count / 250 variations</span>
+                    <button type="button" class="btn btn-sm btn-outline-primary"
+                            @onclick="AddVariant"
                             disabled="@(request.Variants.Count >= 250 || (request.ListingFormat == "AUCTION" && request.Variants.Count >= 1))">
-                        + Thêm Biến Thể
+                        + Add variation
                     </button>
                 </div>
-            </div>
-            
-            @foreach (var variant in request.Variants)
-            {
-                <div class="border p-3 mb-3 bg-light" style="border-radius: var(--border-radius-sm); border-color: var(--border-color) !important;">
-                    <div class="row g-2 align-items-start">
-                        @* Ảnh biến thể *@
-                        <div class="col-md-1">
-                            <label class="form-label" style="font-size: 12px;">Ảnh</label>
-                            <div style="width: 60px; height: 60px; border: 2px dashed #ccc; border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; background: #fff; cursor: pointer; overflow: hidden;">
-                                @if (!string.IsNullOrEmpty(variant.ImageUrl))
-                                {
-                                    <img src="@variant.ImageUrl" alt="Ảnh biến thể"
-                                         style="width: 100%; height: 100%; object-fit: cover;" />
-                                    <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.4); text-align: center; cursor: pointer; font-size: 10px; color: white; padding: 2px;"
-                                         @onclick="() => variant.ImageUrl = null">Xóa</div>
-                                }
-                                @if (uploadingVariants.Contains(variant))
-                                {
-                                    <div class="spinner-border spinner-border-sm text-primary"></div>
-                                }
-                                
-                                @* Luôn giữ InputFile *@
-                                <div style="display: @(uploadingVariants.Contains(variant) ? "none" : "flex"); align-items: center; justify-content: center; width: 100%; height: 100%;">
-                                    <span style="font-size: 20px; color: #aaa;">📷</span>
+
+                @foreach (var variant in request.Variants)
+                {
+                    <div class="variant-row">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-auto">
+                                <label class="form-label" style="font-size: 11px;">Photo</label>
+                                <div style="width: 56px; height: 56px; border: 1px dashed #ccc; border-radius: 6px; display: flex; align-items: center; justify-content: center; position: relative; background: #fff; overflow: hidden; cursor: pointer;">
+                                    @if (!string.IsNullOrEmpty(variant.ImageUrl))
+                                    {
+                                        <img src="@variant.ImageUrl" style="width:100%;height:100%;object-fit:cover;" />
+                                        <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.4); text-align: center; font-size: 9px; color: white; padding: 1px; cursor: pointer;"
+                                             @onclick="() => variant.ImageUrl = null">Remove</div>
+                                    }
+                                    @if (uploadingVariants.Contains(variant)) { <div class="spinner-border spinner-border-sm text-primary"></div> }
+                                    else if (string.IsNullOrEmpty(variant.ImageUrl)) { <span style="font-size: 18px; color: #aaa;">&#128247;</span> }
                                     <InputFile OnChange="(e) => UploadVariantImage(e, variant)" accept="image/*"
                                                style="position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;" />
                                 </div>
                             </div>
+                            <div class="col-md-2">
+                                <label class="form-label" style="font-size: 12px;">SKU Code *</label>
+                                <InputText class="form-control form-control-sm" @bind-Value="variant.SkuCode" placeholder="e.g. SKU-001" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" style="font-size: 12px;">Price *</label>
+                                <InputNumber class="form-control form-control-sm" @bind-Value="variant.Price" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" style="font-size: 12px;">Quantity *</label>
+                                <InputNumber class="form-control form-control-sm" @bind-Value="variant.Quantity" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label" style="font-size: 12px;">Weight (g)</label>
+                                <InputNumber class="form-control form-control-sm" @bind-Value="variant.WeightGram" />
+                            </div>
+                            <div class="col-auto">
+                                @if (request.Variants.Count > 1)
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @onclick="() => RemoveVariant(variant)">&#10005;</button>
+                                }
+                            </div>
                         </div>
 
-                        <div class="col-md-2">
-                            <label class="form-label">Mã SKU *</label>
-                            <InputText class="form-control" @bind-Value="variant.SkuCode" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Giá (VND) *</label>
-                            <InputNumber class="form-control" @bind-Value="variant.Price" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Kho hàng *</label>
-                            <InputNumber class="form-control" @bind-Value="variant.Quantity" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Khối lượng (gram)</label>
-                            <InputNumber class="form-control" @bind-Value="variant.WeightGram" />
+                        @* Attributes *@
+                        <div class="mt-2">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <span style="font-size: 12px; font-weight: 600; color: #555;">Attributes (Color, Size, etc.)</span>
+                                <button type="button" class="btn btn-xs btn-outline-secondary" style="font-size: 11px; padding: 1px 8px;"
+                                        @onclick="() => AddAttribute(variant)"
+                                        disabled="@(variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count >= 5)">
+                                    + Add
+                                </button>
+                            </div>
+                            @if (variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Any())
+                            {
+                                @foreach (var attr in variantAttributesMap[variant])
+                                {
+                                    <div class="d-flex mb-1 gap-2">
+                                        <input type="text" class="form-control form-control-sm" style="max-width:140px;"
+                                               placeholder="Type (e.g. Color)" @bind="attr.Key" />
+                                        <input type="text" class="form-control form-control-sm" style="max-width:140px;"
+                                               placeholder="Value (e.g. Red)" @bind="attr.Value" />
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RemoveAttribute(variant, attr)">&#10005;</button>
+                                    </div>
+                                }
+                            }
                         </div>
                     </div>
+                }
+            }
+        </div>
 
-                    <div class="mt-3">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="fw-bold text-secondary mb-0">Thuộc tính động (VD: Color - Red)</h6>
-                            @if (variantAttributesMap.ContainsKey(variant))
-                            {
-                                <span class="text-muted" style="font-size: 13px;">@variantAttributesMap[variant].Count / 5</span>
-                            }
-                        </div>
-                        <button type="button" class="btn btn-sm btn-info mb-2 text-white" 
-                                @onclick="() => AddAttribute(variant)" 
-                                disabled="@(variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count >= 5)">
-                            + Thêm Thuộc Tính
-                        </button>
-                        
-                        @if(variantAttributesMap.ContainsKey(variant))
+        @* ======= 5. ITEM SPECIFICS ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Item Specifics</span>
+            </div>
+
+
+            @if (categoryItemSpecifics.Any())
+            {
+                var requiredSpecs = categoryItemSpecifics.Where(s => s.Requirement == "REQUIRED").OrderBy(s => s.SortOrder).ToList();
+                @if (requiredSpecs.Any())
+                {
+                    <div class="mb-3">
+                        <div class="fw-bold mb-1" style="font-size: 13px;">Required</div>
+                        <div class="text-muted mb-2" style="font-size: 12px;">Buyers need these details to find your item.</div>
+                        @foreach (var spec in requiredSpecs)
                         {
-                            @foreach (var attr in variantAttributesMap[variant])
-                            {
-                                <div class="d-flex mb-2 gap-2">
-                                    <input type="text" class="form-control ebay-input" placeholder="Tên (VD: Màu sắc)" @bind="attr.Key" />
-                                    <input type="text" class="form-control ebay-input" placeholder="Giá trị (VD: Đỏ)" @bind="attr.Value" />
-                                    <button type="button" class="btn btn-danger" @onclick="() => RemoveAttribute(variant, attr)">Xóa</button>
+                            var existing = itemSpecificsValues.FirstOrDefault(v => v.Name == spec.Name);
+                            <div class="row align-items-center mb-2">
+                                <div class="col-md-3">
+                                    <label class="form-label mb-0" style="font-size: 13px;">
+                                        @spec.Name <span class="text-danger">*</span>
+                                    </label>
                                 </div>
-                            }
+                                <div class="col-md-9">
+                                    @if (!string.IsNullOrEmpty(spec.SuggestedValues))
+                                    {
+                                        var suggestions = spec.SuggestedValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                        <select class="form-select form-select-sm"
+                                                value="@(existing?.Value ?? "")"
+                                                @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())">
+                                            <option value="">-- Select --</option>
+                                            @foreach (var sug in suggestions)
+                                            { <option value="@sug">@sug</option> }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <input type="text" class="form-control form-control-sm" placeholder="Enter value..."
+                                               value="@(existing?.Value ?? "")"
+                                               @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())" />
+                                    }
+                                </div>
+                            </div>
                         }
                     </div>
-                    <div class="text-end mt-2">
-                        <button type="button" class="btn btn-sm btn-danger" @onclick="() => RemoveVariant(variant)">Xóa Biến Thể Này</button>
+                }
+
+                var optionalSpecs = categoryItemSpecifics.Where(s => s.Requirement != "REQUIRED").OrderBy(s => s.SortOrder).ToList();
+                @if (optionalSpecs.Any())
+                {
+                    <div>
+                        <div class="fw-bold mb-1" style="font-size: 13px;">Additional <span class="text-muted fw-normal">(optional)</span></div>
+                        <div class="text-muted mb-2" style="font-size: 12px;">Buyers also search for these details.</div>
+                        @foreach (var spec in optionalSpecs)
+                        {
+                            var existing = itemSpecificsValues.FirstOrDefault(v => v.Name == spec.Name);
+                            <div class="row align-items-center mb-2">
+                                <div class="col-md-3">
+                                    <label class="form-label mb-0" style="font-size: 13px;">@spec.Name</label>
+                                </div>
+                                <div class="col-md-9">
+                                    @if (!string.IsNullOrEmpty(spec.SuggestedValues))
+                                    {
+                                        var suggestions = spec.SuggestedValues.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                        <select class="form-select form-select-sm"
+                                                value="@(existing?.Value ?? "")"
+                                                @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())">
+                                            <option value="">-- Select --</option>
+                                            @foreach (var sug in suggestions)
+                                            { <option value="@sug">@sug</option> }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <input type="text" class="form-control form-control-sm" placeholder="Enter value..."
+                                               value="@(existing?.Value ?? "")"
+                                               @onchange="(e) => SetItemSpecificValue(spec.Name, e.Value?.ToString())" />
+                                    }
+                                </div>
+                            </div>
+                        }
                     </div>
+                }
+            }
+
+            @* UPC field *@
+            <div class="row align-items-center mt-2">
+                <div class="col-md-3">
+                    <label class="form-label mb-0" style="font-size: 13px;">UPC / EAN / ISBN</label>
+                </div>
+                <div class="col-md-9">
+                    <input type="text" class="form-control form-control-sm" @bind="upcCode"
+                           placeholder="Enter product barcode (optional but recommended)" />
+                </div>
+            </div>
+        </div>
+
+        @* ======= 6. CONDITION ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Condition</span>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Item condition</label>
+                <InputSelect class="form-select" @bind-Value="request.Condition">
+                    <optgroup label="New">
+                        <option value="New">New - Brand new, original packaging</option>
+                        <option value="New with tags">New with tags</option>
+                        <option value="New without tags">New without tags</option>
+                        <option value="New with imperfections">New with imperfections</option>
+                        <option value="Open Box">Open Box</option>
+                    </optgroup>
+                    <optgroup label="Refurbished">
+                        <option value="Certified Refurbished">Certified Refurbished</option>
+                        <option value="Excellent Refurbished">Excellent Refurbished</option>
+                        <option value="Very Good Refurbished">Very Good Refurbished</option>
+                        <option value="Good Refurbished">Good Refurbished</option>
+                        <option value="Seller Refurbished">Seller Refurbished</option>
+                    </optgroup>
+                    <optgroup label="Used / Pre-owned">
+                        <option value="Used">Used</option>
+                        <option value="Pre-owned - Excellent">Pre-owned Excellent</option>
+                        <option value="Pre-owned - Good">Pre-owned Good</option>
+                        <option value="Pre-owned - Fair">Pre-owned Fair</option>
+                    </optgroup>
+                    <optgroup label="Other">
+                        <option value="For Parts or Not Working">For Parts or Not Working</option>
+                    </optgroup>
+                </InputSelect>
+            </div>
+            @if (request.Condition != "New")
+            {
+                <div>
+                    <label class="form-label" style="font-size: 12px;">Condition description</label>
+                    <InputTextArea class="form-control" @bind-Value="request.ConditionDescription"
+                                   rows="2" placeholder="Describe condition details (scratches, missing parts, etc.)" />
                 </div>
             }
         </div>
 
-        <div class="ebay-card">
-            <h4 class="ebay-card-title">⏰ Hẹn Giờ Đăng Bán (Schedule)</h4>
-            <div class="mb-2 text-muted" style="font-size: 13px;">Bỏ trống nếu muốn đăng ngay. Chọn ngày giờ để sản phẩm tự động xuất hiện vào lúc đó.</div>
-            <div class="d-flex align-items-center gap-3">
-                <input type="datetime-local" class="form-control ebay-input"
-                       style="max-width: 300px;"
-                       value="@(request.ScheduledAt.HasValue ? request.ScheduledAt.Value.LocalDateTime.ToString("yyyy-MM-ddTHH:mm") : "")"
-                       @onchange="OnScheduledAtChanged" />
-                @if (request.ScheduledAt.HasValue)
+        @* ======= 7. DESCRIPTION ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Description</span>
+            </div>
+            <InputTextArea class="form-control" @bind-Value="request.Description" rows="6"
+                           placeholder="Write a detailed description of your item" />
+        </div>
+
+        @* ======= 8. PRICING ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Pricing</span>
+            </div>
+
+            <div class="mb-3" style="max-width: 260px;">
+                <label class="form-label">Format</label>
+                <select class="form-select" value="@request.ListingFormat"
+                        @onchange="OnFormatChanged">
+                    <option value="FIXED_PRICE">Buy It Now</option>
+                    <option value="AUCTION">Auction</option>
+                </select>
+                @if (request.ListingFormat == "AUCTION")
                 {
-                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="() => request.ScheduledAt = null">
-                        ✕ Xóa hẹn giờ
-                    </button>
-                    <span class="badge bg-info text-dark">⏰ Sẽ đăng lúc @request.ScheduledAt.Value.LocalDateTime.ToString("HH:mm dd/MM/yyyy")</span>
+                    <div class="text-muted mt-1" style="font-size: 12px;">Auction listings support single items only. Variations are not available.</div>
                 }
+            </div>
+
+            @* Single-item: Price + Qty here *@
+            @if (!request.IsVariationListing)
+            {
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-5">
+                        <label class="form-label">Item price <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">VND</span>
+                            <InputNumber class="form-control" @bind-Value="singlePrice" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                        <InputNumber class="form-control" @bind-Value="singleQuantity" min="0" />
+                    </div>
+                </div>
+            }
+
+            @if (request.ListingFormat == "FIXED_PRICE")
+            {
+                <div class="form-check mb-3">
+                    <InputCheckbox class="form-check-input" id="reqPaymentCheck"
+                                   @bind-Value="request.RequireImmediatePayment" />
+                    <label class="form-check-label" for="reqPaymentCheck" style="font-size: 13px;">
+                        Require immediate payment when buyer uses Buy It Now
+                    </label>
+                </div>
+            }
+
+            @* Allow Offers - toggle switch *@
+            <div class="ebay-toggle-row">
+                <div class="toggle-label">
+                    <strong>Allow offers</strong> <span class="text-muted" style="font-size: 12px;">(optional)</span>
+                    <small>Interested buyers can send an offer. You can accept, counter, or decline.</small>
+                </div>
+                <div class="form-check form-switch ms-3">
+                    <InputCheckbox class="form-check-input" id="allowOffersSwitch"
+                                   @bind-Value="request.AllowOffers" role="switch" />
+                </div>
+            </div>
+            @if (request.AllowOffers)
+            {
+                <div class="row g-3 mt-1 mb-2">
+                    <div class="col-sm-4">
+                        <label class="form-label" style="font-size: 12px;">Minimum offer</label>
+                        <input type="number" class="form-control form-control-sm"
+                               value="@request.AutoDeclinePrice"
+                               @onchange="(e) => request.AutoDeclinePrice = decimal.TryParse(e.Value?.ToString(), out var v) ? v : null"
+                               placeholder="Min. amount" />
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="form-label" style="font-size: 12px;">Auto accept</label>
+                        <input type="number" class="form-control form-control-sm"
+                               value="@request.AutoAcceptPrice"
+                               @onchange="(e) => request.AutoAcceptPrice = decimal.TryParse(e.Value?.ToString(), out var v) ? v : null"
+                               placeholder="Auto accept >=" />
+                    </div>
+                </div>
+            }
+
+            @* Schedule listing - toggle *@
+            <div class="ebay-toggle-row">
+                <div class="toggle-label">
+                    <strong>Schedule your listing</strong>
+                    <small>Your listing goes live immediately, unless you select a time and date you want it to start.</small>
+                </div>
+                <div class="form-check form-switch ms-3">
+                    <input type="checkbox" class="form-check-input" id="scheduleSwitch"
+                           checked="@showSchedulePicker"
+                           @onchange="OnScheduleToggle" role="switch" />
+                </div>
+            </div>
+            @if (showSchedulePicker)
+            {
+                <div class="mt-2 d-flex align-items-center gap-3">
+                    <input type="datetime-local" class="form-control"
+                           style="max-width: 280px;"
+                           value="@(request.ScheduledAt.HasValue ? request.ScheduledAt.Value.LocalDateTime.ToString("yyyy-MM-ddTHH:mm") : "")"
+                           @onchange="OnScheduledAtChanged" />
+                    @if (request.ScheduledAt.HasValue)
+                    {
+                        <span class="badge bg-info text-dark">@request.ScheduledAt.Value.LocalDateTime.ToString("HH:mm, dd/MM/yyyy")</span>
+                    }
+                </div>
+            }
+        </div>
+
+        @* ======= 9. SHIPPING ======= *@
+        <div class="listing-section">
+            <div class="section-header">
+                <span class="section-title mb-0">Shipping</span>
+            </div>
+
+            <div class="mb-3" style="max-width: 400px;">
+                <label class="form-label">Shipping policy</label>
+                <select class="form-select" value="@request.ShippingPolicyId"
+                        @onchange="OnShippingPolicyChanged">
+                    <option value="">-- Select shipping policy --</option>
+                    @foreach (var p in shippingPolicies)
+                    { <option value="@p.Id">@p.Name</option> }
+                </select>
+            </div>
+
+            @* Shipping Preview Panel — hiện sau khi chọn policy *@
+            @if (selectedShippingPolicy != null)
+            {
+                <div style="border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; margin-bottom: 16px; font-size: 13px;">
+
+                    @* Shipping Method Header *@
+                    <div style="padding: 10px 16px; background-color: #f8f8f8; border-bottom: 1px solid #f0f0f0;">
+                        <span style="font-weight: 600; color: #555;">
+                            @switch (selectedShippingPolicy.ShippingMethod)
+                            {
+                                case "Standard": <span>&#128230; Standard shipping: Small to medium items</span> break;
+                                case "Freight": <span>&#9951; Freight: Large items that require special handling</span> break;
+                                case "NoShipping": <span>&#128203; No shipping. Local pickup only</span> break;
+                                default: <span>@selectedShippingPolicy.ShippingMethod</span> break;
+                            }
+                        </span>
+                    </div>
+
+                    @if (selectedShippingPolicy.ShippingMethod == "Standard")
+                    {
+                        @* Domestic Shipping (chỉ khi Standard) *@
+                        <div style="padding: 14px 16px; border-bottom: 1px solid #f0f0f0;">
+                            <div style="font-weight: 700; margin-bottom: 8px; color: #333;">
+                                &#128230; Domestic shipping
+                            </div>
+                            @if (selectedShippingPolicy.OfferFreeShipping)
+                            {
+                                <div><span class="badge bg-success me-2" style="font-size: 11px;">FREE</span>Free shipping for all buyers</div>
+                            }
+                            else
+                            {
+                                <div class="text-muted" style="margin-bottom: 4px;">
+                                    @switch (selectedShippingPolicy.DomesticCostType)
+                                    {
+                                        case "Flat": <span>&#128197; Flat rate — same cost for all buyers</span> break;
+                                        case "Calculated": <span>&#128207; Calculated — cost based on buyer location</span> break;
+                                        default: <span>@selectedShippingPolicy.DomesticCostType</span> break;
+                                    }
+                                </div>
+                                @if (selectedShippingPolicy.DomesticServices.Any())
+                                {
+                                    @foreach (var svc in selectedShippingPolicy.DomesticServices)
+                                    {
+                                        <div style="color: #444; padding-left: 8px;">
+                                            &#8227;
+                                            @svc.ServiceName
+                                            @if (svc.IsFreeShipping)
+                                            { <span class="text-success ms-1">— Free</span> }
+                                            else if (svc.Cost > 0)
+                                            { <span class="ms-1">— @svc.Cost.ToString("C")</span> }
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <div style="color: #999; font-style: italic;">No services configured — <a href="/bp/shp/create" style="color: #0064d2;">edit policy</a></div>
+                                }
+                            }
+                            <div style="color: #707070; margin-top: 6px;">
+                                &#8987; Handling time: @(selectedShippingPolicy.HandlingTimeDays == 0 ? "Same business day" : $"{selectedShippingPolicy.HandlingTimeDays} business day{(selectedShippingPolicy.HandlingTimeDays > 1 ? "s" : "")}")
+                            </div>
+                        </div>
+
+                        @* International Shipping (chỉ khi Standard) *@
+                        <div style="padding: 14px 16px;">
+                            <div style="font-weight: 700; margin-bottom: 8px; color: #333;">
+                                &#127758; International shipping
+                            </div>
+                            @if (selectedShippingPolicy.IsInternationalShippingAllowed)
+                            {
+                                <div class="text-muted" style="margin-bottom: 4px;">
+                                    @switch (selectedShippingPolicy.InternationalCostType)
+                                    {
+                                        case "Flat": <span>&#128197; Flat rate</span> break;
+                                        case "Calculated": <span>&#128207; Calculated by location</span> break;
+                                        default: <span>@selectedShippingPolicy.InternationalCostType</span> break;
+                                    }
+                                </div>
+                                @if (selectedShippingPolicy.InternationalServices.Any())
+                                {
+                                    @foreach (var svc in selectedShippingPolicy.InternationalServices)
+                                    {
+                                        <div style="color: #444; padding-left: 8px;">
+                                            &#8227; @svc.ServiceName
+                                            @if (svc.Cost > 0) { <span class="ms-1">— @svc.Cost.ToString("C")</span> }
+                                            @if (svc.ShipToLocations.Any())
+                                            {
+                                                <span class="text-muted ms-1">(Ships to: @string.Join(", ", svc.ShipToLocations.Take(3))@(svc.ShipToLocations.Count > 3 ? "..." : ""))</span>
+                                            }
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <div style="color: #999;">International enabled — <a href="/bp/shp/create" style="color: #0064d2;">add services</a></div>
+                                }
+                                @if (selectedShippingPolicy.ExcludedLocations.Any())
+                                {
+                                    <div style="color: #e65c00; margin-top: 4px; font-size: 12px;">
+                                        &#9888; Excluded: @string.Join(", ", selectedShippingPolicy.ExcludedLocations)
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div style="color: #999;">
+                                    International shipping not offered.
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        @* Freight / NoShipping — minimal preview *@
+                        <div style="padding: 14px 16px;">
+                            @if (selectedShippingPolicy.ExcludedLocations.Any())
+                            {
+                                <div style="color: #e65c00; font-size: 12px;">
+                                    &#9888; Excluded locations: @string.Join(", ", selectedShippingPolicy.ExcludedLocations)
+                                </div>
+                            }
+                            else
+                            {
+                                <div style="color: #999;">No excluded locations.</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">Package weight <span class="text-muted" style="font-size: 12px;">(optional)</span></label>
+                <div style="display: flex; align-items: center; gap: 8px; max-width: 200px;">
+                    <InputNumber class="form-control" @bind-Value="packageWeightGram" placeholder="0" />
+                    <span class="text-muted" style="white-space: nowrap;">gram</span>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Package dimensions <span class="text-muted" style="font-size: 12px;">(optional)</span></label>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <InputNumber class="form-control" style="max-width: 90px;" @bind-Value="request.PackageLengthCm" placeholder="L" />
+                    <span>x</span>
+                    <InputNumber class="form-control" style="max-width: 90px;" @bind-Value="request.PackageWidthCm" placeholder="W" />
+                    <span>x</span>
+                    <InputNumber class="form-control" style="max-width: 90px;" @bind-Value="request.PackageHeightCm" placeholder="H" />
+                    <span class="text-muted">cm</span>
+                </div>
+            </div>
+
+            @* Item origin / Country of Origin *@
+            <div class="mb-3">
+                <div class="fw-bold mb-1" style="font-size: 13px;">Item origin</div>
+                <label class="form-label" style="font-size: 12px;">Country of Origin</label>
+                <select class="form-select" style="max-width: 320px;"
+                        value="@request.CountryOfOrigin"
+                        @onchange="(e) => request.CountryOfOrigin = e.Value?.ToString()">
+                    <option value="">-- Select country --</option>
+                    <option value="VN">Vietnam</option>
+                    <option value="CN">China</option>
+                    <option value="US">United States</option>
+                    <option value="DE">Germany</option>
+                    <option value="JP">Japan</option>
+                    <option value="KR">South Korea</option>
+                    <option value="GB">United Kingdom</option>
+                    <option value="FR">France</option>
+                    <option value="IT">Italy</option>
+                    <option value="IN">India</option>
+                    <option value="TH">Thailand</option>
+                    <option value="ID">Indonesia</option>
+                    <option value="MY">Malaysia</option>
+                    <option value="SG">Singapore</option>
+                    <option value="PH">Philippines</option>
+                    <option value="AU">Australia</option>
+                    <option value="CA">Canada</option>
+                    <option value="BR">Brazil</option>
+                    <option value="MX">Mexico</option>
+                    <option value="ES">Spain</option>
+                    <option value="NL">Netherlands</option>
+                    <option value="CH">Switzerland</option>
+                    <option value="SE">Sweden</option>
+                    <option value="PL">Poland</option>
+                    <option value="TR">Turkey</option>
+                    <option value="TW">Taiwan</option>
+                    <option value="HK">Hong Kong</option>
+                    <option value="UA">Ukraine</option>
+                    <option value="SA">Saudi Arabia</option>
+                    <option value="AE">UAE</option>
+                    <option value="ZA">South Africa</option>
+                    <option value="EG">Egypt</option>
+                    <option value="NG">Nigeria</option>
+                    <option value="AR">Argentina</option>
+                    <option value="CL">Chile</option>
+                    <option value="CO">Colombia</option>
+                    <option value="PK">Pakistan</option>
+                    <option value="BD">Bangladesh</option>
+                    <option value="MM">Myanmar</option>
+                    <option value="KH">Cambodia</option>
+                    <option value="LA">Laos</option>
+                </select>
+                <small class="text-muted d-block mt-1" style="font-size: 11px;">
+                    This information may be needed for your listing to be visible to international buyers.
+                </small>
+            </div>
+
+            <div class="mb-0" style="max-width: 360px;">
+                <label class="form-label">Return policy</label>
+                <select class="form-select"
+                        value="@(request.ReturnPolicyId?.ToString() ?? "")"
+                        @onchange="(e) => request.ReturnPolicyId = Guid.TryParse(e.Value?.ToString(), out var g) ? g : null">
+                    <option value="">-- Select return policy --</option>
+                    @foreach (var p in returnPolicies)
+                    { <option value="@p.Id">@p.Name</option> }
+                </select>
             </div>
         </div>
 
-        <div class="d-flex gap-3 mt-3 mb-5">
-            <button type="submit" class="ebay-btn-outline btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => SetSubmitMode(0)">
-                @if(isSubmitting && submitMode==0) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu...</span> } else { <span>💾 Lưu Nháp (DRAFT)</span> }
+        @* ======= 10. PAYMENT ======= *@
+        <div class="listing-section mb-3">
+            <div class="section-header">
+                <span class="section-title mb-0">Payment</span>
+            </div>
+            <div style="max-width: 360px;">
+                <label class="form-label">Payment policy</label>
+                <select class="form-select"
+                        value="@(request.PaymentPolicyId?.ToString() ?? "")"
+                        @onchange="(e) => request.PaymentPolicyId = Guid.TryParse(e.Value?.ToString(), out var g) ? g : null">
+                    <option value="">-- Default payment policy --</option>
+                    @foreach (var p in paymentPolicies)
+                    { <option value="@p.Id">@p.Name</option> }
+                </select>
+            </div>
+        </div>
+
+        @* ======= SUBMIT ======= *@
+        <div class="d-flex gap-3 mb-5">
+            <button type="submit" class="btn btn-outline-secondary btn-lg flex-fill"
+                    style="padding: 12px;" @onclick="() => SetSubmitMode(0)">
+                @if (isSubmitting && submitMode == 0)
+                { <span class="spinner-border spinner-border-sm me-1"></span><span>Saving...</span> }
+                else { <span>Save as Draft</span> }
             </button>
-            @if (request.ScheduledAt.HasValue)
+            @if (showSchedulePicker && request.ScheduledAt.HasValue)
             {
-                <button type="submit" class="btn btn-lg btn-info text-white flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => SetSubmitMode(2)">
-                    @if(isSubmitting && submitMode==2) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang lưu hẹn...</span> } else { <span>⏰ Hẹn Giờ Đăng</span> }
+                <button type="submit" class="btn btn-info btn-lg flex-fill text-white"
+                        style="padding: 12px;" @onclick="() => SetSubmitMode(2)">
+                    @if (isSubmitting && submitMode == 2)
+                    { <span class="spinner-border spinner-border-sm me-1"></span><span>Scheduling...</span> }
+                    else { <span>Schedule Listing</span> }
                 </button>
             }
-            <button type="submit" class="ebay-btn-primary btn-lg flex-fill" style="padding: 12px; font-size: 15px;" @onclick="() => SetSubmitMode(1)">
-                @if(isSubmitting && submitMode==1) { <span class="spinner-border spinner-border-sm me-2"></span><span>Đang đăng bán...</span> } else { <span>🚀 Đăng Bán Ngay (ACTIVE)</span> }
+            <button type="submit" class="btn btn-primary btn-lg flex-fill"
+                    style="padding: 12px; background: #0064d2; border-color: #0064d2;" @onclick="() => SetSubmitMode(1)">
+                @if (isSubmitting && submitMode == 1)
+                { <span class="spinner-border spinner-border-sm me-1"></span><span>Publishing...</span> }
+                else { <span>Publish Listing</span> }
             </button>
         </div>
+
         </fieldset>
     </EditForm>
 </div>
 
-
 @code {
-    private CreateListingRequest request = new CreateListingRequest();
+    private CreateListingRequest request = new();
+    private string? errorMessage;
+    private bool isSubmitting;
+    private int submitMode; // 0=DRAFT, 1=ACTIVE, 2=SCHEDULED
+    private bool showSchedulePicker;
+    private string selectedCategoryFullPath = string.Empty;
+    private string upcCode = string.Empty;
+
+    // Single-item pricing (synced to Variants[0] on submit)
+    private decimal singlePrice;
+    private int singleQuantity = 1;
+    private int? packageWeightGram;
+
+    // Dropdown data
     private List<ShippingPolicyDto> shippingPolicies = new();
     private List<ReturnPolicyDto> returnPolicies = new();
     private List<PaymentPolicyDto> paymentPolicies = new();
     private List<CategoryDto> categories = new();
-    private string? errorMessage;
-    private bool isSubmitting = false;
-    private int submitMode = 0; // 0=DRAFT, 1=ACTIVE, 2=SCHEDULED
-    private bool publishOnCreate => submitMode == 1; // compat
+    private ShippingPolicyDto? selectedShippingPolicy;
 
-    // Gợi ý thuộc tính theo danh mục
-    private List<string> suggestedAttributes = new();
-    private HashSet<string> usedHints = new();
-
-    // [A5] Item Specifics dynamic form state
+    // Item Specifics
     private List<CategoryItemSpecificDto> categoryItemSpecifics = new();
     private List<ItemSpecificInput> itemSpecificsValues = new();
 
-    private async Task OnCategoryChanged()
-    {
-        var selectedCat = categories.FirstOrDefault(c => c.Id == request.CategoryId);
-        suggestedAttributes = selectedCat?.SuggestedAttributes ?? new();
-        usedHints.Clear();
+    // Variation hints
+    private List<string> suggestedAttributes = new();
+    private HashSet<string> usedHints = new();
 
-        // [A5] Load Item Specifics cho category đã chọn
-        categoryItemSpecifics = new();
-        itemSpecificsValues = new();
-        if (request.CategoryId != Guid.Empty)
-        {
-            try
-            {
-                var specs = await CategoryService.GetItemSpecificsByCategoryIdAsync(request.CategoryId);
-                categoryItemSpecifics = specs.ToList();
-                // Pre-populate empty values cho REQUIRED + RECOMMENDED
-                foreach (var spec in categoryItemSpecifics)
-                {
-                    itemSpecificsValues.Add(new ItemSpecificInput { Name = spec.Name, Value = "" });
-                }
-            }
-            catch { /* silent — category mới không có specifics là bình thường */ }
-        }
-    }
-
-    private void SetItemSpecificValue(string name, string value)
-    {
-        var existing = itemSpecificsValues.FirstOrDefault(v => v.Name == name);
-        if (existing != null)
-            existing.Value = value;
-        else
-            itemSpecificsValues.Add(new ItemSpecificInput { Name = name, Value = value });
-    }
-
-    // Bấm chip gợi ý → toggle thêm/xóa key đó vào tất cả biến thể
-    private void ApplyHintToVariants(string hint)
-    {
-        bool alreadyUsed = usedHints.Contains(hint);
-        foreach (var variant in request.Variants)
-        {
-            if (!variantAttributesMap.ContainsKey(variant)) continue;
-            var attrs = variantAttributesMap[variant];
-            if (alreadyUsed)
-            {
-                attrs.RemoveAll(a => a.Key == hint);
-            }
-            else
-            {
-                if (!attrs.Any(a => a.Key == hint) && attrs.Count < 5)
-                    attrs.Add(new AttributePair { Key = hint, Value = "" });
-            }
-        }
-        if (alreadyUsed) usedHints.Remove(hint);
-        else usedHints.Add(hint);
-    }
-
-
-    // Ảnh sản phẩm phụ
-    private List<string> extraImageUrls = new();
-
-    // Trạng thái upload
-    private bool isUploadingPrimary = false;
-    private bool isUploadingExtra = false;
-    private bool isDraggingPrimary = false;
-    private HashSet<CreateVariantRequest> uploadingVariants = new();
-
-    // Helper class để bind dictionary attributes
+    // Variant Attributes
     public class AttributePair
     {
         public string Key { get; set; } = string.Empty;
         public string Value { get; set; } = string.Empty;
     }
-
     private Dictionary<CreateVariantRequest, List<AttributePair>> variantAttributesMap = new();
+
+    // Photo upload
+    private List<string> extraImageUrls = new();
+    private bool isUploadingPrimary;
+    private bool isUploadingExtra;
+    private bool isDraggingPrimary;
+    private HashSet<CreateVariantRequest> uploadingVariants = new();
+
+    // Query params
+    [SupplyParameterFromQuery(Name = "categoryId")] public Guid? InitCategoryId { get; set; }
+    [SupplyParameterFromQuery(Name = "condition")] public string? InitCondition { get; set; }
+    [SupplyParameterFromQuery(Name = "conditionDesc")] public string? InitConditionDescription { get; set; }
+    [SupplyParameterFromQuery(Name = "title")] public string? InitTitle { get; set; }
+
+    // ---- INIT ----
 
     protected override async Task OnInitializedAsync()
     {
@@ -539,7 +929,50 @@
             var pp = await PolicyService.GetPaymentPoliciesAsync();
             paymentPolicies = pp.ToList();
 
-            // Khởi tạo sẵn 1 biến thể mặc định
+            if (InitCategoryId.HasValue && InitCategoryId != Guid.Empty)
+            {
+                request.CategoryId = InitCategoryId.Value;
+                await OnCategoryChanged();
+
+                var selectedCat = categories.FirstOrDefault(c => c.Id == request.CategoryId);
+                if (selectedCat != null)
+                {
+                    var parent = categories.FirstOrDefault(c => c.Id == selectedCat.ParentId);
+                    selectedCategoryFullPath = parent != null
+                        ? $"{parent.Name} > {selectedCat.Name}"
+                        : selectedCat.Name;
+                }
+                else
+                {
+                    // Fallback: tìm trong AllCategories cache của CategoryService
+                    // (được populate bởi modal khi user duyệt tree)
+                    var allCats = await CategoryService.GetCategoriesAsync();
+                    var resolvedCat = allCats.FirstOrDefault(c => c.Id == request.CategoryId);
+                    if (resolvedCat != null)
+                    {
+                        var parentCat = allCats.FirstOrDefault(c => c.Id == resolvedCat.ParentId);
+                        selectedCategoryFullPath = parentCat != null
+                            ? $"{parentCat.Name} > {resolvedCat.Name}"
+                            : resolvedCat.Name;
+                        // Ensure categories list includes it for dropdown fallback
+                        if (!categories.Any(c => c.Id == resolvedCat.Id))
+                            categories.Add(resolvedCat);
+                        if (parentCat != null && !categories.Any(c => c.Id == parentCat.Id))
+                            categories.Add(parentCat);
+                    }
+                }
+            }
+
+            // Pre-fill title từ keyword user nhập ở StartListing
+            if (!string.IsNullOrEmpty(InitTitle))
+                request.Name = Uri.UnescapeDataString(InitTitle);
+
+            if (!string.IsNullOrEmpty(InitCondition))
+                request.Condition = Uri.UnescapeDataString(InitCondition);
+
+            if (!string.IsNullOrEmpty(InitConditionDescription))
+                request.ConditionDescription = Uri.UnescapeDataString(InitConditionDescription);
+
             AddVariant();
         }
         catch (Exception ex)
@@ -548,98 +981,53 @@
         }
     }
 
-    // ─── HẸN GIỜ ĐĂNG BÁN ───
+    // ---- VARIATIONS ----
 
-    private void SetSubmitMode(int mode) => submitMode = mode;
-
-    private void OnScheduledAtChanged(ChangeEventArgs e)
+    private void ToggleVariationListing()
     {
-        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
-            // Dùng Local timezone của máy client thay vì hardcode UTC+7
-            // DateTimeOffset.Local sẽ tự lấy timezone của hệ điều hành người dùng
-            request.ScheduledAt = new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Local));
+        // Only allow variations when Format = Buy It Now
+        if (request.ListingFormat == "AUCTION") return;
+        request.IsVariationListing = !request.IsVariationListing;
+        if (request.IsVariationListing && !request.Variants.Any())
+            AddVariant();
+    }
+
+    private void OnFormatChanged(ChangeEventArgs e)
+    {
+        request.ListingFormat = e.Value?.ToString() ?? "FIXED_PRICE";
+        // Auction → auto-disable variations (eBay rule)
+        if (request.ListingFormat == "AUCTION")
+        {
+            request.IsVariationListing = false;
+        }
+    }
+
+    private void OnShippingPolicyChanged(ChangeEventArgs e)
+    {
+        if (Guid.TryParse(e.Value?.ToString(), out var policyId))
+        {
+            request.ShippingPolicyId = policyId;
+            selectedShippingPolicy = shippingPolicies.FirstOrDefault(p => p.Id == policyId);
+        }
         else
-            request.ScheduledAt = null;
-    }
-
-    // ─── UPLOAD ẢNH SẢN PHẨM ───
-
-    private async Task UploadPrimaryImage(InputFileChangeEventArgs e)
-    {
-        isUploadingPrimary = true;
-        errorMessage = null;
-        StateHasChanged();
-        try
         {
-            var url = await FileUploadService.UploadImageAsync(e.File);
-            request.PrimaryImageUrl = url;
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Lỗi upload ảnh bìa: {ex.Message}";
-        }
-        finally
-        {
-            isUploadingPrimary = false;
+            request.ShippingPolicyId = null;
+            selectedShippingPolicy = null;
         }
     }
-
-    private async Task UploadExtraImage(InputFileChangeEventArgs e)
-    {
-        if (extraImageUrls.Count >= 5) return;
-        isUploadingExtra = true;
-        errorMessage = null;
-        StateHasChanged();
-        try
-        {
-            var url = await FileUploadService.UploadImageAsync(e.File);
-            extraImageUrls.Add(url);
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Lỗi upload ảnh phụ: {ex.Message}";
-        }
-        finally
-        {
-            isUploadingExtra = false;
-        }
-    }
-
-    // ─── UPLOAD ẢNH BIẾN THỂ ───
-
-    private async Task UploadVariantImage(InputFileChangeEventArgs e, CreateVariantRequest variant)
-    {
-        uploadingVariants.Add(variant);
-        errorMessage = null;
-        StateHasChanged();
-        try
-        {
-            var url = await FileUploadService.UploadImageAsync(e.File);
-            variant.ImageUrl = url;
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Lỗi upload ảnh biến thể: {ex.Message}";
-        }
-        finally
-        {
-            uploadingVariants.Remove(variant);
-        }
-    }
-
-    // ─── QUẢN LÝ BIẾN THỂ ───
 
     private void AddVariant()
     {
         if (request.Variants.Count >= 250) return;
         if (request.ListingFormat == "AUCTION" && request.Variants.Count >= 1) return;
-        var newVariant = new CreateVariantRequest();
-        request.Variants.Add(newVariant);
-        variantAttributesMap[newVariant] = new List<AttributePair>();
+        var v = new CreateVariantRequest();
+        request.Variants.Add(v);
+        variantAttributesMap[v] = new List<AttributePair>();
     }
 
     private void RemoveVariant(CreateVariantRequest variant)
     {
+        if (request.Variants.Count <= 1) return;
         request.Variants.Remove(variant);
         variantAttributesMap.Remove(variant);
         uploadingVariants.Remove(variant);
@@ -647,21 +1035,120 @@
 
     private void AddAttribute(CreateVariantRequest variant)
     {
-        if (variantAttributesMap.ContainsKey(variant) && variantAttributesMap[variant].Count < 5)
-        {
-            variantAttributesMap[variant].Add(new AttributePair());
-        }
+        if (variantAttributesMap.TryGetValue(variant, out var attrs) && attrs.Count < 5)
+            attrs.Add(new AttributePair());
     }
 
     private void RemoveAttribute(CreateVariantRequest variant, AttributePair attr)
     {
-        if (variantAttributesMap.ContainsKey(variant))
+        if (variantAttributesMap.TryGetValue(variant, out var attrs))
+            attrs.Remove(attr);
+    }
+
+    private void ApplyHintToVariants(string hint)
+    {
+        bool alreadyUsed = usedHints.Contains(hint);
+        foreach (var variant in request.Variants)
         {
-            variantAttributesMap[variant].Remove(attr);
+            if (!variantAttributesMap.TryGetValue(variant, out var attrs)) continue;
+            if (alreadyUsed) attrs.RemoveAll(a => a.Key == hint);
+            else if (!attrs.Any(a => a.Key == hint) && attrs.Count < 5)
+                attrs.Add(new AttributePair { Key = hint, Value = "" });
+        }
+        if (alreadyUsed) usedHints.Remove(hint);
+        else usedHints.Add(hint);
+    }
+
+    // ---- CATEGORY ----
+
+    private async Task OnCategoryChanged()
+    {
+        var selectedCat = categories.FirstOrDefault(c => c.Id == request.CategoryId);
+        suggestedAttributes = selectedCat?.SuggestedAttributes ?? new();
+        usedHints.Clear();
+
+        categoryItemSpecifics = new();
+        itemSpecificsValues = new();
+        if (request.CategoryId != Guid.Empty)
+        {
+            try
+            {
+                var specs = await CategoryService.GetItemSpecificsByCategoryIdAsync(request.CategoryId);
+                categoryItemSpecifics = specs.ToList();
+                foreach (var spec in categoryItemSpecifics)
+                    itemSpecificsValues.Add(new ItemSpecificInput { Name = spec.Name, Value = "" });
+
+                // Auto-inject Brand if category doesn't define it
+                // Ensures Brand is always present exactly once in Item Specifics
+                if (!categoryItemSpecifics.Any(s => s.Name.Equals("Brand", StringComparison.OrdinalIgnoreCase)))
+                {
+                    categoryItemSpecifics.Insert(0, new CategoryItemSpecificDto
+                    {
+                        Name = "Brand",
+                        Requirement = "RECOMMENDED",
+                        SortOrder = -1, // Show first
+                        SuggestedValues = null
+                    });
+                    itemSpecificsValues.Insert(0, new ItemSpecificInput { Name = "Brand", Value = "" });
+                }
+            }
+            catch { }
         }
     }
 
-    // ─── SUBMIT ───
+    private void SetItemSpecificValue(string name, string? value)
+    {
+        var existing = itemSpecificsValues.FirstOrDefault(v => v.Name == name);
+        if (existing != null) existing.Value = value ?? "";
+        else itemSpecificsValues.Add(new ItemSpecificInput { Name = name, Value = value ?? "" });
+    }
+
+    // ---- SCHEDULE ----
+
+    private void OnScheduleToggle(ChangeEventArgs e)
+    {
+        showSchedulePicker = e.Value is true || e.Value?.ToString() == "true";
+        if (!showSchedulePicker) request.ScheduledAt = null;
+    }
+
+    private void OnScheduledAtChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+            request.ScheduledAt = new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Local));
+        else
+            request.ScheduledAt = null;
+    }
+
+    private void SetSubmitMode(int mode) => submitMode = mode;
+
+    // ---- PHOTO UPLOAD ----
+
+    private async Task UploadPrimaryImage(InputFileChangeEventArgs e)
+    {
+        isUploadingPrimary = true; errorMessage = null; StateHasChanged();
+        try { request.PrimaryImageUrl = await FileUploadService.UploadImageAsync(e.File); }
+        catch (Exception ex) { errorMessage = $"Upload error: {ex.Message}"; }
+        finally { isUploadingPrimary = false; }
+    }
+
+    private async Task UploadExtraImage(InputFileChangeEventArgs e)
+    {
+        if (extraImageUrls.Count >= 23) return;
+        isUploadingExtra = true; errorMessage = null; StateHasChanged();
+        try { extraImageUrls.Add(await FileUploadService.UploadImageAsync(e.File)); }
+        catch (Exception ex) { errorMessage = $"Upload error: {ex.Message}"; }
+        finally { isUploadingExtra = false; }
+    }
+
+    private async Task UploadVariantImage(InputFileChangeEventArgs e, CreateVariantRequest variant)
+    {
+        uploadingVariants.Add(variant); errorMessage = null; StateHasChanged();
+        try { variant.ImageUrl = await FileUploadService.UploadImageAsync(e.File); }
+        catch (Exception ex) { errorMessage = $"Upload error: {ex.Message}"; }
+        finally { uploadingVariants.Remove(variant); }
+    }
+
+    // ---- SUBMIT ----
 
     private async Task HandleSubmit()
     {
@@ -670,39 +1157,65 @@
 
         try
         {
-            // Rebuild Attributes Dictionary from Map
-            foreach (var variant in request.Variants)
+            // Sync single-item price/qty to Variants[0]
+            if (!request.IsVariationListing)
             {
-                variant.Attributes.Clear();
-                if (variantAttributesMap.ContainsKey(variant))
+                if (string.IsNullOrWhiteSpace(request.Variants[0].SkuCode))
+                    request.Variants[0].SkuCode = $"SKU-{Guid.NewGuid().ToString()[..8].ToUpper()}";
+                request.Variants[0].Price = singlePrice;
+                request.Variants[0].Quantity = singleQuantity;
+                if (packageWeightGram.HasValue)
+                    request.Variants[0].WeightGram = packageWeightGram.Value;
+            }
+
+            // Pre-validate
+            if (!request.IsVariationListing)
+            {
+                if (singlePrice <= 0)
+                { errorMessage = "Item price must be greater than 0."; isSubmitting = false; return; }
+                if (singleQuantity < 0)
+                { errorMessage = "Quantity cannot be negative."; isSubmitting = false; return; }
+            }
+            else
+            {
+                for (int i = 0; i < request.Variants.Count; i++)
                 {
-                    foreach (var attr in variantAttributesMap[variant])
-                    {
-                        if (!string.IsNullOrWhiteSpace(attr.Key) && !string.IsNullOrWhiteSpace(attr.Value))
-                        {
-                            variant.Attributes[attr.Key] = attr.Value;
-                        }
-                    }
+                    var v = request.Variants[i];
+                    if (string.IsNullOrWhiteSpace(v.SkuCode))
+                    { errorMessage = $"Variation #{i + 1}: SKU code is required."; isSubmitting = false; return; }
+                    if (v.Price <= 0)
+                    { errorMessage = $"Variation #{i + 1} ({v.SkuCode}): Price must be greater than 0."; isSubmitting = false; return; }
+                    if (v.Quantity < 0)
+                    { errorMessage = $"Variation #{i + 1} ({v.SkuCode}): Quantity cannot be negative."; isSubmitting = false; return; }
                 }
             }
 
-            // Gom ảnh phụ
+            // Rebuild Attributes
+            foreach (var variant in request.Variants)
+            {
+                variant.Attributes.Clear();
+                if (variantAttributesMap.TryGetValue(variant, out var attrs))
+                    foreach (var a in attrs.Where(a => !string.IsNullOrWhiteSpace(a.Key) && !string.IsNullOrWhiteSpace(a.Value)))
+                        variant.Attributes[a.Key] = a.Value;
+            }
+
             request.ImageUrls = extraImageUrls.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
 
-            // [A5] Sync Item Specifics values → request
             request.ItemSpecifics = itemSpecificsValues
                 .Where(v => !string.IsNullOrWhiteSpace(v.Value))
                 .ToList();
 
+            if (!string.IsNullOrWhiteSpace(upcCode))
+                if (!request.ItemSpecifics.Any(s => s.Name is "UPC" or "EAN" or "ISBN" or "MPN"))
+                    request.ItemSpecifics.Add(new ItemSpecificInput { Name = "UPC", Value = upcCode.Trim() });
+
+            if (!showSchedulePicker) request.ScheduledAt = null;
+
             var productId = await ProductService.CreateListingAsync(request);
-            
-            // submitMode: 0=DRAFT (mặc định từ backend), 1=ACTIVE, 2=SCHEDULED (đã handled trong usecase)
-            if (submitMode == 1) // Publish ngay
-            {
+
+            if (submitMode == 1)
                 await ProductService.UpdateProductStatusAsync(productId, "ACTIVE");
-            }
-            // submitMode == 2: ScheduledAt đã được gửi kèm, backend tự set SCHEDULED
-            
+
             NavigationManager.NavigateTo("/listings");
         }
         catch (Exception ex)
@@ -714,4 +1227,7 @@
             isSubmitting = false;
         }
     }
+
+    private void GoToStartListingToChangeCategory()
+        => NavigationManager.NavigateTo("/listings/start");
 }

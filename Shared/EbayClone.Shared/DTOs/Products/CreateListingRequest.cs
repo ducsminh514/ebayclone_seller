@@ -15,7 +15,8 @@ namespace EbayClone.Shared.DTOs.Products
         public Guid? PaymentPolicyId { get; set; }
 
         [Required(ErrorMessage = "Product name is required.")]
-        [StringLength(255, MinimumLength = 3, ErrorMessage = "Product name must be between 3 and 255 characters.")]
+        // [eBay Rule] Title tối đa 80 ký tự (bao gồm dấu cách) — chuẩn eBay Cassini
+        [StringLength(80, MinimumLength = 3, ErrorMessage = "Tiêu đề phải từ 3 đến 80 ký tự.")]
         public string Name { get; set; } = string.Empty;
 
         public string? Description { get; set; }
@@ -36,10 +37,24 @@ namespace EbayClone.Shared.DTOs.Products
         [StringLength(20)]
         public string ListingFormat { get; set; } = "FIXED_PRICE";
         public bool AllowOffers { get; set; } = false;
-        public decimal? AutoAcceptPrice { get; set; }   // Tự chấp nhận offer ≥ X
-        public decimal? AutoDeclinePrice { get; set; }  // Tự từ chối offer < Y
+        public decimal? AutoAcceptPrice { get; set; }
+        public decimal? AutoDeclinePrice { get; set; }
+
+        // [A4] Listing Meta
+        public bool RequireImmediatePayment { get; set; } = false;
+        // IsVariationListing: true = multi-SKU listing, false = single-item (Price+Qty ở PRICING level)
+        public bool IsVariationListing { get; set; } = false;
+
+        // [SHIPPING] Package Info
+        // CountryOfOrigin: ISO 3166-1 alpha-2 (VD: "VN", "CN", "US")
+        [StringLength(2)]
+        public string? CountryOfOrigin { get; set; }
+        public decimal? PackageLengthCm { get; set; }
+        public decimal? PackageWidthCm { get; set; }
+        public decimal? PackageHeightCm { get; set; }
         
-        [StringLength(80)]
+        // [eBay Rule] Subtitle tối đa 55 ký tự — eBay charge phí $1.50-$3.00/lần list
+        [StringLength(55, ErrorMessage = "Phụ đề (Subtitle) không được vượt quá 55 ký tự.")]
         public string? Subtitle { get; set; }
 
         // Ảnh sản phẩm
@@ -80,8 +95,8 @@ namespace EbayClone.Shared.DTOs.Products
         [Range(0, int.MaxValue, ErrorMessage = "Quantity cannot be negative.")]
         public int Quantity { get; set; }
 
-        // Mảng thuộc tính động dạng Hash (Ví dụ: {"Color": "Red", "Size": "M"})
-        [Required(ErrorMessage = "Variant attributes are required.")]
+        // [NOTE] Attributes không dùng [Required] ở DTO — UseCase xử lý business rule này
+        // DataAnnotationsValidator cũng không validate nested collection items nên [Required] ở đây vô tác dụng
         public Dictionary<string, string> Attributes { get; set; } = new();
 
         public string? ImageUrl { get; set; }

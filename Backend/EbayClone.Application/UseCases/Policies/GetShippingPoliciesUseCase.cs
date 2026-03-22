@@ -32,6 +32,8 @@ namespace EbayClone.Application.UseCases.Policies
                 Name = p.Name,
                 Description = p.Description ?? string.Empty,
                 HandlingTimeDays = p.HandlingTimeDays,
+                ShippingMethod = p.ShippingMethod,
+                OfferLocalPickup = p.OfferLocalPickup,
                 OfferFreeShipping = p.OfferFreeShipping,
                 DomesticCostType = p.DomesticCostType,
                 DomesticServices = JsonSerializer.Deserialize<List<ShippingServiceDto>>(p.DomesticServicesJson) ?? new(),

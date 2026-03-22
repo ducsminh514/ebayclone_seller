@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Domain.Entities;
 using EbayClone.Infrastructure.Data;
+using EbayClone.Shared.DTOs.Dashboard;
 using Microsoft.EntityFrameworkCore;
 
 namespace EbayClone.Infrastructure.Repositories
@@ -114,6 +115,35 @@ namespace EbayClone.Infrastructure.Repositories
                     && o.CreatedAt >= cutoffDate)
                 .SumAsync(o => o.TotalAmount, cancellationToken);
         }
+
+        /// <summary>
+        /// [Performance] Single GROUP BY aggregate query cho sales chart.
+        /// SQL tương đương: SELECT CAST(PaidAt AS DATE), SUM(TotalAmount), COUNT(*) 
+        ///   FROM Orders WHERE ShopId = @id AND PaidAt >= @cutoff GROUP BY CAST(PaidAt AS DATE)
+        /// </summary>
+        public async Task<List<DailySalesPoint>> GetSalesChartDataAsync(Guid shopId, int days, CancellationToken cancellationToken = default)
+        {
+            var cutoffDate = DateTimeOffset.UtcNow.AddDays(-days);
+            
+            var data = await _context.Orders
+                .AsNoTracking()
+                .Where(o => o.ShopId == shopId 
+                    && o.PaidAt != null
+                    && o.PaidAt >= cutoffDate
+                    && o.Status != "CANCELLED")
+                .GroupBy(o => o.PaidAt!.Value.Date)
+                .Select(g => new DailySalesPoint
+                {
+                    Date = g.Key,
+                    Revenue = g.Sum(o => o.TotalAmount),
+                    OrderCount = g.Count()
+                })
+                .OrderBy(d => d.Date)
+                .ToListAsync(cancellationToken);
+
+            return data;
+        }
+
         /// <summary>
         /// Lấy các đơn DELIVERED đủ điều kiện giải ngân dựa theo Shop.SellerLevel.
         /// Hold period: NEW=21 ngày, BELOW_STANDARD=14, ABOVE_STANDARD=3, TOP_RATED=0.
@@ -137,6 +167,17 @@ namespace EbayClone.Infrastructure.Repositories
                 var releaseAt = o.DeliveredAt!.Value.AddDays(holdDays);
                 return now >= releaseAt;
             });
+        }
+
+        public async Task<int> CountCompletedInPeriodAsync(Guid shopId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)
+        {
+            return await _context.Orders
+                .Where(o => o.ShopId == shopId 
+                    && o.PaidAt != null 
+                    && o.PaidAt >= from 
+                    && o.PaidAt <= to
+                    && o.Status != "CANCELLED")
+                .CountAsync(cancellationToken);
         }
     }
 }

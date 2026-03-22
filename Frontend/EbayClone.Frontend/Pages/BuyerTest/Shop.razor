@@ -1,7 +1,9 @@
 @page "/buyer-test/shop"
 @using EbayClone.Shared.DTOs.Products
+@using EbayClone.Shared.DTOs.Orders
 @using EbayClone.Frontend.Services
 @inject BuyerService BuyerService
+@inject VoucherService VoucherService
 
 <div class="container mt-4">
     <div class="alert alert-info">
@@ -61,9 +63,25 @@
                                     (Tổng tồn: @variant.Quantity)
                                 </div>
 
-                                <button class="btn btn-primary w-100" 
-                                        disabled="@(availableStock <= 0 || isProcessing)" 
-                                        @onclick="() => BuyNow(variant.Id)">
+                                <!-- Voucher Input -->
+                                <div class="input-group input-group-sm mb-2">
+                                    <input class="form-control" @bind="voucherCode" placeholder="Mã giảm giá (tùy chọn)"
+                                           @oninput="OnVoucherCodeInput" />
+                                </div>
+                                @if (voucherDiscount > 0)
+                                {
+                                    <div class="alert alert-success py-1 px-2 mb-2" style="font-size:0.85em">
+                                        ✅ Giảm <strong>@voucherDiscount.ToString("N0")đ</strong> — Thanh toán: @((variant.Price - voucherDiscount).ToString("N0"))đ
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(voucherError))
+                                {
+                                    <div class="alert alert-danger py-1 px-2 mb-2" style="font-size:0.85em">@voucherError</div>
+                                }
+
+                                <button class="btn btn-primary w-100"
+                                        disabled="@(availableStock <= 0 || isProcessing)"
+                                        @onclick="() => BuyNow(variant.Id, prod.ShopId)">
                                     @if(isProcessing && processingVariantId == variant.Id)
                                     {
                                         <span class="spinner-border spinner-border-sm"></span> <span>Đang xử lý...</span>
@@ -97,6 +115,17 @@
     private Guid? processingVariantId = null;
     private string? errorMessage;
     private string? successMessage;
+    private string voucherCode = "";
+    private decimal voucherDiscount = 0;
+    private string? voucherError;
+
+    private void OnVoucherCodeInput(ChangeEventArgs e)
+    {
+        voucherCode = e.Value?.ToString() ?? "";
+        voucherDiscount = 0;
+        voucherError = null;
+        // Reset discount khi user sửa mã
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -121,7 +150,7 @@
         }
     }
 
-    private async Task BuyNow(Guid variantId)
+    private async Task BuyNow(Guid variantId, Guid shopId)
     {
         try
         {
@@ -129,20 +158,25 @@
             processingVariantId = variantId;
             errorMessage = null;
             successMessage = null;
+            voucherError = null;
 
             var request = new CreateBuyerTestOrderRequest
             {
+                IdempotencyKey = Guid.NewGuid().ToString(), // tạo key mới mỗi lần
                 VariantId = variantId,
-                Quantity = 1, // Mặc định test mua 1 cái
+                Quantity = 1,
                 ReceiverInfo = System.Text.Json.JsonSerializer.Serialize(new {
                     FullName = "Nguyễn Văn A",
                     Phone = "0123456789",
                     Address = "Quận 1, TP HCM"
-                })
+                }),
+                VoucherCode = string.IsNullOrWhiteSpace(voucherCode) ? null : voucherCode.Trim().ToUpperInvariant()
             };
 
             await BuyerService.CheckoutAsync(request);
             successMessage = "Mua hàng thành công! Đơn hàng đã được tạo với trạng thái PENDING_PAYMENT. Bạn có thể duyệt tiếp bên luồng Seller.";
+            voucherCode = "";
+            voucherDiscount = 0;
             
             await LoadProducts(); // Load lại để thấy Quantity giảm do DeductStock
         }

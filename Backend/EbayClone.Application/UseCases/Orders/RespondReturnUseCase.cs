@@ -22,6 +22,8 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IOrderReturnRepository _returnRepository;
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _txRepository;
+        private readonly IProductRepository _productRepository;
+        private readonly IPolicyRepository _policyRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public RespondReturnUseCase(
@@ -29,12 +31,16 @@ namespace EbayClone.Application.UseCases.Orders
             IOrderReturnRepository returnRepository,
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository txRepository,
+            IProductRepository productRepository,
+            IPolicyRepository policyRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _returnRepository = returnRepository;
             _walletRepository = walletRepository;
             _txRepository = txRepository;
+            _productRepository = productRepository;
+            _policyRepository = policyRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -69,14 +75,40 @@ namespace EbayClone.Application.UseCases.Orders
                     case "FULL_REFUND_KEEP_ITEM":
                         // Seller hoàn full + buyer giữ hàng → hoàn ví ngay
                         returnEntity.AcceptReturn("FULL_REFUND_KEEP_ITEM", request.SellerMessage);
-                        returnEntity.MarkRefunded(order.TotalAmount, 0);
+
+                        // [FIX-H4] eBay MBG rule:
+                        // SNAD/Damaged → refund full (item + shipping)
+                        // Buyer đổi ý (CHANGED_MIND, WRONG_ITEM) → refund item ONLY (shipping không refund)
+                        var isSNAD = returnEntity.Reason == "NOT_AS_DESCRIBED" || returnEntity.Reason == "DAMAGED";
+                        var refundAmount = isSNAD ? order.TotalAmount : order.ItemSubtotal;
+
+                        returnEntity.MarkRefunded(refundAmount, 0);
                         order.MarkAsRefunded();
 
                         // Hoàn PendingBalance
-                        await DeductPendingAsync(shopId, order, "Hoàn tiền full (buyer giữ hàng)", cancellationToken);
+                        await DeductPendingAsync(shopId, order,
+                            isSNAD ? "Hoàn tiền full SNAD (item + shipping)" : "Hoàn tiền item only (buyer đổi ý, shipping không refund)",
+                            cancellationToken, customAmount: refundAmount);
                         break;
 
                     case "PARTIAL_REFUND":
+                        // [FIX-L6] Check ReturnPolicy.DomesticRefundMethod — MoneyBack-only không cho partial
+                        var orderItemForRefundCheck = order.Items?.FirstOrDefault();
+                        if (orderItemForRefundCheck != null)
+                        {
+                            var productForRefund = await _productRepository.GetByIdAsync(orderItemForRefundCheck.ProductId, cancellationToken);
+                            if (productForRefund?.ReturnPolicyId != null)
+                            {
+                                var retPolicyRefund = await _policyRepository.GetReturnPolicyByIdAsync(
+                                    productForRefund.ReturnPolicyId.Value, cancellationToken);
+                                if (retPolicyRefund != null && retPolicyRefund.DomesticRefundMethod == "MoneyBack")
+                                {
+                                    throw new InvalidOperationException(
+                                        "Return policy chỉ cho phép MoneyBack (hoàn tiền full). Không thể offer partial refund.");
+                                }
+                            }
+                        }
+
                         // Seller offer partial → chờ buyer accept/reject (KHÔNG auto-refund)
                         if (!request.PartialRefundAmount.HasValue || request.PartialRefundAmount.Value <= 0)
                             throw new ArgumentException("Số tiền hoàn 1 phần phải > 0.");
