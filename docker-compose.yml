@@ -16,6 +16,7 @@ services:
     environment:
       - ConnectionStrings__DefaultConnection=Server=db;Database=EbaySellerClone;User Id=sa;Password=YourStrong@Pass123;TrustServerCertificate=True
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
     ports:
       - "8080:8080"
     depends_on:

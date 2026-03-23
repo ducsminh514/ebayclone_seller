@@ -219,7 +219,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowAll",
         policy =>
         {
-            policy.WithOrigins("https://localhost:7251", "http://localhost:7252", "http://localhost", "http://127.0.0.1") // Cho phép Frontend trên Visual Studio (5071/5070) và Docker (localhost port 80)
+            policy.AllowAnyOrigin()
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         });
@@ -248,6 +248,8 @@ app.UseStaticFiles();
 app.UseRateLimiter();
 
 app.MapControllers();
+
+app.MapGet("/ping", () => "pong");
 
 // ĐOẠN DEMO: KẾT NỐI DATABASE
 app.MapGet("/test-db", async (EbayClone.Infrastructure.Data.EbayDbContext dbContext) =>
@@ -279,17 +281,28 @@ using (var seedScope = app.Services.CreateScope())
 {
     var dbContext = seedScope.ServiceProvider.GetRequiredService<EbayClone.Infrastructure.Data.EbayDbContext>();
     
-    // Thêm Retry loop 5 lần (đợi 5 giây) để chờ SQL Server trong Docker khởi động xong
-    for (int i = 0; i < 5; i++)
+    // Đợi 10 giây đầu tiên để SQL Server kịp "tỉnh giấc"
+    Console.WriteLine("[Migration] Waiting 10s for SQL Server to warm up...");
+    System.Threading.Thread.Sleep(10000);
+
+    // Thêm Retry loop 10 lần (đợi 5 giây mỗi lần) để chờ SQL Server trong Docker khởi động xong
+    for (int i = 0; i < 10; i++)
     {
         try
         {
+            Console.WriteLine($"[Migration] Attempt {i + 1}/10: Migrating database...");
             dbContext.Database.Migrate(); // Tự động tạo bảng vào Database Ảo.
+            Console.WriteLine("[Migration] Database migration successful.");
             break;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            if (i == 4) throw; // Lần cuối cùng vẫn lỗi thì văng lỗi luôn
+            Console.WriteLine($"[Migration] Attempt {i + 1}/10 failed: {ex.Message}");
+            if (i == 9) 
+            {
+                Console.WriteLine("[Migration] ERR: Could not connect to SQL Server after 10 attempts. Please check if 'db' container is running and password is correct.");
+                throw; 
+            }
             System.Threading.Thread.Sleep(5000); // Đợi 5s cho SQL Server boot xong
         }
     }
