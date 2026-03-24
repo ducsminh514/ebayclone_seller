@@ -1,4 +1,4 @@
-name: .NET CI
+name: CI/CD
 
 on:
   push:
@@ -7,13 +7,13 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup .NET 8
+    - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
@@ -22,7 +22,7 @@ jobs:
       run: dotnet restore Ebay_Seller_Clone.sln
       
     - name: Build
-      run: dotnet build Ebay_Seller_Clone.sln --no-restore --configuration Release
+      run: dotnet build Ebay_Seller_Clone.sln -c Release --no-restore
       
     - name: Test
-      run: dotnet test Ebay_Seller_Clone.sln --no-build --verbosity normal --configuration Release
+      run: dotnet test Ebay_Seller_Clone.sln -c Release --no-build --verbosity normal

@@ -143,6 +143,7 @@ else
                 <MudText Typo="Typo.h5" Class="mb-4" Style="font-weight: 700; color: #111820;">Sales (Last 31 Days)</MudText>
                 <MudPaper Elevation="0" Class="pa-6 mb-8" Style="border: 1px solid #E5E5E5; border-radius: 8px;">
                     <MudChart ChartType="ChartType.Bar"
+                              T="double"
                               ChartSeries="@_chartSeries"
                               XAxisLabels="@_chartLabels"
                               Width="100%"

@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ebay-backend
+  labels:
+    app: ebay-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ebay-backend
+  template:
+    metadata:
+      labels:
+        app: ebay-backend
+    spec:
+      containers:
+      - name: ebay-backend
+        image: ebay-backend:latest # Replace with your registry image
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: ebay-secrets
+              key: connection-string
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ebay-backend-service
+spec:
+  selector:
+    app: ebay-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
