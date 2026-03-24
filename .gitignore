@@ -50,3 +50,5 @@ Thumbs.db
 # Other
 *.log
 appsettings.Development.json
+.agent/
+docs/
