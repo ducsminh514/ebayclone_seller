@@ -17,6 +17,7 @@ spec:
       containers:
       - name: ebay-backend
         image: ebay-backend:latest # Replace with your registry image
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
         env:

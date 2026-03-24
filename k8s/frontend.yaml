@@ -17,6 +17,7 @@ spec:
       containers:
       - name: ebay-frontend
         image: ebay-frontend:latest # Replace with your registry image
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
 ---
@@ -31,4 +32,5 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 80
-  type: LoadBalancer # Or NodePort for local testing
+      nodePort: 30080
+  type: NodePort # Changed from LoadBalancer to avoid conflict with Ingress
