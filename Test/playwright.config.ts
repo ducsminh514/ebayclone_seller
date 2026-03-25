@@ -25,8 +25,9 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
-    // baseURL: 'http://localhost:3000',
+    /* Blazor WASM Seller Hub — Frontend/EbayClone.Frontend (https profile) */
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'https://localhost:7251',
+    ignoreHTTPSErrors: true,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -70,10 +71,23 @@ export default defineConfig({
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run start',
-  //   url: 'http://localhost:3000',
-  //   reuseExistingServer: !process.env.CI,
-  // },
+  /* Chạy API + Blazor trước khi test (từ thư mục Test/). Có thể bỏ qua nếu đã dotnet run sẵn. */
+  webServer: [
+    {
+      command:
+        'dotnet run --launch-profile https --project ../Backend/EbayClone.API/EbayClone.API.csproj',
+      url: 'https://localhost:7250/swagger/index.html',
+      reuseExistingServer: !process.env.CI,
+      ignoreHTTPSErrors: true,
+      timeout: 180_000,
+    },
+    {
+      command:
+        'dotnet run --launch-profile https --project ../Frontend/EbayClone.Frontend/EbayClone.Frontend.csproj',
+      url: 'https://localhost:7251/',
+      reuseExistingServer: !process.env.CI,
+      ignoreHTTPSErrors: true,
+      timeout: 180_000,
+    },
+  ],
 });

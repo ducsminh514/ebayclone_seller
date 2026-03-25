@@ -1,0 +1,12 @@
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\bin\Debug\net8.0\EbayClone.Shared.deps.json
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\bin\Debug\net8.0\EbayClone.Shared.dll
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\bin\Debug\net8.0\EbayClone.Shared.pdb
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\EbayClone.Shared.GeneratedMSBuildEditorConfig.editorconfig
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\EbayClone.Shared.AssemblyInfoInputs.cache
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\EbayClone.Shared.AssemblyInfo.cs
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\EbayClone.Shared.csproj.CoreCompileInputs.cache
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\EbayClone.Shared.sourcelink.json
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\EbayClone.Shared.dll
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\refint\EbayClone.Shared.dll
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\EbayClone.Shared.pdb
+D:\FULearning\ebayclone_seller\Shared\EbayClone.Shared\obj\Debug\net8.0\ref\EbayClone.Shared.dll

@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "EbayClone.Domain/1.0.0": {
+        "runtime": {
+          "EbayClone.Domain.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "EbayClone.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
