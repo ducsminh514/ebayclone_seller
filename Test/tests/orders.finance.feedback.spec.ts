@@ -1,10 +1,15 @@
 /**
- * Đơn hàng, ví, feedback — Phần 3–4–6 (UI).
+ * Đơn hàng, ví, feedback — Phần 3–4–6 (UI). Cần đăng nhập E2E.
  */
 import { test, expect } from '@playwright/test';
 import { routes } from './support/config';
+import { loginAsSeller } from './support/auth';
 
 test.describe('Orders — Seller Hub fulfillment', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('header, Test Buy, và tabs trạng thái máy trạng thái', async ({ page }) => {
     await page.goto(routes.orders);
     await expect(page.getByRole('heading', { name: /Manage orders/i })).toBeVisible();
@@ -41,6 +46,10 @@ test.describe('Orders — Seller Hub fulfillment', () => {
 });
 
 test.describe('Wallet — Seller finance dashboard', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('tiêu đề ví', async ({ page }) => {
     await page.goto(routes.wallet);
     await expect(page.getByRole('heading', { name: /Ví của tôi/i })).toBeVisible();
@@ -61,6 +70,10 @@ test.describe('Wallet — Seller finance dashboard', () => {
 });
 
 test.describe('Feedback — eBay-style manager', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('tiêu đề và bộ lọc POSITIVE/NEUTRAL/NEGATIVE', async ({ page }) => {
     await page.goto(routes.feedback);
     await expect(page.getByRole('heading', { name: /Feedback Manager/i })).toBeVisible();

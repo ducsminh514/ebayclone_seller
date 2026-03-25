@@ -1,10 +1,15 @@
 /**
- * Business policies & Marketing vouchers — Phần 1 + Phần 5 (UI).
+ * Business policies & Marketing vouchers — Phần 1 + Phần 5 (UI). Cần đăng nhập E2E.
  */
 import { test, expect } from '@playwright/test';
 import { routes } from './support/config';
+import { loginAsSeller } from './support/auth';
 
 test.describe('Business policies — trung tâm', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('/bp/manage: tiêu đề và menu tạo policy', async ({ page }) => {
     await page.goto(routes.bpManage);
     await expect(page.getByText(/^Business policies$/i).first()).toBeVisible();
@@ -14,6 +19,10 @@ test.describe('Business policies — trung tâm', () => {
 });
 
 test.describe('Business policies — form tạo mới', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('Payment policy: tiêu đề + Policy name', async ({ page }) => {
     await page.goto(routes.bpPaymentCreate);
     await expect(page.getByText('Create payment policy')).toBeVisible();
@@ -34,6 +43,10 @@ test.describe('Business policies — form tạo mới', () => {
 });
 
 test.describe('Marketing — Coded coupon UI', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('danh sách voucher: tabs trạng thái campaign', async ({ page }) => {
     await page.goto(routes.vouchers);
     await expect(page.getByRole('heading', { name: /Quản lý Voucher/i })).toBeVisible();

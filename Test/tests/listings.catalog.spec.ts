@@ -1,10 +1,16 @@
 /**
  * Listings, inventory, admin category — Phần 2 nghiệp vụ (UI).
+ * Phần lớn cần đăng nhập (E2E_EMAIL / E2E_PASSWORD trong Test/.env).
  */
 import { test, expect } from '@playwright/test';
 import { routes } from './support/config';
+import { loginAsSeller } from './support/auth';
 
-test.describe('Listings — hub sản phẩm', () => {
+test.describe('Listings — hub & tồn kho (đã đăng nhập)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('tiêu đề, mô tả phụ và CTA tạo / tồn kho', async ({ page }) => {
     await page.goto(routes.listings);
     await expect(page.getByRole('heading', { name: /Quản Lý Sản Phẩm/i })).toBeVisible();
@@ -13,10 +19,11 @@ test.describe('Listings — hub sản phẩm', () => {
     await expect(page.getByRole('button', { name: /Quản lý Tồn kho/i })).toBeVisible();
   });
 
-  test('CTA “Tạo Sản Phẩm Mới” dẫn tới trang tạo (yêu cầu đăng nhập)', async ({ page }) => {
+  test('CTA “Tạo Sản Phẩm Mới” → /listings/create', async ({ page }) => {
     await page.goto(routes.listings);
     await page.getByRole('button', { name: /Tạo Sản Phẩm Mới/i }).click();
-    await expect(page).toHaveURL(/\/listings\/create|\/login/);
+    await expect(page).toHaveURL(/\/listings\/create/);
+    await expect(page.getByText(/Complete your listing/i)).toBeVisible();
   });
 
   test('CTA tồn kho → /listings/inventory', async ({ page }) => {
@@ -26,7 +33,11 @@ test.describe('Listings — hub sản phẩm', () => {
   });
 });
 
-test.describe('Inventory — restock & điều hướng', () => {
+test.describe('Inventory — restock & điều hướng (đã đăng nhập)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('copy nghiệp vụ Restock và nút quay lại', async ({ page }) => {
     await page.goto(routes.listingsInventory);
     await expect(page.getByRole('heading', { name: /Quản Lý Tồn Kho/i })).toBeVisible();
@@ -41,7 +52,7 @@ test.describe('Inventory — restock & điều hướng', () => {
   });
 });
 
-test.describe('Start / Create listing — bảo vệ route', () => {
+test.describe('Start / Create listing — chưa đăng nhập', () => {
   test('/listings/start chuyển về login khi chưa session', async ({ page }) => {
     await page.goto(routes.listingsStart);
     await expect(page).toHaveURL(/\/login/);
@@ -53,7 +64,11 @@ test.describe('Start / Create listing — bảo vệ route', () => {
   });
 });
 
-test.describe('Admin — Category Manager', () => {
+test.describe('Admin — Category Manager (đã đăng nhập)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
   test('form thêm danh mục + bảng', async ({ page }) => {
     await page.goto(routes.adminCategories);
     await expect(page.getByRole('heading', { name: /Quản Lý Danh Mục \(Admin\)/i })).toBeVisible();

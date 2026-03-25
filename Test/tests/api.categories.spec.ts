@@ -1,5 +1,5 @@
 /**
- * Hợp đồng API danh mục & Item Specifics (Phần 2 nghiệp vụ — CategorySeeder).
+ * Hợp đồng API danh mục & Item Specifics — không gắn cứng slug seed (DB có thể khác bản CategorySeeder trong repo).
  */
 import { test, expect } from '@playwright/test';
 import { API_BASE } from './support/config';
@@ -9,6 +9,7 @@ import {
   fetchItemSpecifics,
   fetchRootCategories,
   type CategoryRow,
+  type ItemSpecificRow,
 } from './support/api';
 
 function bySlug(rows: CategoryRow[], slug: string): CategoryRow | undefined {
@@ -16,27 +17,28 @@ function bySlug(rows: CategoryRow[], slug: string): CategoryRow | undefined {
 }
 
 test.describe('API: cây danh mục', () => {
-  test('root: đủ 6 nhánh seed và parentId null', async ({ request }) => {
+  test('root: đủ danh mục gốc, mọi dòng có parentId rỗng', async ({ request }) => {
     const roots = await fetchRootCategories(request);
     expect(roots.length).toBeGreaterThanOrEqual(6);
-    for (const slug of ['electronics', 'clothing-accessories', 'home-garden', 'sporting-goods']) {
-      const row = bySlug(roots, slug);
-      expect(row, `missing root ${slug}`).toBeTruthy();
-      expect(row!.parentId ?? null).toBeNull();
+    for (const row of roots) {
+      expect(row.id?.length).toBeGreaterThan(0);
+      expect(row.slug?.length).toBeGreaterThan(0);
+      expect(row.parentId ?? null).toBeNull();
     }
   });
 
-  test('Electronics có con và HasChildren = true trên root', async ({ request }) => {
+  test('ít nhất một root có con: hasChildren, con trỏ đúng parentId', async ({ request }) => {
     const roots = await fetchRootCategories(request);
-    const electronics = bySlug(roots, 'electronics');
-    expect(electronics?.id).toBeTruthy();
-    expect(electronics!.hasChildren).toBe(true);
+    const parents = roots.filter((r) => r.hasChildren === true);
+    expect(parents.length).toBeGreaterThan(0);
 
-    const subs = await fetchCategoriesByParent(request, electronics!.id);
-    expect(subs.length).toBeGreaterThanOrEqual(4);
-    const slugs = subs.map((s) => s.slug);
-    expect(slugs).toContain('phones');
-    expect(slugs).toContain('laptops');
+    const parent = parents[0]!;
+    const subs = await fetchCategoriesByParent(request, parent.id);
+    expect(subs.length).toBeGreaterThan(0);
+    for (const sub of subs) {
+      expect(sub.parentId).toBe(parent.id);
+      expect(sub.slug?.length).toBeGreaterThan(0);
+    }
   });
 
   test('bản đồ đầy đủ: mỗi slug unique', async ({ request }) => {
@@ -46,19 +48,32 @@ test.describe('API: cây danh mục', () => {
     expect(set.size).toBe(slugs.length);
   });
 
-  test('điều hướng 2 cấp: con có parentId trỏ về Electronics', async ({ request }) => {
+  test('nếu có root slug "electronics": con có parentId khớp', async ({ request }) => {
     const roots = await fetchRootCategories(request);
     const electronics = bySlug(roots, 'electronics');
-    const phones = (await fetchCategoriesByParent(request, electronics!.id)).find((c) => c.slug === 'phones');
-    expect(phones?.parentId).toBe(electronics!.id);
+    test.skip(!electronics?.id, 'DB không có root slug "electronics" — bỏ qua');
+
+    const subs = await fetchCategoriesByParent(request, electronics!.id);
+    expect(subs.length).toBeGreaterThan(0);
+    for (const sub of subs) {
+      expect(sub.parentId).toBe(electronics!.id);
+    }
   });
 });
 
 test.describe('API: Item specifics theo category', () => {
-  test('Electronics: có ít nhất 1 REQUIRED và metadata đầy đủ', async ({ request }) => {
+  test('một danh mục có specifics: REQUIRED + name/requirement', async ({ request }) => {
     const roots = await fetchRootCategories(request);
-    const electronics = bySlug(roots, 'electronics');
-    const specifics = await fetchItemSpecifics(request, electronics!.id);
+    let specifics: ItemSpecificRow[] = [];
+    const tryIds = [
+      bySlug(roots, 'electronics')?.id,
+      ...roots.map((r) => r.id),
+    ].filter(Boolean) as string[];
+
+    for (const id of tryIds) {
+      specifics = await fetchItemSpecifics(request, id);
+      if (specifics.length > 0) break;
+    }
     expect(specifics.length).toBeGreaterThan(0);
 
     const requirements = specifics.map((s) => (s.requirement ?? '').toUpperCase());
@@ -70,11 +85,19 @@ test.describe('API: Item specifics theo category', () => {
     }
   });
 
-  test('Cell phones: item specifics khớp domain điện thoại', async ({ request }) => {
+  test('danh mục con của electronics (ưu tiên phone/cell): có specifics, thường có Brand', async ({
+    request,
+  }) => {
     const roots = await fetchRootCategories(request);
     const electronics = bySlug(roots, 'electronics');
-    const phones = (await fetchCategoriesByParent(request, electronics!.id)).find((c) => c.slug === 'phones');
-    const specifics = await fetchItemSpecifics(request, phones!.id);
+    test.skip(!electronics?.id, 'Không có root electronics');
+
+    const subs = await fetchCategoriesByParent(request, electronics!.id);
+    const leaf =
+      subs.find((s) => /phone|cell|mobile|smartphone/i.test(s.slug ?? '')) ?? subs[0];
+    expect(leaf?.id).toBeTruthy();
+
+    const specifics = await fetchItemSpecifics(request, leaf!.id);
     expect(specifics.length).toBeGreaterThan(0);
     const names = specifics.map((s) => (s.name ?? '').toLowerCase());
     expect(names.some((n) => n.includes('brand'))).toBeTruthy();
