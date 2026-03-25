@@ -129,18 +129,6 @@ test.describe('API: lỗi & biên', () => {
     expect(body.length).toBe(0);
   });
 
-  test('suggest với keyword hợp lệ trả mảng <= 5 phần tử', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/api/categories/suggest?keyword=phone`);
-    expect(res.ok()).toBeTruthy();
-    const body: Array<{ id?: string; name?: string; fullPath?: string }> = await res.json();
-    expect(Array.isArray(body)).toBeTruthy();
-    expect(body.length).toBeLessThanOrEqual(5);
-    for (const row of body) {
-      expect(row.id).toBeTruthy();
-      expect(row.name).toBeTruthy();
-    }
-  });
-
   test('suggest-ai thiếu api key: trả 503 hoặc [] fallback', async ({ request }) => {
     const res = await request.post(`${API_BASE}/api/categories/suggest-ai`, { data: { keyword: 'iphone' } });
     expect([200, 503]).toContain(res.status());

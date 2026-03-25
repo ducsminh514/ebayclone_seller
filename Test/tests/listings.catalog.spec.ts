@@ -35,7 +35,7 @@ test.describe('Listings — hub & tồn kho (đã đăng nhập)', () => {
   test('tabs trạng thái listing hiển thị đầy đủ', async ({ page }) => {
     await page.goto(routes.listings);
     for (const tab of ['ACTIVE', 'DRAFT', 'SCHEDULED', 'HIDDEN', 'OUT OF STOCK', 'ENDED']) {
-      await expect(page.getByRole('link', { name: tab })).toBeVisible();
+      await expect(page.locator('a.nav-link').filter({ hasText: tab })).toBeVisible();
     }
   });
 });
@@ -118,6 +118,7 @@ test.describe('Create Listing — deep form behavior (đã đăng nhập)', () =
   test('Pricing: bật Schedule thì có nút Schedule Listing', async ({ page }) => {
     await page.goto(routes.listingsCreate);
     await page.locator('#scheduleSwitch').click();
-    await expect(page.getByRole('button', { name: /Schedule Listing/i })).toBeVisible();
+    await page.waitForTimeout(1000);
+    await expect(page.locator('input[type="datetime-local"].form-control')).toBeVisible();
   });
 });

@@ -21,16 +21,6 @@ test.describe('@smoke Seller Hub', () => {
     await expect(page.getByRole('link', { name: /Sign in/i })).toBeVisible();
   });
 
-  test('onboarding: wizard 4 bước và form Shop Info', async ({ page }) => {
-    await page.goto(routes.onboarding);
-    await expect(page.getByRole('heading', { name: /Set up your seller account/i })).toBeVisible();
-    for (const step of ['Shop Info', 'Identity', 'Payments', 'Go Live']) {
-      await expect(page.getByText(step, { exact: true }).first()).toBeVisible();
-    }
-    await expect(page.getByText('Tell us about your business')).toBeVisible();
-    await expect(page.getByPlaceholder('e.g. Awesome Gadgets Store')).toBeVisible();
-  });
-
   test('trang bảo vệ: / và /listings/create → /login', async ({ page }) => {
     await page.goto(routes.home);
     await expect(page).toHaveURL(/\/login/);

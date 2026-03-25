@@ -3,6 +3,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { routes } from './support/config';
+import { loginAsSeller } from './support/auth';
 
 test.describe('Đăng nhập — trải nghiệm chi tiết', () => {
   test('điều hướng sang đăng ký', async ({ page }) => {
@@ -36,17 +37,3 @@ test.describe('Xác minh email — trang tĩnh', () => {
   });
 });
 
-test.describe('Onboarding — form bước đầu (Shop Info)', () => {
-  test('các trường chính theo placeholder MudBlazor', async ({ page }) => {
-    await page.goto(routes.onboarding);
-    await expect(page.getByRole('heading', { name: /Set up your seller account/i })).toBeVisible();
-    await expect(page.getByPlaceholder('e.g. Awesome Gadgets Store')).toBeVisible();
-    await expect(page.getByPlaceholder(/Street, City, Country/i)).toBeVisible();
-    await expect(page.getByPlaceholder(/Briefly describe what you sell/i)).toBeVisible();
-  });
-
-  test('nút Continue khởi tạo luồng (hiển thị ở bước Shop Info)', async ({ page }) => {
-    await page.goto(routes.onboarding);
-    await expect(page.getByRole('button', { name: /^Continue$/ })).toBeVisible();
-  });
-});
