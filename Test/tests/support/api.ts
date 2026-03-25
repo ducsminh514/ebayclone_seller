@@ -22,7 +22,7 @@ async function assertOk(res: Awaited<ReturnType<APIRequestContext['get']>>, body
   expect(res.ok(), bodyHint || (await res.text())).toBeTruthy();
 }
 
-/** Root categories only: `?parentId=`. */
+
 export async function fetchRootCategories(request: APIRequestContext): Promise<CategoryRow[]> {
   const res = await request.get(`${API_BASE}/api/categories?parentId=`);
   await assertOk(res);
@@ -31,7 +31,6 @@ export async function fetchRootCategories(request: APIRequestContext): Promise<C
   return data;
 }
 
-/** Full tree (no parentId key) — backward compat API. */
 export async function fetchAllCategories(request: APIRequestContext): Promise<CategoryRow[]> {
   const res = await request.get(`${API_BASE}/api/categories`);
   await assertOk(res);
@@ -40,7 +39,6 @@ export async function fetchAllCategories(request: APIRequestContext): Promise<Ca
   return data;
 }
 
-/** Children of a parent GUID. */
 export async function fetchCategoriesByParent(
   request: APIRequestContext,
   parentId: string,

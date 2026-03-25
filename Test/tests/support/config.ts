@@ -1,12 +1,8 @@
 /// <reference types="node" />
 
-/** Base URL của EbayClone.API (HTTPS dev profile). */
 export const API_BASE = process.env.API_BASE_URL ?? 'https://localhost:7250';
 
-/**
- * Các route chính Seller Hub (khớp `@page` Blazor).
- * Dùng để tránh typo và dễ refactor.
- */
+
 export const routes = {
   home: '/',
   login: '/login',
