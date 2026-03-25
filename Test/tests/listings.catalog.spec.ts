@@ -31,6 +31,13 @@ test.describe('Listings — hub & tồn kho (đã đăng nhập)', () => {
     await page.getByRole('button', { name: /Quản lý Tồn kho/i }).click();
     await expect(page).toHaveURL(/\/listings\/inventory/);
   });
+
+  test('tabs trạng thái listing hiển thị đầy đủ', async ({ page }) => {
+    await page.goto(routes.listings);
+    for (const tab of ['ACTIVE', 'DRAFT', 'SCHEDULED', 'HIDDEN', 'OUT OF STOCK', 'ENDED']) {
+      await expect(page.getByRole('link', { name: tab })).toBeVisible();
+    }
+  });
 });
 
 test.describe('Inventory — restock & điều hướng (đã đăng nhập)', () => {
@@ -49,6 +56,16 @@ test.describe('Inventory — restock & điều hướng (đã đăng nhập)', (
     await page.goto(routes.listingsInventory);
     await page.getByRole('button', { name: /Quay lại Danh sách/i }).click();
     await expect(page).toHaveURL(/\/listings/);
+  });
+
+  test('filter kho có các option ALL/IN_STOCK/LOW_STOCK/OUT_OF_STOCK', async ({ page }) => {
+    await page.goto(routes.listingsInventory);
+    const select = page.locator('select.form-select').first();
+    await expect(select).toBeVisible();
+    await expect(select).toContainText('Tất cả');
+    await expect(select).toContainText('Còn hàng');
+    await expect(select).toContainText('Sắp hết');
+    await expect(select).toContainText('Hết hàng');
   });
 });
 
@@ -74,5 +91,33 @@ test.describe('Admin — Category Manager (đã đăng nhập)', () => {
     await expect(page.getByRole('heading', { name: /Quản Lý Danh Mục \(Admin\)/i })).toBeVisible();
     await expect(page.getByText(/Thêm Danh Mục Mới|Cập Nhật Danh Mục/)).toBeVisible();
     await expect(page.getByRole('button', { name: /Lưu Dữ Liệu/i })).toBeVisible();
+  });
+});
+
+test.describe('Create Listing — deep form behavior (đã đăng nhập)', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsSeller(page);
+  });
+
+  test('các section chính hiển thị', async ({ page }) => {
+    await page.goto(routes.listingsCreate);
+    for (const section of ['Photos & Video', 'Title', 'Item Category', 'Variations', 'Item Specifics', 'Condition', 'Description', 'Pricing', 'Shipping', 'Payment']) {
+      await expect(page.getByText(section, { exact: true })).toBeVisible();
+    }
+    await expect(page.getByRole('button', { name: /Save as Draft/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Publish Listing/i })).toBeVisible();
+  });
+
+  test('Pricing: bật Allow offers hiện Minimum offer + Auto accept', async ({ page }) => {
+    await page.goto(routes.listingsCreate);
+    await page.locator('#allowOffersSwitch').click();
+    await expect(page.getByText(/Minimum offer/i)).toBeVisible();
+    await expect(page.getByText(/Auto accept/i)).toBeVisible();
+  });
+
+  test('Pricing: bật Schedule thì có nút Schedule Listing', async ({ page }) => {
+    await page.goto(routes.listingsCreate);
+    await page.locator('#scheduleSwitch').click();
+    await expect(page.getByRole('button', { name: /Schedule Listing/i })).toBeVisible();
   });
 });

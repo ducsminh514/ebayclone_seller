@@ -72,4 +72,23 @@ test.describe('Marketing — Coded coupon UI', () => {
     await page.getByRole('link', { name: /Quay lại/i }).click();
     await expect(page).toHaveURL(/\/marketing\/vouchers$/);
   });
+
+  test('chuyển DiscountType: % hiển thị max discount, fixed thì ẩn', async ({ page }) => {
+    await page.goto(routes.vouchersCreate);
+    await expect(page.getByText(/Giảm tối đa/)).toBeVisible();
+    await page.locator('#fixed').click();
+    await expect(page.getByText(/Giảm tối đa/)).toHaveCount(0);
+    await page.locator('#pct').click();
+    await expect(page.getByText(/Giảm tối đa/)).toBeVisible();
+  });
+
+  test('scope & visibility radio hoạt động', async ({ page }) => {
+    await page.goto(routes.vouchersCreate);
+    await page.locator('#scopeProducts').click();
+    await expect(page.locator('#scopeProducts')).toBeChecked();
+    await page.locator('#visPublic').click();
+    await expect(page.locator('#visPublic')).toBeChecked();
+    await page.locator('#visPrivate').click();
+    await expect(page.locator('#visPrivate')).toBeChecked();
+  });
 });

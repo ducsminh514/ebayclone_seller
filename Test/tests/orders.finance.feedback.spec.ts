@@ -43,6 +43,22 @@ test.describe('Orders — Seller Hub fulfillment', () => {
     await tab.click();
     await expect(tab).toHaveClass(/active/);
   });
+
+  test('nút Test Buy mở modal và đóng được', async ({ page }) => {
+    await page.goto(routes.orders);
+    await page.getByRole('button', { name: /Test Buy/i }).click();
+    await expect(page.getByText(/Test Buy/i)).toBeVisible();
+    await expect(page.getByText(/Giả lập mua hàng/i)).toBeVisible();
+    await page.locator('.modal-content .btn-close').click();
+    await expect(page.getByText(/Giả lập mua hàng/i)).toHaveCount(0);
+  });
+
+  test('clear all không làm crash trang', async ({ page }) => {
+    await page.goto(routes.orders);
+    await page.getByPlaceholder(/Search orders/i).fill('abc');
+    await page.getByRole('link', { name: /Clear all/i }).click();
+    await expect(page.getByRole('heading', { name: /Manage orders/i })).toBeVisible();
+  });
 });
 
 test.describe('Wallet — Seller finance dashboard', () => {
@@ -87,5 +103,15 @@ test.describe('Feedback — eBay-style manager', () => {
   test('trạng thái rỗng thân thiện (khi chưa có feedback)', async ({ page }) => {
     await page.goto(routes.feedback);
     await expect(page.getByText(/Chưa có feedback nào|Đang tải/)).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('chuyển tab POSITIVE và quay về ALL', async ({ page }) => {
+    await page.goto(routes.feedback);
+    const positive = page.locator('ul.nav-tabs').getByRole('link', { name: /^POSITIVE/ });
+    await positive.click();
+    await expect(positive).toHaveClass(/active/);
+    const all = page.locator('ul.nav-tabs').getByRole('link', { name: /^ALL/ });
+    await all.click();
+    await expect(all).toHaveClass(/active/);
   });
 });
