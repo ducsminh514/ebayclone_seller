@@ -321,6 +321,70 @@ docker stop redis
 
 ---
 
+## Kill Toàn Bộ Process (Khi Bị Lỗi / Zombie)
+
+> **Khi nào cần?** Nginx trên Windows dễ tạo zombie process (chạy `start nginx` nhiều lần, hoặc reload không sạch). Dấu hiệu: config mới không apply, port 80 bị chiếm, hoặc `Get-Process nginx` hiện hàng chục process.
+
+### Kill tất cả Nginx
+
+```powershell
+# Xem có bao nhiêu nginx đang chạy
+Get-Process nginx -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count
+
+# Kill tất cả
+taskkill /IM nginx.exe /F
+
+# Verify đã sạch (phải trả 0)
+Get-Process nginx -ErrorAction SilentlyContinue | Measure-Object | Select-Object -ExpandProperty Count
+```
+
+### Kill tất cả API Instances
+
+```powershell
+# Cách 1: Dùng script (khuyến nghị)
+cd "c:\Users\Administrator\source\repos\Ebay_Seller_Clone\Ebay_Seller_Clone\Infrastructure\scripts"
+.\stop-cluster.ps1
+
+# Cách 2: Kill thủ công nếu script không hoạt động
+# Xem các dotnet process đang chạy
+Get-Process dotnet -ErrorAction SilentlyContinue | Format-Table Id, ProcessName, StartTime
+
+# Kill từng PID cụ thể
+Stop-Process -Id <PID> -Force
+
+# Hoặc kill TẤT CẢ dotnet process (⚠️ sẽ kill cả Frontend nếu đang chạy)
+Stop-Process -Name dotnet -Force
+```
+
+### Kill process đang chiếm port cụ thể
+
+```powershell
+# Tìm process đang dùng port 80 (Nginx)
+netstat -ano | findstr ":80 "
+
+# Tìm process đang dùng port 5001/5002/5003
+netstat -ano | findstr ":5001 "
+
+# Kill theo PID (số cuối cùng trong output netstat)
+taskkill /PID <PID> /F
+```
+
+### Start lại sạch sau khi kill
+
+```powershell
+# 1. Start Nginx (CHỈ 1 LẦN)
+cd D:\Downloads\nginx-1.28.2\nginx-1.28.2
+start nginx
+
+# 2. Start API cluster
+cd "c:\Users\Administrator\source\repos\Ebay_Seller_Clone\Ebay_Seller_Clone\Infrastructure\scripts"
+.\start-cluster.ps1
+```
+
+> ⚠️ **QUAN TRỌNG:** Chỉ chạy `start nginx` **MỘT LẦN DUY NHẤT**. Mỗi lần chạy thêm sẽ tạo thêm process zombie. Nếu cần apply config mới → dùng `.\nginx -s reload`, KHÔNG start thêm.
+
+---
+
 ## Thứ Tự Khởi Động Lại
 
 Khởi động theo thứ tự:
