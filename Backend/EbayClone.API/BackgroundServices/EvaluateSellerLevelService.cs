@@ -71,13 +71,28 @@ namespace EbayClone.API.BackgroundServices
         private async Task EvaluateAllAsync(CancellationToken cancellationToken)
         {
             using var scope = _scopeFactory.CreateScope();
-            var useCase = scope.ServiceProvider.GetRequiredService<IEvaluateSellerLevelUseCase>();
 
-            var updatedCount = await useCase.ExecuteAsync(cancellationToken);
+            // [Performance Phase 2] Distributed Lock — chỉ 1 instance evaluate
+            var lockService = scope.ServiceProvider.GetRequiredService<EbayClone.Application.Interfaces.IDistributedLockService>();
+            if (!await lockService.TryAcquireLockAsync("evaluate-seller-level", TimeSpan.FromHours(23), cancellationToken))
+            {
+                _logger.LogDebug("EvaluateSellerLevel: Another instance is processing. Skipping.");
+                return;
+            }
 
-            _logger.LogInformation(
-                "EvaluateSellerLevelService: Evaluated all shops. {Count} level(s) changed at {Time}",
-                updatedCount, DateTimeOffset.UtcNow);
+            try
+            {
+                var useCase = scope.ServiceProvider.GetRequiredService<IEvaluateSellerLevelUseCase>();
+                var updatedCount = await useCase.ExecuteAsync(cancellationToken);
+
+                _logger.LogInformation(
+                    "EvaluateSellerLevelService: Evaluated all shops. {Count} level(s) changed at {Time}",
+                    updatedCount, DateTimeOffset.UtcNow);
+            }
+            finally
+            {
+                await lockService.ReleaseLockAsync("evaluate-seller-level", cancellationToken);
+            }
         }
     }
 }

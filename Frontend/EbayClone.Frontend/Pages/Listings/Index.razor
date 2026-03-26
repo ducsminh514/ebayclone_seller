@@ -91,13 +91,15 @@
                     <tbody>
                         @foreach (var p in FilteredProducts)
                         {
-                            var minPrice = p.BasePrice ?? 0;
+                            var minPrice = (p.Variants != null && p.Variants.Any())
+                                ? p.Variants.Min(v => v.Price)
+                                : (p.BasePrice ?? 0);
 
                             <tr class="border-bottom">
                                 <td class="py-3 px-4">
                                     @if (!string.IsNullOrEmpty(p.PrimaryImageUrl))
                                     {
-                                        <img src="@p.PrimaryImageUrl" alt="@p.Name" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color);" />
+                                        <img src="@Img.Resolve(p.PrimaryImageUrl)" alt="@p.Name" style="width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color);" />
                                     }
                                     else
                                     {

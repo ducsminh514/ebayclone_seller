@@ -225,7 +225,9 @@ namespace EbayClone.API.Controllers
         {
             // [Security] Check: phải là ADMIN role HOẶC internal API key
             var isAdmin = User.IsInRole("ADMIN");
-            var isValidApiKey = !string.IsNullOrEmpty(apiKey) && apiKey == "ebay-internal-fund-release-key-2024";
+            var isValidApiKey = !string.IsNullOrEmpty(apiKey) 
+                && apiKey == (HttpContext.RequestServices.GetRequiredService<IConfiguration>()["InternalApiKey"] 
+                    ?? "ebay-internal-fund-release-key-2024");
             
             if (!isAdmin && !isValidApiKey)
             {

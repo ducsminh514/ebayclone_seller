@@ -23,6 +23,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _txRepository;
         private readonly IProductRepository _productRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public IssueRefundUseCase(
@@ -31,6 +32,7 @@ namespace EbayClone.Application.UseCases.Orders
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository txRepository,
             IProductRepository productRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
@@ -38,6 +40,7 @@ namespace EbayClone.Application.UseCases.Orders
             _walletRepository = walletRepository;
             _txRepository = txRepository;
             _productRepository = productRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -111,13 +114,52 @@ namespace EbayClone.Application.UseCases.Orders
                 }
 
                 // Restore stock nếu seller quyết định
+                int activeListingDelta = 0;
                 if (request.RestoreStock)
                 {
                     returnEntity.IsStockRestored = true;
+                    var restoredProductIds = new System.Collections.Generic.HashSet<Guid>();
                     foreach (var item in order.Items)
                     {
                         await _productRepository.RestoreStockAtomicAsync(item.VariantId, item.Quantity, cancellationToken);
+
+                        // [FIX-R3] Check ACTIVE↔OUT_OF_STOCK + track delta
+                        var variant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
+                        if (variant != null && restoredProductIds.Add(variant.ProductId))
+                        {
+                            var product = await _productRepository.GetByIdAsync(variant.ProductId, cancellationToken);
+                            if (product != null)
+                            {
+                                var oldStatus = product.Status;
+                                product.CheckAndUpdateStockStatus();
+                                if (oldStatus != product.Status)
+                                {
+                                    if (product.Status == "ACTIVE") activeListingDelta++;
+                                    else if (oldStatus == "ACTIVE") activeListingDelta--;
+                                }
+                                await _productRepository.UpdateAsync(product, cancellationToken);
+                            }
+                        }
                     }
+                }
+
+                // [FIX-R3] Update shop stats: TotalTransactions/TotalSalesAmount + ActiveListingCount
+                var shopIssueRefund = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+                if (shopIssueRefund != null)
+                {
+                    if (request.DeductionAmount <= 0)
+                    {
+                        // Full refund → giảm TotalTransactions
+                        shopIssueRefund.TotalTransactions = Math.Max(0, shopIssueRefund.TotalTransactions - 1);
+                    }
+                    // Giảm TotalSalesAmount bằng số tiền thực refund (ItemSubtotal hoặc partial)
+                    shopIssueRefund.TotalSalesAmount = Math.Max(0, shopIssueRefund.TotalSalesAmount - request.RefundAmount);
+
+                    if (activeListingDelta != 0)
+                    {
+                        shopIssueRefund.ActiveListingCount = Math.Max(0, shopIssueRefund.ActiveListingCount + activeListingDelta);
+                    }
+                    _shopRepository.Update(shopIssueRefund);
                 }
 
                 _returnRepository.Update(returnEntity);

@@ -111,6 +111,10 @@ namespace EbayClone.Application.UseCases.Products
                 && request.AutoAcceptPrice <= request.AutoDeclinePrice)
                 throw new ArgumentException("AutoAcceptPrice phải lớn hơn AutoDeclinePrice.");
 
+            // [FIX-13] Validate ScheduledAt phải ở tương lai (defense-in-depth)
+            if (request.ScheduledAt.HasValue && request.ScheduledAt.Value <= DateTimeOffset.UtcNow.AddMinutes(1))
+                throw new ArgumentException("Thời gian hẹn giờ phải nằm trong tương lai (ít nhất 1 phút từ bây giờ).");
+
             // [A4] Validate Variation Limits
             if (request.Variants.Count > 250)
                 throw new ArgumentException("Một listing không được vượt quá 250 biến thể (variations).");
@@ -321,7 +325,7 @@ namespace EbayClone.Application.UseCases.Products
                     ScheduledAt = request.ScheduledAt,
                     // Nếu seller chọn hẹn giờ → SCHEDULED, không thì DRAFT
                     Status = request.ScheduledAt.HasValue ? "SCHEDULED" : "DRAFT",
-                    BasePrice = request.Variants[0].Price, // Lấy giá biến thể đầu tiên làm giá base
+                    BasePrice = request.Variants.Min(v => v.Price), // Min variant price làm giá base (eBay convention)
                     // [A4] Listing Meta
                     RequireImmediatePayment = request.RequireImmediatePayment,
                     IsVariationListing = request.IsVariationListing,

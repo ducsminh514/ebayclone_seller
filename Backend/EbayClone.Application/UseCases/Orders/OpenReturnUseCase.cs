@@ -23,6 +23,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IOrderReturnRepository _returnRepository;
         private readonly IProductRepository _productRepository;
         private readonly IPolicyRepository _policyRepository;
+        private readonly IOrderNotificationService _orderNotification;
         private readonly IUnitOfWork _unitOfWork;
 
         public OpenReturnUseCase(
@@ -30,12 +31,14 @@ namespace EbayClone.Application.UseCases.Orders
             IOrderReturnRepository returnRepository,
             IProductRepository productRepository,
             IPolicyRepository policyRepository,
+            IOrderNotificationService orderNotification,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _returnRepository = returnRepository;
             _productRepository = productRepository;
             _policyRepository = policyRepository;
+            _orderNotification = orderNotification;
             _unitOfWork = unitOfWork;
         }
 
@@ -128,6 +131,10 @@ namespace EbayClone.Application.UseCases.Orders
                 _orderRepository.Update(order);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
+
+                // [SignalR] Push notification SAU commit
+                await _orderNotification.NotifyReturnRequestedAsync(
+                    order.ShopId, order.Id, order.OrderNumber ?? "");
 
                 return returnEntity.Id;
             }

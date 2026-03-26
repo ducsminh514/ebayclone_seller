@@ -4,7 +4,9 @@
 @using EbayClone.Shared.DTOs.Products
 @inject OrderService OrderService
 @inject VoucherService VoucherService
+@inject OrderHubService OrderHub
 @inject NavigationManager NavigationManager
+@implements IDisposable
 
 <div class="seller-hub-container">
     <div class="seller-hub-header" style="display: flex; justify-content: space-between; align-items: center;">
@@ -212,7 +214,7 @@
                                     <div style="font-size: 12px; color: #555; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
                                         @if (!string.IsNullOrEmpty(item.Variant?.ImageUrl))
                                         {
-                                            <img src="@item.Variant.ImageUrl" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; border: 1px solid #eee;" alt="" />
+                                            <img src="@Img.Resolve(item.Variant.ImageUrl)" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; border: 1px solid #eee;" alt="" />
                                         }
                                         <div>
                                             <div style="color: #333;">@item.ProductNameSnapshot</div>
@@ -322,7 +324,7 @@
                         <label class="form-label fw-bold">1. Chọn sản phẩm</label>
                         <select class="form-select" @onchange="OnProductSelected">
                             <option value="">-- Chọn sản phẩm --</option>
-                            @foreach (var p in testProducts)
+                            @foreach (var p in testProducts.Where(p => p.Variants.Sum(v => v.Quantity) > 0))
                             {
                                 <option value="@p.Id">@p.Name (Tồn: @p.Variants.Sum(v => v.Quantity))</option>
                             }
@@ -341,7 +343,7 @@
                             else
                             {
                                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                                    @foreach (var v in selectedProduct.Variants)
+                                    @foreach (var v in selectedProduct.Variants.Where(v => v.Quantity > 0))
                                     {
                                         <div class="@(selectedVariantId == v.Id ? "variant-card selected" : "variant-card")"
                                              style="padding: 10px 14px; border: 2px solid @(selectedVariantId == v.Id ? "#3665f3" : "#e0e0e0"); border-radius: 8px; cursor: pointer; transition: all 0.2s;"
@@ -532,6 +534,114 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadOrders();
+
+        // [SignalR] Start hub + subscribe realtime events
+        OrderHub.OnNewOrder += HandleNewOrder;
+        OrderHub.OnOrderStatusChanged += HandleStatusChanged;
+        OrderHub.OnReturnRequested += HandleReturnRequested;
+        OrderHub.OnDisputeOpened += HandleDisputeOpened;
+        OrderHub.OnConnectionStateChanged += HandleConnectionState;
+        await OrderHub.StartAsync();
+    }
+
+    // [SignalR] Event handlers — InvokeAsync đảm bảo UI re-render trên UI thread
+    // Tất cả async void PHẢI có try-catch ngoài cùng (unobserved exception → crash circuit)
+    private async void HandleNewOrder(Guid orderId, string orderNumber, decimal totalAmount)
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                toastMessage = $"🔔 Đơn hàng mới: #{orderNumber} — {totalAmount:N0}đ";
+                toastIsError = false;
+                currentPage = 1;
+                currentTab = "ALL";
+                await LoadOrders();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleNewOrder error: {ex.Message}"); }
+    }
+
+    private async void HandleStatusChanged(Guid orderId, string orderNumber, string oldStatus, string newStatus)
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                toastMessage = $"📦 #{orderNumber}: {oldStatus} → {newStatus}";
+                toastIsError = false;
+                await LoadOrders();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleStatusChanged error: {ex.Message}"); }
+    }
+
+    private async void HandleReturnRequested(Guid orderId, string orderNumber)
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                toastMessage = $"⚠️ Yêu cầu trả hàng mới: #{orderNumber}";
+                toastIsError = true;
+                await LoadOrders();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleReturnRequested error: {ex.Message}"); }
+    }
+
+    private async void HandleDisputeOpened(Guid orderId, string orderNumber, string disputeType)
+    {
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                toastMessage = $"🚨 Dispute mới ({disputeType}): #{orderNumber}";
+                toastIsError = true;
+                await LoadOrders();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleDisputeOpened error: {ex.Message}"); }
+    }
+
+    private async void HandleConnectionState(string state)
+    {
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                if (state == "Reconnecting")
+                {
+                    toastMessage = "🔄 Đang kết nối lại...";
+                    toastIsError = false;
+                }
+                else if (state == "Reconnected")
+                {
+                    toastMessage = "✅ Đã kết nối lại";
+                    toastIsError = false;
+                }
+                else if (state == "Disconnected")
+                {
+                    toastMessage = "❌ Mất kết nối realtime";
+                    toastIsError = true;
+                }
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleConnectionState error: {ex.Message}"); }
+    }
+
+    public void Dispose()
+    {
+        OrderHub.OnNewOrder -= HandleNewOrder;
+        OrderHub.OnOrderStatusChanged -= HandleStatusChanged;
+        OrderHub.OnReturnRequested -= HandleReturnRequested;
+        OrderHub.OnDisputeOpened -= HandleDisputeOpened;
+        OrderHub.OnConnectionStateChanged -= HandleConnectionState;
     }
 
     private async Task LoadOrders()

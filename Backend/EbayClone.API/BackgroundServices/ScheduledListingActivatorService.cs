@@ -68,51 +68,65 @@ namespace EbayClone.API.BackgroundServices
         private async Task ActivateScheduledListingsAsync(CancellationToken cancellationToken)
         {
             using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<EbayDbContext>();
 
-            var nowUtc = DateTimeOffset.UtcNow;
-
-            // Bước 1: Lấy danh sách ShopIds bị ảnh hưởng TRƯỚC khi update
-            // (Cần biết mỗi shop có bao nhiêu products sẽ activate để update denormalized count)
-            var affectedShops = await dbContext.Products
-                .Where(p =>
-                    p.Status == "SCHEDULED" &&
-                    p.ScheduledAt.HasValue &&
-                    p.ScheduledAt.Value <= nowUtc &&
-                    !p.IsDeleted)
-                .GroupBy(p => p.ShopId)
-                .Select(g => new { ShopId = g.Key, Count = g.Count() })
-                .ToListAsync(cancellationToken);
-
-            if (affectedShops.Count == 0) return;
-
-            // Bước 2: Atomic UPDATE products SCHEDULED → ACTIVE
-            var updatedCount = await dbContext.Products
-                .Where(p =>
-                    p.Status == "SCHEDULED" &&
-                    p.ScheduledAt.HasValue &&
-                    p.ScheduledAt.Value <= nowUtc &&
-                    !p.IsDeleted)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(p => p.Status, "ACTIVE")
-                    .SetProperty(p => p.UpdatedAt, nowUtc),
-                cancellationToken);
-
-            // Bước 3: [PERF Phase 2] Update denormalized ActiveListingCount cho mỗi shop
-            foreach (var shopGroup in affectedShops)
+            // [Performance Phase 2] Distributed Lock — chỉ 1 instance xử lý
+            var lockService = scope.ServiceProvider.GetRequiredService<EbayClone.Application.Interfaces.IDistributedLockService>();
+            if (!await lockService.TryAcquireLockAsync("listing-activator", TimeSpan.FromSeconds(50), cancellationToken))
             {
-                await dbContext.Shops
-                    .Where(s => s.Id == shopGroup.ShopId)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(x => x.ActiveListingCount, x => x.ActiveListingCount + shopGroup.Count),
-                    cancellationToken);
+                _logger.LogDebug("ListingActivator: Another instance is processing. Skipping.");
+                return;
             }
 
-            if (updatedCount > 0)
+            try
             {
-                _logger.LogInformation(
-                    "ScheduledListingActivator: Activated {Count} product(s) across {ShopCount} shop(s) at {Time}",
-                    updatedCount, affectedShops.Count, nowUtc);
+                var dbContext = scope.ServiceProvider.GetRequiredService<EbayDbContext>();
+                var nowUtc = DateTimeOffset.UtcNow;
+
+                // Bước 1: Lấy danh sách ShopIds bị ảnh hưởng TRƯỚC khi update
+                var affectedShops = await dbContext.Products
+                    .Where(p =>
+                        p.Status == "SCHEDULED" &&
+                        p.ScheduledAt.HasValue &&
+                        p.ScheduledAt.Value <= nowUtc &&
+                        !p.IsDeleted)
+                    .GroupBy(p => p.ShopId)
+                    .Select(g => new { ShopId = g.Key, Count = g.Count() })
+                    .ToListAsync(cancellationToken);
+
+                if (affectedShops.Count == 0) return;
+
+                // Bước 2: Atomic UPDATE products SCHEDULED → ACTIVE
+                var updatedCount = await dbContext.Products
+                    .Where(p =>
+                        p.Status == "SCHEDULED" &&
+                        p.ScheduledAt.HasValue &&
+                        p.ScheduledAt.Value <= nowUtc &&
+                        !p.IsDeleted)
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(p => p.Status, "ACTIVE")
+                        .SetProperty(p => p.UpdatedAt, nowUtc),
+                    cancellationToken);
+
+                // Bước 3: Update denormalized ActiveListingCount cho mỗi shop
+                foreach (var shopGroup in affectedShops)
+                {
+                    await dbContext.Shops
+                        .Where(s => s.Id == shopGroup.ShopId)
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(x => x.ActiveListingCount, x => x.ActiveListingCount + shopGroup.Count),
+                        cancellationToken);
+                }
+
+                if (updatedCount > 0)
+                {
+                    _logger.LogInformation(
+                        "ScheduledListingActivator: Activated {Count} product(s) across {ShopCount} shop(s) at {Time}",
+                        updatedCount, affectedShops.Count, nowUtc);
+                }
+            }
+            finally
+            {
+                await lockService.ReleaseLockAsync("listing-activator", cancellationToken);
             }
         }
     }

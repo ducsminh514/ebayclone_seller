@@ -124,7 +124,7 @@
                                     <td class="py-2 px-3">
                                         @if (!string.IsNullOrEmpty(item.ProductImage))
                                         {
-                                            <img src="@item.ProductImage" alt="" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;" />
+                                            <img src="@Img.Resolve(item.ProductImage)" alt="" style="width: 36px; height: 36px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;" />
                                         }
                                         else
                                         {

@@ -204,7 +204,7 @@ namespace EbayClone.API.Controllers
                 var categoryLines = string.Join("\n",
                     promptCategories.Select(c => $"ID={c.Id} | {c.FullPath}"));
 
-                var prompt = $@"You are an eBay category classifier.
+                var prompt = $@"You are an eBay category classifier. You MUST handle input in ANY language, especially Vietnamese.
 
 Item being sold: ""{request.Keyword}""
 
@@ -212,10 +212,42 @@ Available leaf categories (choose from ONLY these):
 {categoryLines}
 
 Instructions:
-- Suggest 1-3 most relevant categories from the list above
-- Match the keyword to appropriate product categories
-- Vietnamese words: op dien thoai=phone case, giay=shoes, quan ao=clothing, etc.
-- Output ONLY a JSON array of category IDs (GUIDs), nothing else
+- FIRST: If the keyword is NOT in English, translate it to English mentally, then match.
+- Suggest 1-3 most relevant categories from the list above.
+- Match the keyword to appropriate product categories based on MEANING, not just exact text match.
+- Common Vietnamese product terms (with and without diacritics):
+  ốp điện thoại / op dien thoai = phone case → Cell Phone Cases
+  ốp lưng = phone case / back cover → Cell Phone Cases
+  giày / giay = shoes → Shoes
+  quần áo / quan ao = clothing → Men's/Women's Clothing
+  áo thun / ao thun = t-shirt → Clothing
+  đồng hồ / dong ho = watch → Watches
+  tai nghe / tai nghe = headphones/earbuds → Headphones & Earbuds
+  bàn phím / ban phim = keyboard → Computer Components
+  máy tính / may tinh = computer → Computers, Tablets
+  điện thoại / dien thoai = phone → Cell Phones & Smartphones
+  sạc / sac = charger → Cell Phone Chargers & Cables
+  miếng dán màn hình / mieng dan = screen protector → Screen Protectors
+  túi xách / tui xach = handbag → Bags & Handbags
+  kính mát / kinh mat = sunglasses → Sunglasses & Eyewear
+  đồ chơi / do choi = toy → Toys & Hobbies
+  sách / sach = book → Books
+  nước hoa / nuoc hoa = perfume → Health & Beauty
+  xe đạp / xe dap = bicycle → Cycling
+  guitar = guitar → Musical Instruments
+  nội thất / noi that = furniture → Furniture
+  son môi / son moi = lipstick → Health & Beauty
+  áo khoác / ao khoac = jacket → Clothing
+  quần jean / quan jean = jeans → Clothing
+  mũ / mu / nón = hat/cap → Clothing
+  balo / ba lô = backpack → Bags & Handbags
+  camera = camera → Cameras & Photo
+  tivi / TV = television → TV, Video & Home Audio
+  loa / loa bluetooth = speaker → Smart Home & Surveillance
+  đồ trẻ em / do tre em = baby/kids items → Baby or Kids' Clothing
+  thú cưng / thu cung = pet → Pet Supplies
+  dụng cụ / dung cu = tools → Tools & Workshop Equipment
+- Output ONLY a JSON array of category IDs (GUIDs), nothing else.
 - Example output: [""aaaaaaaa-0000-0000-0000-000000000001"",""bbbbbbbb-0000-0000-0000-000000000002""]";
 
                 var httpClient = _httpClientFactory.CreateClient();

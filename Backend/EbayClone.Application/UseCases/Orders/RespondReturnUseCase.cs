@@ -24,6 +24,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IWalletTransactionRepository _txRepository;
         private readonly IProductRepository _productRepository;
         private readonly IPolicyRepository _policyRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public RespondReturnUseCase(
@@ -33,6 +34,7 @@ namespace EbayClone.Application.UseCases.Orders
             IWalletTransactionRepository txRepository,
             IProductRepository productRepository,
             IPolicyRepository policyRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
@@ -41,6 +43,7 @@ namespace EbayClone.Application.UseCases.Orders
             _txRepository = txRepository;
             _productRepository = productRepository;
             _policyRepository = policyRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -89,6 +92,15 @@ namespace EbayClone.Application.UseCases.Orders
                         await DeductPendingAsync(shopId, order,
                             isSNAD ? "Hoàn tiền full SNAD (item + shipping)" : "Hoàn tiền item only (buyer đổi ý, shipping không refund)",
                             cancellationToken, customAmount: refundAmount);
+
+                        // [FIX-R1] Giảm TotalTransactions + TotalSalesAmount khi Full Refund + Keep
+                        var shopFullRefund = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+                        if (shopFullRefund != null)
+                        {
+                            shopFullRefund.TotalTransactions = Math.Max(0, shopFullRefund.TotalTransactions - 1);
+                            shopFullRefund.TotalSalesAmount = Math.Max(0, shopFullRefund.TotalSalesAmount - order.ItemSubtotal);
+                            _shopRepository.Update(shopFullRefund);
+                        }
                         break;
 
                     case "PARTIAL_REFUND":

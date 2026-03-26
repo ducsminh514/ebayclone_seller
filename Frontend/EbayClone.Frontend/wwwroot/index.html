@@ -41,6 +41,60 @@
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script>
+        function renderBarcode(value) {
+            var el = document.querySelector("#label-barcode");
+            if (!el || !value) return;
+            try {
+                JsBarcode(el, value, {
+                    format: "CODE128",
+                    width: 1.5, height: 50, displayValue: false, margin: 0
+                });
+            } catch (e1) {
+                try {
+                    // Fallback: CODE39 accepts wider character set
+                    JsBarcode(el, value, {
+                        format: "CODE39",
+                        width: 1.2, height: 50, displayValue: false, margin: 0
+                    });
+                } catch (e2) {
+                    console.warn("Barcode render failed:", e2);
+                    el.style.display = "none";
+                }
+            }
+        }
+
+        function printShippingLabel() {
+            var labelEl = document.getElementById("shipping-label-print");
+            if (!labelEl) return;
+
+            var printWin = window.open("", "_blank", "width=600,height=800");
+            var styles = "";
+            // Copy all stylesheets
+            document.querySelectorAll("style, link[rel='stylesheet']").forEach(function(s) {
+                styles += s.outerHTML;
+            });
+
+            printWin.document.write("<!DOCTYPE html><html><head><title>Shipping Label</title>"
+                + styles
+                + "<style>"
+                + "body { margin: 0; padding: 0; background: white; }"
+                + ".no-print { display: none !important; }"
+                + "</style>"
+                + "</head><body>"
+                + labelEl.outerHTML
+                + "</body></html>");
+            printWin.document.close();
+
+            // Wait for stylesheets + barcode SVG to load
+            setTimeout(function() {
+                printWin.focus();
+                printWin.print();
+                printWin.close();
+            }, 500);
+        }
+    </script>
     <script>navigator.serviceWorker.register('service-worker.js');</script>
 </body>
 

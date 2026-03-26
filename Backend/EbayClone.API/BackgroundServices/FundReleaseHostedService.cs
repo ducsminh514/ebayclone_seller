@@ -72,15 +72,30 @@ namespace EbayClone.API.BackgroundServices
         private async Task ReleaseFundsAsync(CancellationToken cancellationToken)
         {
             using var scope = _scopeFactory.CreateScope();
-            var useCase = scope.ServiceProvider.GetRequiredService<IReleaseFundsUseCase>();
 
-            var releasedCount = await useCase.ExecuteAsync(cancellationToken);
-
-            if (releasedCount > 0)
+            // [Performance Phase 2] Distributed Lock — chỉ 1 instance xử lý tại 1 thời điểm
+            var lockService = scope.ServiceProvider.GetRequiredService<EbayClone.Application.Interfaces.IDistributedLockService>();
+            if (!await lockService.TryAcquireLockAsync("fund-release", TimeSpan.FromMinutes(4), cancellationToken))
             {
-                _logger.LogInformation(
-                    "FundReleaseHostedService: Released funds for {Count} order(s) at {Time}",
-                    releasedCount, DateTimeOffset.UtcNow);
+                _logger.LogDebug("FundRelease: Another instance is processing. Skipping.");
+                return;
+            }
+
+            try
+            {
+                var useCase = scope.ServiceProvider.GetRequiredService<IReleaseFundsUseCase>();
+                var releasedCount = await useCase.ExecuteAsync(cancellationToken);
+
+                if (releasedCount > 0)
+                {
+                    _logger.LogInformation(
+                        "FundReleaseHostedService: Released funds for {Count} order(s) at {Time}",
+                        releasedCount, DateTimeOffset.UtcNow);
+                }
+            }
+            finally
+            {
+                await lockService.ReleaseLockAsync("fund-release", cancellationToken);
             }
         }
     }

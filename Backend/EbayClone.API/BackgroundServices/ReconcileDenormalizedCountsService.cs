@@ -70,78 +70,94 @@ namespace EbayClone.API.BackgroundServices
         private async Task ReconcileAsync(CancellationToken ct)
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<EbayDbContext>();
 
-            _logger.LogInformation("ReconcileDenormalizedCounts: Starting reconciliation...");
-
-            // Bước 1: Snapshot current values để log drift (optional — chỉ cho monitoring)
-            var shopsWithDrift = await db.Shops
-                .Select(s => new
-                {
-                    s.Id,
-                    s.Name,
-                    Current_Active = s.ActiveListingCount,
-                    Current_Draft = s.DraftListingCount,
-                    Current_Awaiting = s.AwaitingShipmentCount,
-                    Actual_Active = db.Products.Count(p => p.ShopId == s.Id && p.Status == "ACTIVE" && !p.IsDeleted),
-                    Actual_Draft = db.Products.Count(p => p.ShopId == s.Id && p.Status == "DRAFT" && !p.IsDeleted),
-                    Actual_Awaiting = db.Orders.Count(o => o.ShopId == s.Id && o.Status == "PAID")
-                })
-                .Where(x =>
-                    x.Current_Active != x.Actual_Active ||
-                    x.Current_Draft != x.Actual_Draft ||
-                    x.Current_Awaiting != x.Actual_Awaiting)
-                .ToListAsync(ct);
-
-            if (shopsWithDrift.Count > 0)
+            // [Performance Phase 2] Distributed Lock — chỉ 1 instance reconcile
+            var lockService = scope.ServiceProvider.GetRequiredService<EbayClone.Application.Interfaces.IDistributedLockService>();
+            if (!await lockService.TryAcquireLockAsync("reconcile-counts", TimeSpan.FromHours(5), ct))
             {
-                foreach (var drift in shopsWithDrift)
+                _logger.LogDebug("ReconcileCounts: Another instance is processing. Skipping.");
+                return;
+            }
+
+            try
+            {
+                var db = scope.ServiceProvider.GetRequiredService<EbayDbContext>();
+
+                _logger.LogInformation("ReconcileDenormalizedCounts: Starting reconciliation...");
+
+                // Bước 1: Snapshot current values để log drift (optional — chỉ cho monitoring)
+                var shopsWithDrift = await db.Shops
+                    .Select(s => new
+                    {
+                        s.Id,
+                        s.Name,
+                        Current_Active = s.ActiveListingCount,
+                        Current_Draft = s.DraftListingCount,
+                        Current_Awaiting = s.AwaitingShipmentCount,
+                        Actual_Active = db.Products.Count(p => p.ShopId == s.Id && p.Status == "ACTIVE" && !p.IsDeleted),
+                        Actual_Draft = db.Products.Count(p => p.ShopId == s.Id && p.Status == "DRAFT" && !p.IsDeleted),
+                        Actual_Awaiting = db.Orders.Count(o => o.ShopId == s.Id && o.Status == "PAID")
+                    })
+                    .Where(x =>
+                        x.Current_Active != x.Actual_Active ||
+                        x.Current_Draft != x.Actual_Draft ||
+                        x.Current_Awaiting != x.Actual_Awaiting)
+                    .ToListAsync(ct);
+
+                if (shopsWithDrift.Count > 0)
                 {
-                    _logger.LogWarning(
-                        "ReconcileDenormalizedCounts: DRIFT detected for Shop '{ShopName}' (Id={ShopId}): " +
-                        "Active {OldActive}→{NewActive}, Draft {OldDraft}→{NewDraft}, Awaiting {OldAwaiting}→{NewAwaiting}",
-                        drift.Name, drift.Id,
-                        drift.Current_Active, drift.Actual_Active,
-                        drift.Current_Draft, drift.Actual_Draft,
-                        drift.Current_Awaiting, drift.Actual_Awaiting);
+                    foreach (var drift in shopsWithDrift)
+                    {
+                        _logger.LogWarning(
+                            "ReconcileDenormalizedCounts: DRIFT detected for Shop '{ShopName}' (Id={ShopId}): " +
+                            "Active {OldActive}→{NewActive}, Draft {OldDraft}→{NewDraft}, Awaiting {OldAwaiting}→{NewAwaiting}",
+                            drift.Name, drift.Id,
+                            drift.Current_Active, drift.Actual_Active,
+                            drift.Current_Draft, drift.Actual_Draft,
+                            drift.Current_Awaiting, drift.Actual_Awaiting);
+                    }
+                }
+
+                // Bước 2: Atomic UPDATE tất cả shops cùng lúc — dùng correlated subquery
+                // ActiveListingCount
+                var activeFixed = await db.Shops
+                    .Where(s => s.ActiveListingCount != db.Products.Count(p => p.ShopId == s.Id && p.Status == "ACTIVE" && !p.IsDeleted))
+                    .ExecuteUpdateAsync(setter => setter
+                        .SetProperty(s => s.ActiveListingCount,
+                            s => db.Products.Count(p => p.ShopId == s.Id && p.Status == "ACTIVE" && !p.IsDeleted)),
+                    ct);
+
+                // DraftListingCount
+                var draftFixed = await db.Shops
+                    .Where(s => s.DraftListingCount != db.Products.Count(p => p.ShopId == s.Id && p.Status == "DRAFT" && !p.IsDeleted))
+                    .ExecuteUpdateAsync(setter => setter
+                        .SetProperty(s => s.DraftListingCount,
+                            s => db.Products.Count(p => p.ShopId == s.Id && p.Status == "DRAFT" && !p.IsDeleted)),
+                    ct);
+
+                // AwaitingShipmentCount
+                var awaitingFixed = await db.Shops
+                    .Where(s => s.AwaitingShipmentCount != db.Orders.Count(o => o.ShopId == s.Id && o.Status == "PAID"))
+                    .ExecuteUpdateAsync(setter => setter
+                        .SetProperty(s => s.AwaitingShipmentCount,
+                            s => db.Orders.Count(o => o.ShopId == s.Id && o.Status == "PAID")),
+                    ct);
+
+                var totalFixed = activeFixed + draftFixed + awaitingFixed;
+                if (totalFixed > 0)
+                {
+                    _logger.LogInformation(
+                        "ReconcileDenormalizedCounts: Fixed {Total} shop(s) — Active:{Active}, Draft:{Draft}, Awaiting:{Awaiting}",
+                        totalFixed, activeFixed, draftFixed, awaitingFixed);
+                }
+                else
+                {
+                    _logger.LogInformation("ReconcileDenormalizedCounts: All counts consistent. No fixes needed.");
                 }
             }
-
-            // Bước 2: Atomic UPDATE tất cả shops cùng lúc — dùng correlated subquery
-            // ActiveListingCount
-            var activeFixed = await db.Shops
-                .Where(s => s.ActiveListingCount != db.Products.Count(p => p.ShopId == s.Id && p.Status == "ACTIVE" && !p.IsDeleted))
-                .ExecuteUpdateAsync(setter => setter
-                    .SetProperty(s => s.ActiveListingCount,
-                        s => db.Products.Count(p => p.ShopId == s.Id && p.Status == "ACTIVE" && !p.IsDeleted)),
-                ct);
-
-            // DraftListingCount
-            var draftFixed = await db.Shops
-                .Where(s => s.DraftListingCount != db.Products.Count(p => p.ShopId == s.Id && p.Status == "DRAFT" && !p.IsDeleted))
-                .ExecuteUpdateAsync(setter => setter
-                    .SetProperty(s => s.DraftListingCount,
-                        s => db.Products.Count(p => p.ShopId == s.Id && p.Status == "DRAFT" && !p.IsDeleted)),
-                ct);
-
-            // AwaitingShipmentCount
-            var awaitingFixed = await db.Shops
-                .Where(s => s.AwaitingShipmentCount != db.Orders.Count(o => o.ShopId == s.Id && o.Status == "PAID"))
-                .ExecuteUpdateAsync(setter => setter
-                    .SetProperty(s => s.AwaitingShipmentCount,
-                        s => db.Orders.Count(o => o.ShopId == s.Id && o.Status == "PAID")),
-                ct);
-
-            var totalFixed = activeFixed + draftFixed + awaitingFixed;
-            if (totalFixed > 0)
+            finally
             {
-                _logger.LogInformation(
-                    "ReconcileDenormalizedCounts: Fixed {Total} shop(s) — Active:{Active}, Draft:{Draft}, Awaiting:{Awaiting}",
-                    totalFixed, activeFixed, draftFixed, awaitingFixed);
-            }
-            else
-            {
-                _logger.LogInformation("ReconcileDenormalizedCounts: All counts consistent. No fixes needed.");
+                await lockService.ReleaseLockAsync("reconcile-counts", ct);
             }
         }
     }

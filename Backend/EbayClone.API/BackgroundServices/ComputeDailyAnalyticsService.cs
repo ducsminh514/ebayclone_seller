@@ -67,131 +67,153 @@ namespace EbayClone.API.BackgroundServices
         private async Task ComputeAsync(CancellationToken ct)
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<EbayDbContext>();
 
-            // Compute cho ngày hôm qua (hoặc hôm nay nếu chạy cuối ngày)
-            var targetDate = DateTime.UtcNow.Date.AddDays(-1);
-
-            _logger.LogInformation("ComputeDailyAnalytics: Computing for date {Date}...", targetDate);
-
-            // Aggregate Orders cho mỗi shop vào ngày target
-            // [FIX] SQL Server Error 130: không dùng nested aggregate Sum(Sum(...))
-            // Tách thành 2 queries riêng biệt
-            var orderStats = await db.Orders
-                .Where(o => o.PaidAt.HasValue &&
-                            o.PaidAt.Value.Date == targetDate &&
-                            o.Status != "CANCELLED")
-                .GroupBy(o => o.ShopId)
-                .Select(g => new
-                {
-                    ShopId = g.Key,
-                    TotalRevenue = g.Sum(o => o.TotalAmount),
-                    TotalOrders = g.Count()
-                })
-                .ToListAsync(ct);
-
-            // ItemsSold: flatten Order→Items rồi GroupBy ShopId
-            // Dùng Select + SelectMany để carry ShopId từ parent Order
-            var itemsSoldStats = await db.Orders
-                .Where(o => o.PaidAt.HasValue &&
-                            o.PaidAt.Value.Date == targetDate &&
-                            o.Status != "CANCELLED")
-                .SelectMany(o => o.Items.Select(i => new { o.ShopId, i.Quantity }))
-                .GroupBy(x => x.ShopId)
-                .Select(g => new
-                {
-                    ShopId = g.Key,
-                    ItemsSold = g.Sum(x => x.Quantity)
-                })
-                .ToListAsync(ct);
-
-            var itemsSoldDict = itemsSoldStats.ToDictionary(x => x.ShopId, x => x.ItemsSold);
-
-            var dailyStats = orderStats.Select(o => new
+            // [Performance Phase 2] Distributed Lock — chỉ 1 instance compute
+            var lockService = scope.ServiceProvider.GetRequiredService<EbayClone.Application.Interfaces.IDistributedLockService>();
+            if (!await lockService.TryAcquireLockAsync("compute-analytics", TimeSpan.FromHours(5), ct))
             {
-                o.ShopId,
-                o.TotalRevenue,
-                o.TotalOrders,
-                ItemsSold = itemsSoldDict.GetValueOrDefault(o.ShopId, 0)
-            }).ToList();
+                _logger.LogDebug("ComputeAnalytics: Another instance is processing. Skipping.");
+                return;
+            }
 
-            // Aggregate ProductViewLogs cho mỗi shop
-            var dailyViews = await db.Set<Domain.Entities.ProductViewLog>()
-                .Where(v => v.ViewedAt.Date == targetDate)
-                .GroupBy(v => v.ShopId)
-                .Select(g => new
-                {
-                    ShopId = g.Key,
-                    ViewsCount = g.Count()
-                })
-                .ToListAsync(ct);
-
-            var viewsDict = dailyViews.ToDictionary(v => v.ShopId, v => v.ViewsCount);
-
-            int upsertCount = 0;
-
-            foreach (var stat in dailyStats)
+            try
             {
-                viewsDict.TryGetValue(stat.ShopId, out int views);
+                var db = scope.ServiceProvider.GetRequiredService<EbayDbContext>();
 
-                // UPSERT: check existing → update or insert
-                var existing = await db.Set<Domain.Entities.ShopAnalyticsDaily>()
-                    .FirstOrDefaultAsync(x => x.ShopId == stat.ShopId && x.ReportDate == targetDate, ct);
+                // Compute cho ngày hôm qua (hoặc hôm nay nếu chạy cuối ngày)
+                var targetDate = DateTime.UtcNow.Date.AddDays(-1);
 
-                if (existing != null)
-                {
-                    existing.TotalRevenue = stat.TotalRevenue;
-                    existing.TotalOrders = stat.TotalOrders;
-                    existing.ItemsSold = stat.ItemsSold;
-                    existing.ViewsCount = views;
-                }
-                else
-                {
-                    db.Set<Domain.Entities.ShopAnalyticsDaily>().Add(new Domain.Entities.ShopAnalyticsDaily
+                _logger.LogInformation("ComputeDailyAnalytics: Computing for date {Date}...", targetDate);
+
+                // Aggregate Orders cho mỗi shop vào ngày target
+                // [FIX] SQL Server Error 130: không dùng nested aggregate Sum(Sum(...))
+                // Tách thành 2 queries riêng biệt
+                var orderStats = await db.Orders
+                    .Where(o => o.PaidAt.HasValue &&
+                                o.PaidAt.Value.Date == targetDate &&
+                                o.Status != "CANCELLED")
+                    .GroupBy(o => o.ShopId)
+                    .Select(g => new
                     {
-                        ShopId = stat.ShopId,
-                        ReportDate = targetDate,
-                        TotalRevenue = stat.TotalRevenue,
-                        TotalOrders = stat.TotalOrders,
-                        ItemsSold = stat.ItemsSold,
-                        ViewsCount = views
-                    });
-                }
-                upsertCount++;
-            }
+                        ShopId = g.Key,
+                        TotalRevenue = g.Sum(o => o.TotalAmount),
+                        TotalOrders = g.Count()
+                    })
+                    .ToListAsync(ct);
 
-            // Also insert view-only entries (shops with views but no orders)
-            foreach (var view in dailyViews)
-            {
-                if (dailyStats.Any(s => s.ShopId == view.ShopId)) continue;
-
-                var existing = await db.Set<Domain.Entities.ShopAnalyticsDaily>()
-                    .FirstOrDefaultAsync(x => x.ShopId == view.ShopId && x.ReportDate == targetDate, ct);
-
-                if (existing != null)
-                {
-                    existing.ViewsCount = view.ViewsCount;
-                }
-                else
-                {
-                    db.Set<Domain.Entities.ShopAnalyticsDaily>().Add(new Domain.Entities.ShopAnalyticsDaily
+                // ItemsSold: flatten Order→Items rồi GroupBy ShopId
+                // Dùng Select + SelectMany để carry ShopId từ parent Order
+                var itemsSoldStats = await db.Orders
+                    .Where(o => o.PaidAt.HasValue &&
+                                o.PaidAt.Value.Date == targetDate &&
+                                o.Status != "CANCELLED")
+                    .SelectMany(o => o.Items.Select(i => new { o.ShopId, i.Quantity }))
+                    .GroupBy(x => x.ShopId)
+                    .Select(g => new
                     {
-                        ShopId = view.ShopId,
-                        ReportDate = targetDate,
-                        ViewsCount = view.ViewsCount
-                    });
+                        ShopId = g.Key,
+                        ItemsSold = g.Sum(x => x.Quantity)
+                    })
+                    .ToListAsync(ct);
+
+                var itemsSoldDict = itemsSoldStats.ToDictionary(x => x.ShopId, x => x.ItemsSold);
+
+                var dailyStats = orderStats.Select(o => new
+                {
+                    o.ShopId,
+                    o.TotalRevenue,
+                    o.TotalOrders,
+                    ItemsSold = itemsSoldDict.GetValueOrDefault(o.ShopId, 0)
+                }).ToList();
+
+                // Aggregate ProductViewLogs cho mỗi shop
+                var dailyViews = await db.Set<Domain.Entities.ProductViewLog>()
+                    .Where(v => v.ViewedAt.Date == targetDate)
+                    .GroupBy(v => v.ShopId)
+                    .Select(g => new
+                    {
+                        ShopId = g.Key,
+                        ViewsCount = g.Count()
+                    })
+                    .ToListAsync(ct);
+
+                var viewsDict = dailyViews.ToDictionary(v => v.ShopId, v => v.ViewsCount);
+
+                // [Performance Phase 1] Batch UPSERT: Load tất cả existing records cho targetDate trong 1 query
+                // Trước đây: N queries (1 per shop) → bây giờ: 1 query
+                var allShopIds = dailyStats.Select(s => s.ShopId)
+                    .Union(dailyViews.Select(v => v.ShopId))
+                    .Distinct()
+                    .ToList();
+
+                var existingRecords = await db.Set<Domain.Entities.ShopAnalyticsDaily>()
+                    .Where(x => x.ReportDate == targetDate && allShopIds.Contains(x.ShopId))
+                    .ToDictionaryAsync(x => x.ShopId, ct);
+
+                int upsertCount = 0;
+
+                foreach (var stat in dailyStats)
+                {
+                    viewsDict.TryGetValue(stat.ShopId, out int views);
+
+                    if (existingRecords.TryGetValue(stat.ShopId, out var existing))
+                    {
+                        // UPDATE existing record
+                        existing.TotalRevenue = stat.TotalRevenue;
+                        existing.TotalOrders = stat.TotalOrders;
+                        existing.ItemsSold = stat.ItemsSold;
+                        existing.ViewsCount = views;
+                    }
+                    else
+                    {
+                        // INSERT new record
+                        db.Set<Domain.Entities.ShopAnalyticsDaily>().Add(new Domain.Entities.ShopAnalyticsDaily
+                        {
+                            ShopId = stat.ShopId,
+                            ReportDate = targetDate,
+                            TotalRevenue = stat.TotalRevenue,
+                            TotalOrders = stat.TotalOrders,
+                            ItemsSold = stat.ItemsSold,
+                            ViewsCount = views
+                        });
+                    }
+                    upsertCount++;
                 }
-                upsertCount++;
-            }
 
-            if (upsertCount > 0)
+                // Also insert view-only entries (shops with views but no orders)
+                foreach (var view in dailyViews)
+                {
+                    if (dailyStats.Any(s => s.ShopId == view.ShopId)) continue;
+
+                    if (existingRecords.TryGetValue(view.ShopId, out var existing))
+                    {
+                        existing.ViewsCount = view.ViewsCount;
+                    }
+                    else
+                    {
+                        db.Set<Domain.Entities.ShopAnalyticsDaily>().Add(new Domain.Entities.ShopAnalyticsDaily
+                        {
+                            ShopId = view.ShopId,
+                            ReportDate = targetDate,
+                            ViewsCount = view.ViewsCount
+                        });
+                    }
+                    upsertCount++;
+                }
+
+                if (upsertCount > 0)
+                {
+                    await db.SaveChangesAsync(ct);
+                }
+
+                _logger.LogInformation(
+                    "ComputeDailyAnalytics: Computed {Count} shop analytics for {Date}",
+                    upsertCount, targetDate);
+            }
+            finally
             {
-                await db.SaveChangesAsync(ct);
+                await lockService.ReleaseLockAsync("compute-analytics", ct);
             }
-
-            _logger.LogInformation(
-                "ComputeDailyAnalytics: Computed {Count} shop analytics for {Date}",
-                upsertCount, targetDate);
         }
     }
 }

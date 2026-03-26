@@ -33,7 +33,7 @@
                     <div class="card h-100 ebay-card">
                         @if (!string.IsNullOrEmpty(prod.PrimaryImageUrl))
                         {
-                            <img src="@prod.PrimaryImageUrl" class="card-img-top" alt="..." style="height: 200px; object-fit: cover;">
+                            <img src="@Img.Resolve(prod.PrimaryImageUrl)" class="card-img-top" alt="..." style="height: 200px; object-fit: cover;">
                         }
                         else
                         {

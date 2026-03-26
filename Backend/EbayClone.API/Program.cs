@@ -1,4 +1,7 @@
 using EbayClone.Infrastructure.Data;
+using EbayClone.API.Hubs;
+using EbayClone.API.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using EbayClone.Application.Interfaces;
 using EbayClone.Application.Interfaces.Repositories;
 using EbayClone.Application.UseCases.Shops;
@@ -126,6 +129,43 @@ builder.Services.AddHttpClient();
 // MemoryCache cho static data (categories, item specifics) — tránh hit DB mỗi request
 builder.Services.AddMemoryCache();
 
+// [Performance Phase 2] Redis Distributed Cache — shared state giữa nhiều instances
+var redisConn = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = redisConn;
+    options.InstanceName = "EbayClone_";
+});
+
+// [SignalR] Real-time Order Notifications + Redis Backplane (multi-instance broadcast)
+builder.Services.AddSignalR()
+    .AddStackExchangeRedis(redisConn, options =>
+    {
+        options.Configuration.ChannelPrefix = 
+            StackExchange.Redis.RedisChannel.Literal("EbayClone_SignalR");
+    });
+builder.Services.AddScoped<IOrderNotificationService, SignalROrderNotificationService>();
+
+// [Performance Phase 2] Distributed Lock Service — chống duplicate background job processing
+builder.Services.AddSingleton<EbayClone.Application.Interfaces.IDistributedLockService, 
+    EbayClone.Infrastructure.Services.RedisDistributedLockService>();
+
+// [Performance Phase 1] Health Check endpoint cho Nginx load balancer
+builder.Services.AddHealthChecks()
+    .AddSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "sqlserver",
+        timeout: TimeSpan.FromSeconds(3));
+
+// [Performance Phase 1] ForwardedHeaders: Nginx reverse proxy → Kestrel biết IP thật từ X-Forwarded-For
+// Nếu không có: Rate Limiting sẽ thấy tất cả request từ cùng 1 IP (IP của Nginx) → block toàn bộ users
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Cấu hình JWT Authentication
 builder.Services.AddAuthentication(options =>
 {
@@ -144,6 +184,21 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"] ?? "https://localhost:7251",
         IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "superSecretKey@345EbayClone@Authentication123!")),
         RoleClaimType = System.Security.Claims.ClaimTypes.Role
+    };
+
+    // [SignalR] WebSocket không gửi Authorization header — đọc token từ query string
+    options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 builder.Services.AddSwaggerGen(options =>
@@ -213,19 +268,25 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Khởi tạo CORS Policy cho phép Blazor gọi API không bị Browser chặn (Same-Origin Policy)
+// [Performance Phase 1] CORS Policy — đọc origins từ config thay vì hardcode
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[] { "https://localhost:7251", "http://localhost:7252" };
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
         policy =>
         {
-            policy.WithOrigins("https://localhost:7251", "http://localhost:7252") // Port của Frontend
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials(); // [SignalR] Bắt buộc cho WebSocket negotiate
         });
 });
 
 var app = builder.Build();
+
+// [Performance Phase 1] ForwardedHeaders phải đặt TRƯỚC mọi middleware khác
+app.UseForwardedHeaders();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -248,6 +309,12 @@ app.UseStaticFiles();
 app.UseRateLimiter();
 
 app.MapControllers();
+
+// [SignalR] Map Hub endpoint cho real-time order notifications
+app.MapHub<OrderHub>("/hubs/orders");
+
+// [Performance Phase 1] Health check endpoint cho Nginx upstream health check
+app.MapHealthChecks("/health");
 
 // ĐOẠN DEMO: KẾT NỐI DATABASE
 app.MapGet("/test-db", async (EbayClone.Infrastructure.Data.EbayDbContext dbContext) =>

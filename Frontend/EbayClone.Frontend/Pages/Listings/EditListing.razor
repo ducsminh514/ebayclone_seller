@@ -83,7 +83,7 @@
                     <div style="width: 200px; height: 200px; position: relative; border: 2px dashed #0052ff; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #f8f9ff;">
                         @if (!string.IsNullOrEmpty(fullRequest.PrimaryImageUrl))
                         {
-                            <img src="@fullRequest.PrimaryImageUrl" class="w-100 h-100" style="object-fit: cover;" />
+                            <img src="@Img.Resolve(fullRequest.PrimaryImageUrl)" class="w-100 h-100" style="object-fit: cover;" />
                         }
                         @if (isUploadingPrimary)
                         {
@@ -110,7 +110,7 @@
                     {
                         var idx = i;
                         <div style="position: relative; width: 80px; height: 80px;">
-                            <img src="@extraImageUrls[idx]" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;" />
+                            <img src="@Img.Resolve(extraImageUrls[idx])" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd;" />
                             <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; font-size: 10px;" @onclick="() => extraImageUrls.RemoveAt(idx)">&#10005;</button>
                         </div>
                     }
@@ -271,11 +271,33 @@
                         <option value="FIXED_PRICE">Buy It Now</option>
                         <option value="AUCTION">Auction</option>
                     </InputSelect>
-                    @if (fullRequest.ListingFormat == "AUCTION" && fullRequest.Variants.Count > 1)
+                    @if (fullRequest.ListingFormat == "AUCTION" && fullRequest.IsVariationListing)
                     {
-                        <div class="text-danger mt-1" style="font-size: 12px;">⚠ Auction only supports single items. You have @fullRequest.Variants.Count variants — remove extras before saving.</div>
+                        <div class="text-danger mt-1" style="font-size: 12px;">⚠ Auction only supports single items. Variations are not available.</div>
                     }
                 </div>
+
+                @* Single-item: Price + Qty here (giống CreateListing) *@
+                @if (!fullRequest.IsVariationListing)
+                {
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-5">
+                            <label class="form-label">Item price <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">VND</span>
+                                <input type="number" class="form-control" value="@singlePrice"
+                                       @onchange="(e) => { if (decimal.TryParse(e.Value?.ToString(), out var v)) singlePrice = v; }"
+                                       min="1" step="any" placeholder="0" />
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" value="@singleQuantity"
+                                   @onchange="(e) => { if (int.TryParse(e.Value?.ToString(), out var v)) singleQuantity = v; }"
+                                   min="1" />
+                        </div>
+                    </div>
+                }
 
                 @if (fullRequest.ListingFormat == "FIXED_PRICE")
                 {
@@ -492,132 +514,194 @@
                 </div>
             </div>
 
-            @* ======= 11. VARIANTS ======= *@
+                @* ======= 11. VARIATIONS (eBay Matrix-style) ======= *@
             <div class="listing-section">
                 <div class="section-header">
-                    <span class="section-title mb-0">Variants (SKUs)</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Attributes</th>
-                                <th>SKU Code</th>
-                                <th>Price</th>
-                                <th>Quantity</th>
-                                <th>Weight (g)</th>
-                                <th>Photo</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var v in fullRequest.Variants)
-                            {
-                                <tr>
-                                    <td>
-                                        @foreach (var attr in v.Attributes)
-                                        {
-                                            <div class="badge bg-light text-dark me-1 border">@attr.Key: @attr.Value</div>
-                                        }
-                                    </td>
-                                    <td><input type="text" class="form-control form-control-sm" @bind="v.SkuCode" /></td>
-                                    <td><input type="number" class="form-control form-control-sm" @bind="v.Price" step="1000" /></td>
-                                    <td><input type="number" class="form-control form-control-sm" @bind="v.Quantity" min="0" /></td>
-                                    <td><input type="number" class="form-control form-control-sm" @bind="v.WeightGram" min="1" placeholder="gram" /></td>
-                                    <td>
-                                        @if (!string.IsNullOrEmpty(v.ImageUrl))
-                                        {
-                                            <div style="position: relative; display: inline-block;">
-                                                <img src="@v.ImageUrl" style="width: 45px; height: 45px; object-fit: cover; border-radius: 4px;" />
-                                                <button type="button" class="btn btn-sm btn-danger p-0" style="position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; font-size: 8px;" @onclick="() => v.ImageUrl = null">✕</button>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <div style="width: 45px; height: 45px; border: 1px dashed #aaa; border-radius: 4px; display: flex; align-items: center; justify-content: center; position: relative;">
-                                                @if (uploadingVariants.Contains(v))
-                                                {
-                                                    <div class="spinner-border spinner-border-sm text-primary"></div>
-                                                }
-                                                <div style="@($"display: {(uploadingVariants.Contains(v) ? "none" : "flex")}; align-items: center; justify-content: center; width: 100%; height: 100%;")">
-                                                    <span style="font-size: 12px; color: #888;">+ 📷</span>
-                                                    <InputFile OnChange="(e) => UploadVariantImage(e, v)" accept="image/*" style="position: absolute; inset: 0; opacity: 0; cursor: pointer;" />
-                                                </div>
-                                            </div>
-                                        }
-                                    </td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => fullRequest.Variants.Remove(v)">✕</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                @* Add new variant form *@
-                <div class="mt-3 border-top pt-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-muted" style="font-size: 13px;">Total: @fullRequest.Variants.Count / 250 variants</span>
-                        <button type="button" class="btn btn-sm btn-outline-primary"
-                                @onclick="ToggleAddVariantForm"
-                                disabled="@(fullRequest.Variants.Count >= 250 || (fullRequest.ListingFormat == "AUCTION" && fullRequest.Variants.Count >= 1))">
-                            @(showAddVariantForm ? "✕ Close" : "+ Add New Variant")
-                        </button>
-                    </div>
-
-                    @if (showAddVariantForm)
+                    <span class="section-title mb-0">Variations</span>
+                    @if (fullRequest.ListingFormat == "FIXED_PRICE" && !fullRequest.IsVariationListing)
                     {
-                        <div class="border p-3 bg-light" style="border-radius: 8px;">
-                            <h6 class="fw-bold mb-3">New variant details</h6>
-                            <div class="row g-2">
-                                <div class="col-md-3">
-                                    <label class="form-label" style="font-size: 12px;">SKU Code *</label>
-                                    <input type="text" class="form-control form-control-sm" @bind="newVariant.SkuCode" placeholder="e.g. SKU-RED-M" />
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label" style="font-size: 12px;">Price *</label>
-                                    <input type="number" class="form-control form-control-sm" @bind="newVariant.Price" step="1000" min="100" />
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label" style="font-size: 12px;">Quantity *</label>
-                                    <input type="number" class="form-control form-control-sm" @bind="newVariant.Quantity" min="0" />
-                                </div>
-                                <div class="col-md-2">
-                                    <label class="form-label" style="font-size: 12px;">Weight (g)</label>
-                                    <input type="number" class="form-control form-control-sm" @bind="newVariant.WeightGram" min="1" placeholder="gram" />
-                                </div>
-                            </div>
-
-                            <div class="mt-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="fw-bold text-secondary mb-0" style="font-size: 13px;">Attributes (e.g. Color - Red)</h6>
-                                    <button type="button" class="btn btn-sm btn-info text-white"
-                                            @onclick="AddNewVariantAttribute"
-                                            disabled="@(newVariantAttributes.Count >= 5)">+ Attribute</button>
-                                </div>
-                                @foreach (var attr in newVariantAttributes)
-                                {
-                                    <div class="d-flex mb-2 gap-2">
-                                        <input type="text" class="form-control form-control-sm" placeholder="Key (e.g. Color)" @bind="attr.Key" />
-                                        <input type="text" class="form-control form-control-sm" placeholder="Value (e.g. Red)" @bind="attr.Value" />
-                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => newVariantAttributes.Remove(attr)">✕</button>
-                                    </div>
-                                }
-                            </div>
-
-                            <div class="d-flex gap-2 mt-3">
-                                <button type="button" class="btn btn-sm btn-success" @onclick="ConfirmAddVariant">✓ Add to list</button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleAddVariantForm">Cancel</button>
-                            </div>
-
-                            @if (!string.IsNullOrEmpty(addVariantError))
-                            {
-                                <div class="alert alert-danger mt-2 mb-0 py-1" style="font-size: 12px;">@addVariantError</div>
-                            }
-                        </div>
+                        <button type="button" class="btn btn-sm btn-link p-0" style="font-size: 13px;"
+                                @onclick="ToggleVariationMode">
+                            + Add variations
+                        </button>
+                    }
+                    @if (fullRequest.IsVariationListing)
+                    {
+                        <button type="button" class="btn btn-sm btn-link p-0" style="font-size: 13px;"
+                                @onclick="ToggleVariationMode">
+                            Edit
+                        </button>
                     }
                 </div>
+
+                @if (fullRequest.ListingFormat == "AUCTION")
+                {
+                    <div class="p-3 text-muted" style="font-size: 13px; background: #f8f8f8; border-radius: 6px;">
+                        <strong>Variations not available for Auction listings.</strong><br/>
+                        Switch to <em>Buy It Now</em> format in the Pricing section to add variations.
+                    </div>
+                }
+                else if (!fullRequest.IsVariationListing)
+                {
+                    <p class="text-muted mb-0" style="font-size: 13px;">
+                        Save time by listing multiple variations of your item (e.g., different sizes or colors) in one listing.
+                    </p>
+                }
+                else
+                {
+                    @* ───── STEP 1: Define Variation Dimensions ───── *@
+                    <div class="mb-3 p-3" style="background: #fafbff; border: 1px solid #e8ecf4; border-radius: 8px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #333; margin-bottom: 10px;">
+                            Step 1 — Choose variation attributes <span class="text-muted fw-normal">(max 5)</span>
+                        </div>
+
+                        @* Add custom dimension *@
+                        <div class="d-flex gap-2 mb-3">
+                            <input type="text" class="form-control form-control-sm" style="max-width: 200px;"
+                                   placeholder="Attribute name (e.g. Color)"
+                                   @bind="newDimensionName" maxlength="65"
+                                   @onkeydown="@(e => { if (e.Key == "Enter") AddDimension(); })" />
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    @onclick="AddDimension"
+                                    disabled="@(string.IsNullOrWhiteSpace(newDimensionName) || variationDimensions.Count >= 5)">
+                                + Add attribute
+                            </button>
+                        </div>
+
+                        @* Dimension cards with values *@
+                        @foreach (var dim in variationDimensions)
+                        {
+                            <div class="mb-3 p-2" style="background: white; border: 1px solid #dee2e6; border-radius: 6px;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span style="font-weight: 600; font-size: 13px; color: #0064d2;">@dim</span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" style="font-size: 10px; padding: 1px 6px;"
+                                            @onclick="() => RemoveDimension(dim)">✕ Remove</button>
+                                </div>
+                                <div class="d-flex flex-wrap gap-1 mb-2">
+                                    @if (dimensionValues.ContainsKey(dim))
+                                    {
+                                        @foreach (var val in dimensionValues[dim])
+                                        {
+                                            <span class="badge bg-primary d-flex align-items-center gap-1" style="font-size: 12px; padding: 5px 8px;">
+                                                @val
+                                                <span style="cursor: pointer; font-size: 14px; line-height: 1;"
+                                                      @onclick="() => RemoveValueFromDimension(dim, val)">×</span>
+                                            </span>
+                                        }
+                                    }
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <input type="text" class="form-control form-control-sm" style="max-width: 160px;"
+                                           placeholder="@($"Add {dim} value...")"
+                                           value="@(newValueInputs.ContainsKey(dim) ? newValueInputs[dim] : "")"
+                                           @onchange="@(e => newValueInputs[dim] = e.Value?.ToString() ?? "")"
+                                           @onkeydown="@(e => { if (e.Key == "Enter") { AddValueFromInput(dim); } })" />
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size: 11px;"
+                                            @onclick="() => AddValueFromInput(dim)"
+                                            disabled="@(!newValueInputs.ContainsKey(dim) || string.IsNullOrWhiteSpace(newValueInputs[dim]) || (dimensionValues.ContainsKey(dim) && dimensionValues[dim].Count >= 50))">
+                                        + Add
+                                    </button>
+                                </div>
+                                @if (dimensionValues.ContainsKey(dim))
+                                {
+                                    <div class="text-muted mt-1" style="font-size: 10px;">@dimensionValues[dim].Count / 50 values</div>
+                                }
+                            </div>
+                        }
+
+                        @* Generate button *@
+                        @if (variationDimensions.Any())
+                        {
+                            <div class="d-flex align-items-center gap-3 mt-2">
+                                <button type="button" class="btn btn-sm btn-primary"
+                                        @onclick="GenerateVariationMatrix"
+                                        disabled="@(totalCombinations == 0)">
+                                    ⚡ Generate @totalCombinations variations
+                                </button>
+                                @if (totalCombinations > 250)
+                                {
+                                    <span class="text-danger" style="font-size: 12px;">⚠ Exceeds 250 limit — will be capped</span>
+                                }
+                                @if (fullRequest.Variants.Any())
+                                {
+                                    <span class="text-muted" style="font-size: 11px;">💡 Existing data will be preserved for matching combos</span>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @* ───── STEP 2: Variation Details Table ───── *@
+                    @if (fullRequest.Variants.Any())
+                    {
+                        <div class="mb-2 d-flex justify-content-between align-items-center">
+                            <span style="font-size: 13px; font-weight: 700; color: #333;">
+                                Step 2 — Set details for @fullRequest.Variants.Count variations
+                            </span>
+                            <span class="text-muted" style="font-size: 12px;">@fullRequest.Variants.Count / 250</span>
+                        </div>
+
+                        <div class="table-responsive" style="border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
+                            <table class="table table-hover mb-0" style="font-size: 13px;">
+                                <thead class="bg-light">
+                                    <tr>
+                                        @foreach (var dim in variationDimensions)
+                                        {
+                                            <th style="font-size: 11px; text-transform: uppercase; color: #666;">@dim</th>
+                                        }
+                                        <th style="font-size: 11px; text-transform: uppercase; color: #666;">SKU Code</th>
+                                        <th style="font-size: 11px; text-transform: uppercase; color: #666;">Price</th>
+                                        <th style="font-size: 11px; text-transform: uppercase; color: #666;">Qty</th>
+                                        <th style="font-size: 11px; text-transform: uppercase; color: #666;">Weight</th>
+                                        <th style="font-size: 11px; text-transform: uppercase; color: #666;">Photo</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var v in fullRequest.Variants)
+                                    {
+                                        <tr>
+                                            @foreach (var dim in variationDimensions)
+                                            {
+                                                <td>
+                                                    <span class="badge bg-light text-dark border">
+                                                        @(v.Attributes.ContainsKey(dim) ? v.Attributes[dim] : "-")
+                                                    </span>
+                                                </td>
+                                            }
+                                            <td><input type="text" class="form-control form-control-sm" @bind="v.SkuCode" maxlength="50" style="min-width: 100px;" /></td>
+                                            <td><input type="number" class="form-control form-control-sm" @bind="v.Price" min="1" step="any" style="min-width: 80px;" /></td>
+                                            <td><input type="number" class="form-control form-control-sm" @bind="v.Quantity" min="0" style="min-width: 60px;" /></td>
+                                            <td><input type="number" class="form-control form-control-sm" @bind="v.WeightGram" min="1" placeholder="gram" style="min-width: 60px;" /></td>
+                                            <td>
+                                                <div style="width: 40px; height: 40px; border: 1px dashed #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                                                    @if (!string.IsNullOrEmpty(v.ImageUrl))
+                                                    {
+                                                        <img src="@Img.Resolve(v.ImageUrl)" style="width:100%;height:100%;object-fit:cover;" />
+                                                        <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.4);text-align:center;font-size:8px;color:white;cursor:pointer;"
+                                                             @onclick="() => v.ImageUrl = null">×</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        @if (uploadingVariants.Contains(v))
+                                                        { <div class="spinner-border spinner-border-sm text-primary" style="width:14px;height:14px;"></div> }
+                                                        else
+                                                        { <span style="font-size:12px;color:#aaa;">📷</span> }
+                                                        <InputFile OnChange="(e) => UploadVariantImage(e, v)" accept="image/*"
+                                                                   style="position:absolute;inset:0;opacity:0;cursor:pointer;" />
+                                                    }
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" style="font-size: 10px; padding: 2px 6px;"
+                                                        @onclick="() => fullRequest.Variants.Remove(v)">✕</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
             </div>
 
             @* ======= SUBMIT ======= *@
@@ -661,23 +745,25 @@
     private bool showSchedulePicker;
     private int? packageWeightGram;
 
+    // [E1] Single-item Price/Qty (giống CreateListing)
+    private decimal singlePrice;
+    private int singleQuantity = 1;
+
     private List<string> extraImageUrls = new();
     private bool isUploadingPrimary = false;
     private bool isUploadingExtra = false;
     private HashSet<UpdateVariantDto> uploadingVariants = new();
 
-    // New variant form
-    private bool showAddVariantForm = false;
-    private UpdateVariantDto newVariant = new();
-    private List<AttributePair> newVariantAttributes = new();
-    private string? addVariantError;
-    private bool isUploadingNewVariantImage = false;
-
-    private class AttributePair
-    {
-        public string Key { get; set; } = "";
-        public string Value { get; set; } = "";
-    }
+    // Matrix variation state (eBay-style)
+    private List<string> variationDimensions = new();
+    private Dictionary<string, List<string>> dimensionValues = new();
+    private string newDimensionName = "";
+    private Dictionary<string, string> newValueInputs = new();
+    private int totalCombinations => variationDimensions
+        .Where(d => dimensionValues.ContainsKey(d) && dimensionValues[d].Any())
+        .Select(d => dimensionValues[d].Count)
+        .DefaultIfEmpty(0)
+        .Aggregate(1, (a, b) => a * b) * (variationDimensions.Any(d => dimensionValues.ContainsKey(d) && dimensionValues[d].Any()) ? 1 : 0);
 
     // ---- INIT ----
 
@@ -756,6 +842,19 @@
                     // Package weight from first variant
                     if (fullRequest.Variants.Any() && fullRequest.Variants[0].WeightGram.HasValue)
                         packageWeightGram = fullRequest.Variants[0].WeightGram;
+
+                    // [E1] Init singlePrice/singleQty from Variants[0] for single-item listings
+                    if (!fullRequest.IsVariationListing && fullRequest.Variants.Any())
+                    {
+                        singlePrice = fullRequest.Variants[0].Price;
+                        singleQuantity = fullRequest.Variants[0].Quantity;
+                    }
+
+                    // [Matrix flow] Reverse-engineer dimensions from existing variant attributes
+                    if (fullRequest.IsVariationListing && fullRequest.Variants.Any())
+                    {
+                        InitDimensionsFromExistingVariants();
+                    }
                 }
 
                 if (product.ItemSpecifics != null && product.ItemSpecifics.Any())
@@ -788,6 +887,128 @@
         finally
         {
             isLoading = false;
+        }
+    }
+
+    // ===== MATRIX VARIATION METHODS (eBay-style) =====
+
+    private void InitDimensionsFromExistingVariants()
+    {
+        variationDimensions.Clear();
+        dimensionValues.Clear();
+        if (!fullRequest.Variants.Any()) return;
+
+        // Extract unique dimension keys from all variants
+        var allKeys = fullRequest.Variants
+            .SelectMany(v => v.Attributes.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        variationDimensions = allKeys;
+
+        // Extract unique values per dimension
+        foreach (var dim in variationDimensions)
+        {
+            dimensionValues[dim] = fullRequest.Variants
+                .Where(v => v.Attributes.ContainsKey(dim))
+                .Select(v => v.Attributes[dim])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
+
+
+    private void AddDimension()
+    {
+        if (string.IsNullOrWhiteSpace(newDimensionName)) return;
+        var name = newDimensionName.Trim();
+        if (variationDimensions.Any(d => d.Equals(name, StringComparison.OrdinalIgnoreCase))) return;
+        if (variationDimensions.Count >= 5) return;
+        variationDimensions.Add(name);
+        dimensionValues[name] = new List<string>();
+        newDimensionName = "";
+    }
+
+    private void RemoveDimension(string dimension)
+    {
+        variationDimensions.Remove(dimension);
+        dimensionValues.Remove(dimension);
+        newValueInputs.Remove(dimension);
+        fullRequest.Variants.Clear();
+    }
+
+    private void AddValueFromInput(string dimension)
+    {
+        if (!newValueInputs.ContainsKey(dimension)) return;
+        var value = newValueInputs[dimension]?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(value)) return;
+        if (!dimensionValues.ContainsKey(dimension)) return;
+        if (dimensionValues[dimension].Count >= 50) return;
+        if (dimensionValues[dimension].Any(v => v.Equals(value, StringComparison.OrdinalIgnoreCase))) return;
+        dimensionValues[dimension].Add(value);
+        newValueInputs[dimension] = "";
+    }
+
+    private void RemoveValueFromDimension(string dimension, string value)
+    {
+        if (!dimensionValues.ContainsKey(dimension)) return;
+        dimensionValues[dimension].Remove(value);
+    }
+
+    private void GenerateVariationMatrix()
+    {
+        var filledDimensions = variationDimensions
+            .Where(d => dimensionValues.ContainsKey(d) && dimensionValues[d].Any())
+            .ToList();
+        if (!filledDimensions.Any()) return;
+
+        // Build lookup to preserve existing data
+        var existingData = fullRequest.Variants.ToDictionary(
+            v => string.Join("|", v.Attributes
+                .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(kv => $"{kv.Key.ToLower()}:{kv.Value.ToLower()}")),
+            v => v);
+
+        // Cartesian product
+        var combinations = new List<Dictionary<string, string>> { new() };
+        foreach (var dim in filledDimensions)
+        {
+            var values = dimensionValues[dim];
+            var newResult = new List<Dictionary<string, string>>();
+            foreach (var existing in combinations)
+            {
+                foreach (var val in values)
+                {
+                    var copy = new Dictionary<string, string>(existing) { [dim] = val };
+                    newResult.Add(copy);
+                }
+            }
+            combinations = newResult;
+        }
+
+        if (combinations.Count > 250) combinations = combinations.Take(250).ToList();
+
+        fullRequest.Variants.Clear();
+        foreach (var combo in combinations)
+        {
+            var comboKey = string.Join("|", combo
+                .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(kv => $"{kv.Key.ToLower()}:{kv.Value.ToLower()}"));
+
+            if (existingData.TryGetValue(comboKey, out var prev))
+            {
+                prev.Attributes = combo;
+                fullRequest.Variants.Add(prev);
+            }
+            else
+            {
+                fullRequest.Variants.Add(new UpdateVariantDto
+                {
+                    SkuCode = $"SKU-{string.Join("-", combo.Values).Replace(" ", "").ToUpper()}",
+                    Price = fullRequest.Variants.FirstOrDefault()?.Price ?? 0,
+                    Quantity = 0,
+                    Attributes = combo
+                });
+            }
         }
     }
 
@@ -857,65 +1078,7 @@
         }
     }
 
-    // ---- VARIANT MANAGEMENT ----
 
-    private void ToggleAddVariantForm()
-    {
-        showAddVariantForm = !showAddVariantForm;
-        if (showAddVariantForm)
-        {
-            newVariant = new UpdateVariantDto();
-            newVariantAttributes = new List<AttributePair>();
-            addVariantError = null;
-        }
-    }
-
-    private void AddNewVariantAttribute()
-    {
-        if (newVariantAttributes.Count < 5)
-            newVariantAttributes.Add(new AttributePair());
-    }
-
-    private void ConfirmAddVariant()
-    {
-        addVariantError = null;
-
-        if (string.IsNullOrWhiteSpace(newVariant.SkuCode))
-        { addVariantError = "SKU Code is required."; return; }
-
-        if (newVariant.Price <= 0)
-        { addVariantError = "Price must be greater than 0."; return; }
-
-        if (newVariant.Quantity < 0)
-        { addVariantError = "Quantity cannot be negative."; return; }
-
-        if (fullRequest.Variants.Any(v => v.SkuCode.Equals(newVariant.SkuCode, StringComparison.OrdinalIgnoreCase)))
-        { addVariantError = $"SKU '{newVariant.SkuCode}' already exists."; return; }
-
-        var validAttrs = newVariantAttributes
-            .Where(a => !string.IsNullOrWhiteSpace(a.Key) && !string.IsNullOrWhiteSpace(a.Value))
-            .ToList();
-
-        if (!validAttrs.Any())
-        { addVariantError = "At least 1 attribute required (e.g. Color - Red)."; return; }
-
-        var variantToAdd = new UpdateVariantDto
-        {
-            Id = null,
-            SkuCode = newVariant.SkuCode,
-            Price = newVariant.Price,
-            Quantity = newVariant.Quantity,
-            WeightGram = newVariant.WeightGram,
-            ImageUrl = newVariant.ImageUrl,
-            Attributes = validAttrs.ToDictionary(a => a.Key, a => a.Value)
-        };
-
-        fullRequest.Variants.Add(variantToAdd);
-        newVariant = new UpdateVariantDto();
-        newVariantAttributes = new List<AttributePair>();
-        showAddVariantForm = false;
-        addVariantError = null;
-    }
 
     // ---- PHOTO UPLOAD ----
 
@@ -956,6 +1119,37 @@
         finally { uploadingVariants.Remove(v); StateHasChanged(); }
     }
 
+    // ---- VARIATION MODE TOGGLE ----
+
+    private void ToggleVariationMode()
+    {
+        if (fullRequest.ListingFormat == "AUCTION") return;
+
+        if (!fullRequest.IsVariationListing)
+        {
+            // Single → Multi: sync singlePrice/Qty to Variants[0], then enable variation mode
+            if (fullRequest.Variants.Any())
+            {
+                fullRequest.Variants[0].Price = singlePrice;
+                fullRequest.Variants[0].Quantity = singleQuantity;
+            }
+            fullRequest.IsVariationListing = true;
+        }
+        else
+        {
+            // Multi → Single: load Variants[0] back to singlePrice/Qty + reset matrix state
+            if (fullRequest.Variants.Any())
+            {
+                singlePrice = fullRequest.Variants[0].Price;
+                singleQuantity = fullRequest.Variants[0].Quantity;
+            }
+            fullRequest.IsVariationListing = false;
+            variationDimensions.Clear();
+            dimensionValues.Clear();
+            newValueInputs.Clear();
+        }
+    }
+
     // ---- SUBMIT ----
 
     private async Task HandleSubmit()
@@ -969,8 +1163,47 @@
 
             if (!showSchedulePicker) fullRequest.ScheduledAt = null;
 
-            if (packageWeightGram.HasValue && fullRequest.Variants.Any())
-                fullRequest.Variants[0].WeightGram = packageWeightGram.Value;
+            // [E1] Sync single-item Price/Qty to Variants[0] (giống CreateListing)
+            if (!fullRequest.IsVariationListing)
+            {
+                if (fullRequest.Variants.Any())
+                {
+                    fullRequest.Variants[0].Price = singlePrice;
+                    fullRequest.Variants[0].Quantity = singleQuantity;
+                    if (packageWeightGram.HasValue)
+                        fullRequest.Variants[0].WeightGram = packageWeightGram.Value;
+                }
+
+                // Pre-validate
+                if (singlePrice <= 0)
+                { errorMessage = "Item price must be greater than 0."; isSubmitting = false; return; }
+                if (singleQuantity < 0)
+                { errorMessage = "Quantity cannot be negative."; isSubmitting = false; return; }
+            }
+            else
+            {
+                // Multi-variation: validate each variant
+                for (int i = 0; i < fullRequest.Variants.Count; i++)
+                {
+                    if (fullRequest.Variants[i].Price <= 0)
+                    { errorMessage = $"Variant #{i+1}: Price must be greater than 0."; isSubmitting = false; return; }
+                    if (fullRequest.Variants[i].Quantity < 0)
+                    { errorMessage = $"Variant #{i+1}: Quantity cannot be negative."; isSubmitting = false; return; }
+                    if (string.IsNullOrWhiteSpace(fullRequest.Variants[i].SkuCode))
+                    { errorMessage = $"Variant #{i+1}: SKU code is required."; isSubmitting = false; return; }
+                }
+
+                // [E7] Duplicate SKU check
+                var skuGroups = fullRequest.Variants
+                    .GroupBy(v => v.SkuCode.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1)
+                    .ToList();
+                if (skuGroups.Any())
+                { errorMessage = $"Duplicate SKU: {skuGroups.First().Key}"; isSubmitting = false; return; }
+
+                if (packageWeightGram.HasValue && fullRequest.Variants.Any())
+                    fullRequest.Variants[0].WeightGram = packageWeightGram.Value;
+            }
 
             await ProductService.UpdateFullProductAsync(Id, fullRequest);
             NavigationManager.NavigateTo("/listings");

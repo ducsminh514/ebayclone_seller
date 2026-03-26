@@ -4,6 +4,9 @@
 @inject OrderService OrderService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
+@inject ShopService ShopService
+@inject OrderHubService OrderHub
+@implements IDisposable
 
 <div class="seller-hub-container">
     <div class="seller-hub-header mb-4">
@@ -23,7 +26,7 @@
                 </div>
             </div>
             <div class="d-flex gap-2">
-                <button class="btn-ebay-secondary btn-sm" @onclick="PrintLabel"><i class="bi bi-printer me-1"></i> Print label</button>
+                <button class="btn-ebay-secondary btn-sm" @onclick="OpenLabelPreview" disabled="@(string.IsNullOrEmpty(order?.TrackingCode))"><i class="bi bi-printer me-1"></i> Print label</button>
                 <button class="btn-ebay-secondary btn-sm" @onclick='() => statusErrorMessage = "💬 Message system chưa triển khai — sẽ xây dựng ở sprint sau."'><i class="bi bi-envelope me-1"></i> Contact buyer</button>
             </div>
         </div>
@@ -61,7 +64,7 @@
                                         <div class="product-cell">
                                             @if (!string.IsNullOrEmpty(item.Variant?.ImageUrl))
                                             {
-                                                <img src="@item.Variant.ImageUrl" class="product-img" alt="Product" />
+                                                <img src="@Img.Resolve(item.Variant.ImageUrl)" class="product-img" alt="Product" />
                                             }
                                             else
                                             {
@@ -369,11 +372,6 @@
                             }
                             @if (order.Status == "DELIVERED")
                             {
-                                <button class="btn btn-outline-primary btn-sm w-100" disabled="@isUpdating"
-                                        @onclick="MockReleaseFunds">
-                                    <i class="bi bi-trophy me-1"></i> ⚙️ System: Auto-Complete (Release Funds)
-                                </button>
-                                <div class="text-muted small text-center" style="font-size: 11px;">Giả lập: hết return window → giải ngân → COMPLETED</div>
 
                                 @* --- GĐ5: Open Return form --- *@
                                 @if (returnInfo?.HasActiveReturn != true && disputeInfo?.HasActiveDispute != true)
@@ -620,6 +618,141 @@
     </div>
 }
 
+@* ==================== MODAL: SHIPPING LABEL ==================== *@
+@if (showLabelModal && order != null)
+{
+    <div class="modal-overlay" @onclick="() => showLabelModal = false">
+        <div class="modal-content" @onclick:stopPropagation="true" style="max-width: 540px;">
+            <div class="modal-header no-print" style="background: #1a1a2e; color: white; padding: 12px 20px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                <h5 style="margin: 0; font-size: 15px;"><i class="bi bi-printer"></i> Shipping Label Preview</h5>
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-sm btn-warning fw-bold" @onclick="ExecutePrint">
+                        <i class="bi bi-printer-fill me-1"></i>Print Label
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => showLabelModal = false"></button>
+                </div>
+            </div>
+
+            @* --- PRINTABLE LABEL --- *@
+            <div id="shipping-label-print" class="shipping-label">
+                @* ═══ TOP BAR ═══ *@
+                <div class="label-topbar">
+                    <div class="label-logo">📦 EbayClone</div>
+                    <div class="label-order-badge">#@order.OrderNumber</div>
+                </div>
+
+                @* ═══ FROM / TO ═══ *@
+                <div class="label-address-grid">
+                    <div class="label-address-box label-from">
+                        <div class="label-addr-label">FROM (Người gửi)</div>
+                        <div class="label-addr-name">@(labelShopName ?? "—")</div>
+                        @if (!string.IsNullOrEmpty(labelShopAddress))
+                        {
+                            <div class="label-addr-detail">@labelShopAddress</div>
+                        }
+                    </div>
+                    <div class="label-address-box label-to">
+                        <div class="label-addr-label">✈ TO (Người nhận)</div>
+                        <div class="label-addr-name">@(string.IsNullOrEmpty(labelReceiverName) ? order.BuyerName ?? "—" : labelReceiverName)</div>
+                        @if (!string.IsNullOrEmpty(labelReceiverPhone))
+                        {
+                            <div class="label-addr-detail">📞 @labelReceiverPhone</div>
+                        }
+                        @if (!string.IsNullOrEmpty(labelReceiverAddress))
+                        {
+                            <div class="label-addr-detail" style="margin-top: 2px;">@labelReceiverAddress</div>
+                        }
+                    </div>
+                </div>
+
+                @* ═══ CARRIER + TRACKING ═══ *@
+                <div class="label-tracking-box">
+                    <div class="label-carrier">
+                        <span class="label-carrier-badge">@(order.ShippingCarrier ?? "—")</span>
+                        @if (order.PaymentStatus == "PAID")
+                        {
+                            <span class="label-paid-badge">✓ PAID</span>
+                        }
+                        else
+                        {
+                            <span class="label-cod-badge">COD</span>
+                        }
+                    </div>
+                    <div class="label-tracking-number">@(order.TrackingCode ?? "—")</div>
+                    @* Barcode container — rendered by JsBarcode *@
+                    <div style="text-align: center; margin-top: 6px;">
+                        <svg id="label-barcode"></svg>
+                    </div>
+                </div>
+
+                @* ═══ ORDER SUMMARY ═══ *@
+                <div class="label-summary-grid">
+                    <div class="label-summary-item">
+                        <span class="label-summary-label">Items</span>
+                        <span class="label-summary-value">@order.Items.Sum(i => i.Quantity)</span>
+                    </div>
+                    <div class="label-summary-item">
+                        <span class="label-summary-label">Tổng tiền</span>
+                        <span class="label-summary-value">@order.TotalAmount.ToString("N0") ₫</span>
+                    </div>
+                    <div class="label-summary-item">
+                        <span class="label-summary-label">Phí ship</span>
+                        <span class="label-summary-value">@order.ShippingFee.ToString("N0") ₫</span>
+                    </div>
+                    <div class="label-summary-item">
+                        <span class="label-summary-label">Ngày gửi</span>
+                        <span class="label-summary-value">@(order.ShippedAt?.ToString("dd/MM/yyyy") ?? DateTime.Now.ToString("dd/MM/yyyy"))</span>
+                    </div>
+                </div>
+
+                @* ═══ ITEMS TABLE ═══ *@
+                <div class="label-items-section">
+                    <div class="label-section-title">Chi tiết hàng hóa</div>
+                    <table class="label-items-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; width: 50%;">Sản phẩm</th>
+                                <th style="text-align: left;">SKU</th>
+                                <th style="text-align: center;">SL</th>
+                                <th style="text-align: right;">Giá</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in order.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        @item.ProductNameSnapshot
+                                        @{var attrs = ParseVariantAttrs(item.Variant?.Attributes);}
+                                        @if (attrs.Any())
+                                        {
+                                            <span class="label-variant-attrs">
+                                                (@string.Join(", ", attrs.Select(a => $"{a.Key}: {a.Value}")))
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="label-sku">@(item.Variant?.SkuCode ?? "—")</td>
+                                    <td style="text-align: center;">@item.Quantity</td>
+                                    <td style="text-align: right;">@item.PriceAtPurchase.ToString("N0")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* ═══ FOOTER ═══ *@
+                <div class="label-footer">
+                    <div>Ship by: @(order.ShipByDate?.ToString("dd/MM/yyyy") ?? "—")</div>
+                    <div>Printed: @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</div>
+                </div>
+
+                @* Hướng dẫn cắt *@
+                <div class="label-cut-line no-print">✂ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ cut here ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ✂</div>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     .modal-overlay {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -631,6 +764,110 @@
         max-height: 85vh; overflow-y: auto;
     }
     @@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Print: sử dụng printShippingLabel JS — mở cửa sổ mới */
+
+    /* ═══ SHIPPING LABEL STYLES ═══ */
+    .shipping-label {
+        padding: 20px;
+        font-family: 'Segoe UI', -apple-system, sans-serif;
+        background: white;
+        color: #111;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+    .label-topbar {
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 12px;
+    }
+    .label-logo { font-size: 18px; font-weight: 900; }
+    .label-order-badge {
+        font-size: 12px; font-weight: 700; background: #000; color: #fff;
+        padding: 2px 10px; border-radius: 3px; letter-spacing: 0.5px;
+    }
+    .label-address-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        margin-bottom: 12px;
+    }
+    .label-address-box {
+        padding: 10px; border-radius: 4px;
+    }
+    .label-from {
+        border: 1.5px solid #999;
+    }
+    .label-to {
+        border: 3px solid #000; background: #fafafa;
+    }
+    .label-addr-label {
+        font-size: 9px; font-weight: 700; text-transform: uppercase;
+        color: #888; margin-bottom: 3px; letter-spacing: 0.5px;
+    }
+    .label-addr-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+    .label-addr-detail { font-size: 11px; color: #444; }
+    .label-tracking-box {
+        border: 2px solid #000; padding: 12px; margin-bottom: 12px;
+        text-align: center; background: #fefefe;
+    }
+    .label-carrier { margin-bottom: 6px; }
+    .label-carrier-badge {
+        font-size: 16px; font-weight: 900; background: #1a1a2e; color: #fff;
+        padding: 3px 14px; border-radius: 4px; display: inline-block;
+    }
+    .label-paid-badge {
+        font-size: 11px; font-weight: 700; background: #198754; color: #fff;
+        padding: 2px 8px; border-radius: 3px; margin-left: 6px;
+    }
+    .label-cod-badge {
+        font-size: 11px; font-weight: 700; background: #dc3545; color: #fff;
+        padding: 2px 8px; border-radius: 3px; margin-left: 6px;
+    }
+    .label-tracking-number {
+        font-size: 22px; font-weight: 900; letter-spacing: 2px;
+        font-family: 'Courier New', monospace;
+    }
+    .label-summary-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+        margin-bottom: 12px; border: 1px solid #ddd; border-radius: 4px;
+        padding: 8px;
+    }
+    .label-summary-item { text-align: center; }
+    .label-summary-label {
+        display: block; font-size: 9px; text-transform: uppercase;
+        color: #888; letter-spacing: 0.3px;
+    }
+    .label-summary-value {
+        display: block; font-size: 12px; font-weight: 700;
+    }
+    .label-items-section {
+        border-top: 1.5px solid #000; padding-top: 8px;
+    }
+    .label-section-title {
+        font-size: 9px; font-weight: 700; text-transform: uppercase;
+        color: #888; margin-bottom: 4px; letter-spacing: 0.5px;
+    }
+    .label-items-table {
+        width: 100%; font-size: 10px; border-collapse: collapse;
+    }
+    .label-items-table th {
+        padding: 3px 4px; border-bottom: 1px solid #ccc;
+        font-weight: 700; font-size: 9px; text-transform: uppercase; color: #666;
+    }
+    .label-items-table td {
+        padding: 3px 4px; border-bottom: 1px dotted #eee;
+    }
+    .label-sku { font-family: 'Courier New', monospace; color: #777; font-size: 9px; }
+    .label-variant-attrs {
+        display: block; font-size: 9px; color: #999; font-style: italic;
+    }
+    .label-footer {
+        display: flex; justify-content: space-between; margin-top: 10px;
+        padding-top: 6px; border-top: 1px solid #ddd;
+        font-size: 9px; color: #aaa;
+    }
+    .label-cut-line {
+        text-align: center; margin-top: 12px; font-size: 11px;
+        color: #ccc; letter-spacing: 1px;
+    }
 </style>
 
 @code {
@@ -653,6 +890,14 @@
     private string mockReturnMessage = "";
     private string mockReturnCarrier = "";
     private string mockReturnTracking = "";
+
+    // Shipping Label
+    private bool showLabelModal;
+    private string? labelShopName;
+    private string? labelShopAddress;
+    private string labelReceiverName = "";
+    private string labelReceiverPhone = "";
+    private string labelReceiverAddress = "";
     private string mockDisputeType = "";
     private string mockDisputeMessage = "";
     private string? mockError;
@@ -675,6 +920,12 @@
         await LoadCancelRequest();
         await LoadReturnInfo();
         await LoadDisputeInfo();
+
+        // [SignalR] Subscribe status changes cho order đang xem
+        OrderHub.OnOrderStatusChanged += HandleStatusChanged;
+        OrderHub.OnReturnRequested += HandleReturnRequested;
+        OrderHub.OnDisputeOpened += HandleDisputeOpened;
+        await OrderHub.StartAsync();
     }
 
     private async Task LoadDisputeInfo()
@@ -953,29 +1204,88 @@
         }
     }
 
-    private async Task PrintLabel()
+    // ==================== SHIPPING LABEL ====================
+
+    private async Task OpenLabelPreview()
     {
-        await JSRuntime.InvokeVoidAsync("window.print");
+        if (order == null) return;
+
+        // Load shop info (cached)
+        if (string.IsNullOrEmpty(labelShopName))
+        {
+            try
+            {
+                var shop = await ShopService.GetShopProfileAsync();
+                labelShopName = shop.Name;
+                labelShopAddress = shop.Address;
+            }
+            catch { labelShopName = "(Không tải được thông tin shop)"; labelShopAddress = ""; }
+        }
+
+        // Parse receiver info
+        ParseReceiverInfo(order.ReceiverInfo);
+
+        showLabelModal = true;
+        StateHasChanged();
+
+        // Render barcode after DOM update
+        await Task.Delay(100);
+        if (!string.IsNullOrEmpty(order.TrackingCode))
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("renderBarcode", order.TrackingCode);
+            }
+            catch { /* JsBarcode not loaded — graceful fallback */ }
+        }
     }
 
-    private async Task MockReleaseFunds()
+    private void ParseReceiverInfo(string? jsonInfo)
     {
+        labelReceiverName = "";
+        labelReceiverPhone = "";
+        labelReceiverAddress = "";
+
+        if (string.IsNullOrEmpty(jsonInfo)) return;
         try
         {
-            isUpdating = true;
-            statusErrorMessage = null;
-            await OrderService.ReleaseFundsAsync();
-            await LoadOrder();
+            var doc = System.Text.Json.JsonDocument.Parse(jsonInfo);
+            var root = doc.RootElement;
+
+            // Support cả PascalCase + camelCase keys
+            labelReceiverName = TryGetJsonString(root, "FullName", "fullName", "name");
+            labelReceiverPhone = TryGetJsonString(root, "Phone", "phone");
+            labelReceiverAddress = TryGetJsonString(root, "Address", "address");
         }
-        catch (Exception ex)
-        {
-            statusErrorMessage = $"Release funds error: {ex.Message}";
-        }
-        finally
-        {
-            isUpdating = false;
-        }
+        catch { /* graceful fallback — giữ empty strings */ }
     }
+
+    private static string TryGetJsonString(System.Text.Json.JsonElement root, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (root.TryGetProperty(key, out var val) && val.ValueKind == System.Text.Json.JsonValueKind.String)
+                return val.GetString() ?? "";
+        }
+        return "";
+    }
+
+    private async Task ExecutePrint()
+    {
+        await JSRuntime.InvokeVoidAsync("printShippingLabel");
+    }
+
+    private static Dictionary<string, string> ParseVariantAttrs(string? attrsJson)
+    {
+        if (string.IsNullOrEmpty(attrsJson)) return new();
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(attrsJson) ?? new();
+        }
+        catch { return new(); }
+    }
+
+
 
     // ==================== GĐ5: CALLBACK TỪ COMPONENTS ====================
 
@@ -1063,5 +1373,59 @@
         }
         catch (Exception ex) { mockError = ex.Message; }
         finally { isUpdating = false; }
+    }
+
+    // ==================== SIGNALR EVENT HANDLERS ====================
+
+    private async void HandleStatusChanged(Guid orderId, string orderNumber, string oldStatus, string newStatus)
+    {
+        if (orderId != OrderId) return; // Chỉ xử lý order đang xem
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadOrder();
+                await ReloadGD5Data();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleStatusChanged error: {ex.Message}"); }
+    }
+
+    private async void HandleReturnRequested(Guid orderId, string orderNumber)
+    {
+        if (orderId != OrderId) return;
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadOrder();
+                await LoadReturnInfo();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleReturnRequested error: {ex.Message}"); }
+    }
+
+    private async void HandleDisputeOpened(Guid orderId, string orderNumber, string disputeType)
+    {
+        if (orderId != OrderId) return;
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadOrder();
+                await LoadDisputeInfo();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) { Console.WriteLine($"[SignalR] HandleDisputeOpened error: {ex.Message}"); }
+    }
+
+    public void Dispose()
+    {
+        OrderHub.OnOrderStatusChanged -= HandleStatusChanged;
+        OrderHub.OnReturnRequested -= HandleReturnRequested;
+        OrderHub.OnDisputeOpened -= HandleDisputeOpened;
     }
 }

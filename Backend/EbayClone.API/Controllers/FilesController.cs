@@ -84,9 +84,10 @@ namespace EbayClone.API.Controllers
                 await file.CopyToAsync(stream);
             }
 
-            // Trả về URL công khai
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            var publicUrl = $"{baseUrl}/uploads/images/{uniqueFileName}";
+            // Trả về relative URL — lưu vào DB dạng /uploads/images/xxx.jpg
+            // Frontend sẽ dùng ImageUrlService.Resolve() để prepend ApiBaseUrl khi render
+            // Lý do relative: không hardcode host vào DB → chạy đúng mọi environment
+            var publicUrl = $"/uploads/images/{uniqueFileName}";
 
             return Ok(new { Url = publicUrl, FileName = uniqueFileName });
         }

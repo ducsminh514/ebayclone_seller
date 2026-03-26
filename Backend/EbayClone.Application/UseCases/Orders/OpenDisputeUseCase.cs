@@ -23,6 +23,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IOrderDisputeRepository _disputeRepository;
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _walletTransactionRepository;
+        private readonly IOrderNotificationService _orderNotification;
         private readonly IUnitOfWork _unitOfWork;
 
         public OpenDisputeUseCase(
@@ -30,12 +31,14 @@ namespace EbayClone.Application.UseCases.Orders
             IOrderDisputeRepository disputeRepository,
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository walletTransactionRepository,
+            IOrderNotificationService orderNotification,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _disputeRepository = disputeRepository;
             _walletRepository = walletRepository;
             _walletTransactionRepository = walletTransactionRepository;
+            _orderNotification = orderNotification;
             _unitOfWork = unitOfWork;
         }
 
@@ -107,6 +110,10 @@ namespace EbayClone.Application.UseCases.Orders
                 _orderRepository.Update(order);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
+
+                // [SignalR] Push notification SAU commit
+                await _orderNotification.NotifyDisputeOpenedAsync(
+                    order.ShopId, order.Id, order.OrderNumber ?? "", dispute.Type);
 
                 return dispute.Id;
             }

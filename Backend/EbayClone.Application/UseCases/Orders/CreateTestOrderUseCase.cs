@@ -27,6 +27,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IVoucherRepository _voucherRepository;
         private readonly IShopRepository _shopRepository;
         private readonly ApplyVoucherUseCase _applyVoucherUseCase;
+        private readonly IOrderNotificationService _orderNotification;
         private readonly IUnitOfWork _unitOfWork;
 
         public CreateTestOrderUseCase(
@@ -38,6 +39,7 @@ namespace EbayClone.Application.UseCases.Orders
             IVoucherRepository voucherRepository,
             IShopRepository shopRepository,
             ApplyVoucherUseCase applyVoucherUseCase,
+            IOrderNotificationService orderNotification,
             IUnitOfWork unitOfWork)
         {
             _productRepository = productRepository;
@@ -48,6 +50,7 @@ namespace EbayClone.Application.UseCases.Orders
             _voucherRepository = voucherRepository;
             _shopRepository = shopRepository;
             _applyVoucherUseCase = applyVoucherUseCase;
+            _orderNotification = orderNotification;
             _unitOfWork = unitOfWork;
         }
 
@@ -264,13 +267,18 @@ namespace EbayClone.Application.UseCases.Orders
                 if (shopForFee != null)
                 {
                     shopForFee.TotalTransactions++;
-                    shopForFee.TotalSalesAmount += newOrder.TotalAmount;
+                    // [FIX-W3] Dùng ItemSubtotal (không bao gồm ShippingFee)
+                    shopForFee.TotalSalesAmount += newOrder.ItemSubtotal;
                     shopForFee.AwaitingShipmentCount++;
                     _shopRepository.Update(shopForFee);
                 }
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
+
+                // [SignalR] Push notification SAU commit — tránh phantom notification
+                await _orderNotification.NotifyNewOrderAsync(
+                    newOrder.ShopId, newOrder.Id, newOrder.OrderNumber, newOrder.TotalAmount);
 
                 return newOrder.Id;
             }

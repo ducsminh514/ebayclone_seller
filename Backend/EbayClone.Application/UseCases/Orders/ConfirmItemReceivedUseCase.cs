@@ -28,7 +28,8 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IOrderReturnRepository _returnRepository;
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _txRepository;
-        private readonly IProductRepository _productRepository;   // B4 fix: hoàn kho
+        private readonly IProductRepository _productRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public ConfirmItemReceivedUseCase(
@@ -37,6 +38,7 @@ namespace EbayClone.Application.UseCases.Orders
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository txRepository,
             IProductRepository productRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository  = orderRepository;
@@ -44,6 +46,7 @@ namespace EbayClone.Application.UseCases.Orders
             _walletRepository = walletRepository;
             _txRepository     = txRepository;
             _productRepository = productRepository;
+            _shopRepository   = shopRepository;
             _unitOfWork       = unitOfWork;
         }
 
@@ -113,6 +116,7 @@ namespace EbayClone.Application.UseCases.Orders
                 {
                     returnEntity.IsStockRestored = true;
                     var restoredProductIds = new System.Collections.Generic.HashSet<Guid>();
+                    int activeListingDelta = 0;
                     foreach (var item in order.Items)
                     {
                         await _productRepository.RestoreStockAtomicAsync(
@@ -125,11 +129,38 @@ namespace EbayClone.Application.UseCases.Orders
                             var product = await _productRepository.GetByIdAsync(variant.ProductId, cancellationToken);
                             if (product != null)
                             {
+                                var oldStatus = product.Status;
                                 product.CheckAndUpdateStockStatus();
+                                // [FIX-S1] Track ACTIVE↔OUT_OF_STOCK transitions
+                                if (oldStatus != product.Status)
+                                {
+                                    if (product.Status == "ACTIVE") activeListingDelta++;
+                                    else if (oldStatus == "ACTIVE") activeListingDelta--;
+                                }
                                 await _productRepository.UpdateAsync(product, cancellationToken);
                             }
                         }
                     }
+
+                    // [FIX-S1] Apply activeListingDelta to shop
+                    if (activeListingDelta != 0)
+                    {
+                        var shopForListing = await _shopRepository.GetByIdAsync(order.ShopId, cancellationToken);
+                        if (shopForListing != null)
+                        {
+                            shopForListing.ActiveListingCount = Math.Max(0, shopForListing.ActiveListingCount + activeListingDelta);
+                            _shopRepository.Update(shopForListing);
+                        }
+                    }
+                }
+
+                // [FIX-W2c] Giảm TotalTransactions + TotalSalesAmount khi return full refund
+                var shopReturn = await _shopRepository.GetByIdAsync(order.ShopId, cancellationToken);
+                if (shopReturn != null)
+                {
+                    shopReturn.TotalTransactions = Math.Max(0, shopReturn.TotalTransactions - 1);
+                    shopReturn.TotalSalesAmount = Math.Max(0, shopReturn.TotalSalesAmount - order.ItemSubtotal);
+                    _shopRepository.Update(shopReturn);
                 }
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
