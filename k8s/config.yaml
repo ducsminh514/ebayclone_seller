@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ebay-config
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ebay-secrets
+type: Opaque
+data:
+  # Base64 encoded values
+  # Example: echo -n 'Server=db;Database=...' | base64
+  connection-string: U2VydmVyPWRiO0RhdGFiYXNlPUViYXlTZWxsZXJDbG9uZTtVc2VyIElkPXNhO1Bhc3N3b3JkPVlvdXJTdHJvbmdAUGFzczEyMztUcnVzdFNlcnZlckNlcnRpZmljYXRlPVRydWU=

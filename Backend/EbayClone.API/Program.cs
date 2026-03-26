@@ -295,7 +295,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Tắt HTTPS Redirection trong Docker để không bị lỗi 307 Redirect dẫn tới ERR_EMPTY_RESPONSE cho CORS Preflight request
 
 // Kích hoạt CORS Pipeline cho Frontend Blazor (port 5002) gọi sang Backend (7132)
 app.UseCors("AllowAll");
@@ -309,6 +309,7 @@ app.UseStaticFiles();
 app.UseRateLimiter();
 
 app.MapControllers();
+
 
 // [SignalR] Map Hub endpoint cho real-time order notifications
 app.MapHub<OrderHub>("/hubs/orders");
@@ -344,6 +345,34 @@ app.MapGet("/test-db", async (EbayClone.Infrastructure.Data.EbayDbContext dbCont
 // [A7] Seed categories + item specifics khi khởi động (idempotent)
 using (var seedScope = app.Services.CreateScope())
 {
+    var dbContext = seedScope.ServiceProvider.GetRequiredService<EbayClone.Infrastructure.Data.EbayDbContext>();
+    
+    // Đợi 10 giây đầu tiên để SQL Server kịp "tỉnh giấc"
+    Console.WriteLine("[Migration] Waiting 10s for SQL Server to warm up...");
+    System.Threading.Thread.Sleep(10000);
+
+    // Thêm Retry loop 10 lần (đợi 5 giây mỗi lần) để chờ SQL Server trong Docker khởi động xong
+    for (int i = 0; i < 10; i++)
+    {
+        try
+        {
+            Console.WriteLine($"[Migration] Attempt {i + 1}/10: Migrating database...");
+            dbContext.Database.Migrate(); // Tự động tạo bảng vào Database Ảo.
+            Console.WriteLine("[Migration] Database migration successful.");
+            break;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Migration] Attempt {i + 1}/10 failed: {ex.Message}");
+            if (i == 9) 
+            {
+                Console.WriteLine("[Migration] ERR: Could not connect to SQL Server after 10 attempts. Please check if 'db' container is running and password is correct.");
+                throw; 
+            }
+            System.Threading.Thread.Sleep(5000); // Đợi 5s cho SQL Server boot xong
+        }
+    }
+    
     var categorySeeder = seedScope.ServiceProvider.GetRequiredService<ICategorySeeder>();
     await categorySeeder.SeedCategoriesAsync();
 }
