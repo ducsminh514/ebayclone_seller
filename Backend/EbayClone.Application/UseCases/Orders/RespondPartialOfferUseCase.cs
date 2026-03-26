@@ -21,6 +21,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IOrderReturnRepository _returnRepository;
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _txRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public RespondPartialOfferUseCase(
@@ -28,12 +29,14 @@ namespace EbayClone.Application.UseCases.Orders
             IOrderReturnRepository returnRepository,
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository txRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _returnRepository = returnRepository;
             _walletRepository = walletRepository;
             _txRepository = txRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -84,6 +87,15 @@ namespace EbayClone.Application.UseCases.Orders
                                 Description = $"Hoàn tiền 1 phần {refundAmount:N0} đ (Buyer accepted offer) — Đơn #{order.OrderNumber}{balanceNote}",
                                 BalanceAfter = wallet.TotalBalance
                             }, cancellationToken);
+                        }
+
+                        // [FIX-R2] Giảm TotalSalesAmount khi buyer accept partial refund
+                        // Không giảm TotalTransactions vì đơn vẫn partially completed
+                        var shopPartial = await _shopRepository.GetByIdAsync(order.ShopId, cancellationToken);
+                        if (shopPartial != null)
+                        {
+                            shopPartial.TotalSalesAmount = Math.Max(0, shopPartial.TotalSalesAmount - refundAmount);
+                            _shopRepository.Update(shopPartial);
                         }
                         break;
 

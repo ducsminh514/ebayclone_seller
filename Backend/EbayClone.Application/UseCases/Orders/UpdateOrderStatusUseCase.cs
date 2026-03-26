@@ -37,6 +37,7 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IVoucherRepository _voucherRepository;
         private readonly ISellerDefectRepository _sellerDefectRepository;
         private readonly IShopRepository _shopRepository;
+        private readonly IOrderNotificationService _orderNotification;
         private readonly IUnitOfWork _unitOfWork;
 
         public UpdateOrderStatusUseCase(
@@ -49,6 +50,7 @@ namespace EbayClone.Application.UseCases.Orders
             IVoucherRepository voucherRepository,
             ISellerDefectRepository sellerDefectRepository,
             IShopRepository shopRepository,
+            IOrderNotificationService orderNotification,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
@@ -60,6 +62,7 @@ namespace EbayClone.Application.UseCases.Orders
             _voucherRepository = voucherRepository;
             _sellerDefectRepository = sellerDefectRepository;
             _shopRepository = shopRepository;
+            _orderNotification = orderNotification;
             _unitOfWork = unitOfWork;
         }
 
@@ -75,6 +78,9 @@ namespace EbayClone.Application.UseCases.Orders
                     
                 if (order.ShopId != shopId)
                     throw new UnauthorizedAccessException("You are not authorized to update this order."); // Blocking IDOR
+
+                // Lưu old status trước khi thay đổi (cho notification)
+                var oldStatus = order.Status;
 
                 // --- OPTIMISTIC CONCURRENCY CHECK ---
                 if (request.RowVersion == null || !request.RowVersion.SequenceEqual(order.RowVersion))
@@ -169,7 +175,9 @@ namespace EbayClone.Application.UseCases.Orders
                         if (shopPaid != null)
                         {
                             shopPaid.TotalTransactions++;
-                            shopPaid.TotalSalesAmount += order.TotalAmount;
+                            // [FIX-W3] Dùng ItemSubtotal (TotalAmount - ShippingFee) thay vì TotalAmount
+                            // Doanh số bán hàng không bao gồm phí ship
+                            shopPaid.TotalSalesAmount += order.ItemSubtotal;
                             shopPaid.AwaitingShipmentCount++;
                             _shopRepository.Update(shopPaid);
                         }
@@ -202,17 +210,34 @@ namespace EbayClone.Application.UseCases.Orders
                         break;
 
                     case "COMPLETED":
+                        // [FIX-F5] Enforce hold period theo SellerLevel
+                        if (order.Status == "DELIVERED" && order.DeliveredAt.HasValue)
+                        {
+                            var shopHold = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
+                            int holdDays = (shopHold?.SellerLevel ?? "NEW") switch
+                            {
+                                "TOP_RATED" => 0,
+                                "ABOVE_STANDARD" => 3,
+                                "BELOW_STANDARD" => 14,
+                                _ => 21
+                            };
+                            if (holdDays > 0)
+                            {
+                                var holdUntil = order.DeliveredAt.Value.AddDays(holdDays);
+                                if (DateTimeOffset.UtcNow < holdUntil)
+                                    throw new InvalidOperationException(
+                                        $"Chưa hết thời gian giữ tiền ({holdDays} ngày). Giải ngân sau: {holdUntil:yyyy-MM-dd HH:mm} UTC.");
+                            }
+                        }
+
                         order.MarkAsCompleted();
 
-                        // eBay Managed Payments: Khi order COMPLETED → giải ngân escrow
-                        // Trừ PendingBalance → cộng AvailableBalance (sau phí sàn)
-                        // Dùng ProcessRelease() — resilient: không throw nếu Pending < expected (drift)
+                        // [FIX-F1] Log 2 transactions nhất quán với ReleaseFundsUseCase
                         var walletComplete = await _walletRepository.GetByShopIdAsync(shopId, cancellationToken);
                         if (walletComplete != null && order.TotalAmount > 0)
                         {
-                            // netPayout = tiền seller nhận thực = TotalAmount - PlatformFee
                             decimal netPayout = order.TotalAmount - order.PlatformFee;
-                            if (netPayout <= 0) netPayout = order.TotalAmount; // safety fallback
+                            if (netPayout <= 0) netPayout = order.TotalAmount;
 
                             var (actualDebit, actualCredit) = walletComplete.ProcessRelease(
                                 totalDebit: order.TotalAmount,
@@ -222,19 +247,29 @@ namespace EbayClone.Application.UseCases.Orders
 
                             if (actualDebit > 0)
                             {
-                                var payoutDesc = order.DiscountAmount > 0
-                                    ? $"Giải ngân {actualCredit:N0}đ từ #{order.OrderNumber} (sau phí {order.PlatformFee:N0}đ, voucher -{order.DiscountAmount:N0}đ)"
-                                    : $"Giải ngân {actualCredit:N0}đ từ #{order.OrderNumber} (sau phí sàn {order.PlatformFee:N0}đ)";
+                                decimal actualFee = actualDebit - actualCredit;
+
+                                await _walletTransactionRepository.AddAsync(new WalletTransaction
+                                {
+                                    ShopId = shopId,
+                                    Amount = -actualFee,
+                                    Type = "PLATFORM_FEE",
+                                    ReferenceId = order.Id,
+                                    ReferenceType = "ORDER",
+                                    OrderNumber = order.OrderNumber,
+                                    Description = $"Phí sàn — Đơn #{order.OrderNumber} (thực thu: {actualFee:N0} đ)",
+                                    BalanceAfter = walletComplete.TotalBalance
+                                }, cancellationToken);
 
                                 await _walletTransactionRepository.AddAsync(new WalletTransaction
                                 {
                                     ShopId = shopId,
                                     Amount = actualCredit,
-                                    Type = "PAYOUT",
+                                    Type = "ESCROW_RELEASE",
                                     ReferenceId = order.Id,
                                     ReferenceType = "ORDER",
                                     OrderNumber = order.OrderNumber,
-                                    Description = payoutDesc,
+                                    Description = $"Giải ngân #{order.OrderNumber}. Thực nhận: {actualCredit:N0} đ (phí: {actualFee:N0} đ)",
                                     BalanceAfter = walletComplete.TotalBalance
                                 }, cancellationToken);
                             }
@@ -360,7 +395,9 @@ namespace EbayClone.Application.UseCases.Orders
                         }
 
                         // [A6] Sau restock → check auto OUT_OF_STOCK → ACTIVE
+                        // [FIX-S1] Track ActiveListingCount delta khi product status thay đổi
                         var checkedCancelProductIds = new HashSet<Guid>();
+                        int activeListingDelta = 0;
                         foreach (var item in order.Items)
                         {
                             var cancelVariant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
@@ -369,7 +406,14 @@ namespace EbayClone.Application.UseCases.Orders
                                 var cancelProd = await _productRepository.GetByIdAsync(cancelVariant.ProductId, cancellationToken);
                                 if (cancelProd != null)
                                 {
+                                    var oldProductStatus = cancelProd.Status;
                                     cancelProd.CheckAndUpdateStockStatus();
+                                    // [FIX-S1] Track ACTIVE↔OUT_OF_STOCK transitions
+                                    if (oldProductStatus != cancelProd.Status)
+                                    {
+                                        if (cancelProd.Status == "ACTIVE") activeListingDelta++;
+                                        else if (oldProductStatus == "ACTIVE") activeListingDelta--;
+                                    }
                                     await _productRepository.UpdateAsync(cancelProd, cancellationToken);
                                 }
                             }
@@ -386,7 +430,7 @@ namespace EbayClone.Application.UseCases.Orders
                         }
 
                         // [PERF+FIX] Gom tất cả Shop updates (defect + awaiting count) thành 1 lần GetByIdAsync
-                        if (cancelReason == "OUT_OF_STOCK" || order.PaymentStatus == "PAID")
+                        if (cancelReason == "OUT_OF_STOCK" || order.PaymentStatus == "PAID" || activeListingDelta != 0)
                         {
                             var shopCancel = await _shopRepository.GetByIdAsync(shopId, cancellationToken);
                             if (shopCancel != null)
@@ -409,6 +453,16 @@ namespace EbayClone.Application.UseCases.Orders
                                 if (order.PaymentStatus == "PAID")
                                 {
                                     shopCancel.AwaitingShipmentCount = Math.Max(0, shopCancel.AwaitingShipmentCount - 1);
+                                    // [FIX-W1] Giảm TotalTransactions khi cancel đơn đã PAID
+                                    shopCancel.TotalTransactions = Math.Max(0, shopCancel.TotalTransactions - 1);
+                                    // [FIX-W2] Giảm TotalSalesAmount (dùng ItemSubtotal, khớp với PAID logic)
+                                    shopCancel.TotalSalesAmount = Math.Max(0, shopCancel.TotalSalesAmount - order.ItemSubtotal);
+                                }
+
+                                // [FIX-S1] Sync ActiveListingCount khi product ACTIVE↔OUT_OF_STOCK
+                                if (activeListingDelta != 0)
+                                {
+                                    shopCancel.ActiveListingCount = Math.Max(0, shopCancel.ActiveListingCount + activeListingDelta);
                                 }
 
                                 _shopRepository.Update(shopCancel);
@@ -423,6 +477,10 @@ namespace EbayClone.Application.UseCases.Orders
                 _orderRepository.Update(order);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await _unitOfWork.CommitTransactionAsync(cancellationToken);
+
+                // [SignalR] Push notification SAU commit
+                await _orderNotification.NotifyOrderStatusChangedAsync(
+                    shopId, orderId, order.OrderNumber, oldStatus, request.NewStatus);
 
                 return true;
             }

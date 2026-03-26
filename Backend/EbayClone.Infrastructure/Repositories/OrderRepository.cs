@@ -43,12 +43,15 @@ namespace EbayClone.Infrastructure.Repositories
 
         public async Task<IEnumerable<Order>> GetOrdersByShopIdAsync(Guid shopId, CancellationToken cancellationToken = default)
         {
+            // [Performance] Safety cap: tránh load vô hạn records vào RAM
+            // Ưu tiên dùng GetPagedOrdersByShopIdAsync thay thế
             return await _context.Orders
                 .AsNoTracking()
                 .Where(o => o.ShopId == shopId)
                 .Include(o => o.Buyer)
                 .Include(o => o.Items)
                 .OrderByDescending(o => o.CreatedAt)
+                .Take(500)
                 .ToListAsync(cancellationToken);
         }
 
@@ -130,12 +133,14 @@ namespace EbayClone.Infrastructure.Repositories
                 .Where(o => o.ShopId == shopId 
                     && o.PaidAt != null
                     && o.PaidAt >= cutoffDate
-                    && o.Status != "CANCELLED")
+                    && o.Status != "CANCELLED"
+                    && o.Status != "REFUNDED")  // [FIX] Loại cả đơn refund
                 .GroupBy(o => o.PaidAt!.Value.Date)
                 .Select(g => new DailySalesPoint
                 {
                     Date = g.Key,
-                    Revenue = g.Sum(o => o.TotalAmount),
+                    // [FIX-W3] Dùng ItemSubtotal (TotalAmount - ShippingFee) cho doanh số
+                    Revenue = g.Sum(o => o.TotalAmount - o.ShippingFee),
                     OrderCount = g.Count()
                 })
                 .OrderBy(d => d.Date)
@@ -145,28 +150,38 @@ namespace EbayClone.Infrastructure.Repositories
         }
 
         /// <summary>
-        /// Lấy các đơn DELIVERED đủ điều kiện giải ngân dựa theo Shop.SellerLevel.
-        /// Hold period: NEW=21 ngày, BELOW_STANDARD=14, ABOVE_STANDARD=3, TOP_RATED=0.
+        /// [Performance Phase 1] Lấy các đơn DELIVERED đủ điều kiện giải ngân — filter trực tiếp trong SQL.
+        /// Hold period: TOP_RATED=0, ABOVE_STANDARD=3, BELOW_STANDARD=14, NEW=21 ngày.
+        /// 
+        /// Trước đây: LoadAll → filter in-memory → OOM risk khi orders nhiều.
+        /// Bây giờ: SQL-side filter bằng CASE WHEN + DATEADD → chỉ load records đủ điều kiện.
         /// </summary>
         public async Task<IEnumerable<Order>> GetOrdersEligibleForFundReleaseAsync(CancellationToken cancellationToken = default)
         {
             var now = DateTimeOffset.UtcNow;
 
-            // Load DELIVERED + !IsEscrowReleased, kèm Shop để tính GetHoldDays()
-            var candidates = await _context.Orders
+            // [Performance] Filter trực tiếp trong SQL — không load tất cả vào RAM
+            // EF Core sẽ dịch DeliveredAt.Value.AddDays(...) thành DATEADD(day, ...) trong SQL Server
+            return await _context.Orders
                 .Include(o => o.Shop)
-                .Where(o => o.Status == "DELIVERED" && !o.IsEscrowReleased && o.DeliveredAt.HasValue)
+                .Where(o => o.Status == "DELIVERED" 
+                    && !o.IsEscrowReleased 
+                    && o.DeliveredAt.HasValue
+                    && o.Shop != null
+                    && (
+                        // TOP_RATED: hold 0 ngày → release ngay
+                        (o.Shop.SellerLevel == "TOP_RATED" && o.DeliveredAt!.Value <= now) ||
+                        // ABOVE_STANDARD: hold 3 ngày
+                        (o.Shop.SellerLevel == "ABOVE_STANDARD" && o.DeliveredAt!.Value.AddDays(3) <= now) ||
+                        // BELOW_STANDARD: hold 14 ngày
+                        (o.Shop.SellerLevel == "BELOW_STANDARD" && o.DeliveredAt!.Value.AddDays(14) <= now) ||
+                        // NEW (mặc định): hold 21 ngày
+                        (o.Shop.SellerLevel == "NEW" && o.DeliveredAt!.Value.AddDays(21) <= now) ||
+                        // Fallback cho SellerLevel không xác định: hold 7 ngày (an toàn)
+                        (!new[] { "TOP_RATED", "ABOVE_STANDARD", "BELOW_STANDARD", "NEW" }.Contains(o.Shop.SellerLevel) 
+                            && o.DeliveredAt!.Value.AddDays(7) <= now)
+                    ))
                 .ToListAsync(cancellationToken);
-
-            // Filter theo hold period của từng seller level (in-memory sau khi đã load)
-            return candidates.Where(o =>
-            {
-                if (o.Shop == null) return false;
-                int holdDays = o.Shop.GetHoldDays();
-                // TOP_RATED = 0 ngày → release ngay khi DeliveredAt <= now
-                var releaseAt = o.DeliveredAt!.Value.AddDays(holdDays);
-                return now >= releaseAt;
-            });
         }
 
         public async Task<int> CountCompletedInPeriodAsync(Guid shopId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default)

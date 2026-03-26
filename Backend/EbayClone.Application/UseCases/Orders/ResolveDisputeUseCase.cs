@@ -23,6 +23,8 @@ namespace EbayClone.Application.UseCases.Orders
         private readonly IOrderDisputeRepository _disputeRepository;
         private readonly ISellerWalletRepository _walletRepository;
         private readonly IWalletTransactionRepository _txRepository;
+        private readonly IProductRepository _productRepository;
+        private readonly IShopRepository _shopRepository;
         private readonly IUnitOfWork _unitOfWork;
 
         public ResolveDisputeUseCase(
@@ -30,12 +32,16 @@ namespace EbayClone.Application.UseCases.Orders
             IOrderDisputeRepository disputeRepository,
             ISellerWalletRepository walletRepository,
             IWalletTransactionRepository txRepository,
+            IProductRepository productRepository,
+            IShopRepository shopRepository,
             IUnitOfWork unitOfWork)
         {
             _orderRepository = orderRepository;
             _disputeRepository = disputeRepository;
             _walletRepository = walletRepository;
             _txRepository = txRepository;
+            _productRepository = productRepository;
+            _shopRepository = shopRepository;
             _unitOfWork = unitOfWork;
         }
 
@@ -82,6 +88,47 @@ namespace EbayClone.Application.UseCases.Orders
                                 Description = $"Hoàn tiền dispute (Buyer win) — Đơn #{order.OrderNumber}. Defect +1.{balanceNote}",
                                 BalanceAfter = walletRefund.PendingBalance + walletRefund.AvailableBalance + walletRefund.OnHoldBalance
                             }, cancellationToken);
+                        }
+
+                        // [FIX-F4] Hoàn kho khi Buyer Win — tránh inventory leak
+                        var restoredProductIds = new System.Collections.Generic.HashSet<Guid>();
+                        int activeListingDelta = 0;
+                        foreach (var item in order.Items)
+                        {
+                            await _productRepository.RestoreStockAtomicAsync(
+                                item.VariantId, item.Quantity, cancellationToken);
+
+                            var variant = await _productRepository.GetVariantByIdAsync(item.VariantId, cancellationToken);
+                            if (variant != null && restoredProductIds.Add(variant.ProductId))
+                            {
+                                var product = await _productRepository.GetByIdAsync(variant.ProductId, cancellationToken);
+                                if (product != null)
+                                {
+                                    var oldStatus = product.Status;
+                                    product.CheckAndUpdateStockStatus();
+                                    // [FIX-S1] Track ACTIVE↔OUT_OF_STOCK transitions
+                                    if (oldStatus != product.Status)
+                                    {
+                                        if (product.Status == "ACTIVE") activeListingDelta++;
+                                        else if (oldStatus == "ACTIVE") activeListingDelta--;
+                                    }
+                                    await _productRepository.UpdateAsync(product, cancellationToken);
+                                }
+                            }
+                        }
+
+                        // [FIX-W2b] Giảm TotalTransactions + TotalSalesAmount khi BuyerWin (full refund)
+                        var shopDispute = await _shopRepository.GetByIdAsync(order.ShopId, cancellationToken);
+                        if (shopDispute != null)
+                        {
+                            shopDispute.TotalTransactions = Math.Max(0, shopDispute.TotalTransactions - 1);
+                            shopDispute.TotalSalesAmount = Math.Max(0, shopDispute.TotalSalesAmount - order.ItemSubtotal);
+                            // [FIX-S1] Sync ActiveListingCount
+                            if (activeListingDelta != 0)
+                            {
+                                shopDispute.ActiveListingCount = Math.Max(0, shopDispute.ActiveListingCount + activeListingDelta);
+                            }
+                            _shopRepository.Update(shopDispute);
                         }
                         break;
 

@@ -1,0 +1,376 @@
+@page "/marketing/vouchers/{Id:guid}/edit"
+@using EbayClone.Shared.DTOs.Vouchers
+@using EbayClone.Shared.DTOs.Products
+@using EbayClone.Frontend.Services
+@using System.Text.Json
+@inject VoucherService VoucherService
+@inject ProductService ProductService
+@inject NavigationManager Nav
+
+<div class="container mt-4" style="max-width: 700px;">
+    <div class="d-flex align-items-center mb-4 gap-2">
+        <a href="/marketing/vouchers" class="btn btn-outline-secondary btn-sm">← Quay lại</a>
+        <h2 class="ebay-page-title mb-0">Chỉnh sửa Voucher</h2>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center p-5"><span class="spinner-border"></span> Đang tải...</div>
+    }
+    else if (loadError != null)
+    {
+        <div class="alert alert-danger">@loadError</div>
+    }
+    else if (voucher == null)
+    {
+        <div class="alert alert-warning">Không tìm thấy voucher.</div>
+    }
+    else
+    {
+        @if (voucher.Status != "DRAFT" && voucher.Status != "PAUSED")
+        {
+            <div class="alert alert-warning">
+                ⚠ Voucher đang ở trạng thái <strong>@voucher.Status</strong>. Chỉ có thể chỉnh sửa khi DRAFT hoặc PAUSED.
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        <div class="card">
+            <div class="card-body">
+                <fieldset disabled="@(voucher.Status != "DRAFT" && voucher.Status != "PAUSED")">
+
+                    <!-- Bước 1: Thông tin cơ bản -->
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">1. Thông tin cơ bản</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Mã giảm giá</label>
+                            <input class="form-control text-uppercase" value="@voucher.Code" disabled
+                                   style="background-color: #f0f0f0; cursor: not-allowed;" />
+                            <div class="form-text text-muted">Mã không thể thay đổi sau khi tạo.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Tên campaign (nội bộ)</label>
+                            <input class="form-control" @bind="request.Name" placeholder="VD: Khuyến mãi tháng 3" />
+                        </div>
+                    </div>
+
+                    <!-- Bước 2: Loại giảm (readonly — không cho sửa DiscountType + Value) -->
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">2. Loại giảm giá</h5>
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center gap-3">
+                            @if (voucher.DiscountType == "PERCENTAGE")
+                            {
+                                <span class="badge bg-info fs-6">@voucher.Value% off</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark fs-6">-@voucher.Value.ToString("N0")đ</span>
+                            }
+                            <small class="text-muted">Loại giảm và giá trị không thể thay đổi.</small>
+                        </div>
+                    </div>
+                    @if (voucher.DiscountType == "PERCENTAGE")
+                    {
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Giảm tối đa (đ)</label>
+                                <input class="form-control" type="number" @bind="request.MaxDiscountAmount" min="1" />
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Bước 3: Điều kiện -->
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">3. Điều kiện áp dụng</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Đơn tối thiểu (đ)</label>
+                            <input class="form-control" type="number" @bind="request.MinOrderValue" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Tổng lượt dùng <small class="text-muted">(0 = unlimited)</small></label>
+                            <input class="form-control" type="number" @bind="request.UsageLimit" min="0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Mỗi buyer (lần)</label>
+                            <input class="form-control" type="number" @bind="request.PerBuyerLimit" min="1" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ngân sách tối đa (đ) <small class="text-muted">(để trống = không giới hạn)</small></label>
+                        <input class="form-control" type="number" @bind="request.MaxBudget" min="0" placeholder="VD: 5000000" />
+                    </div>
+
+                    <!-- Bước 4: Phạm vi -->
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">4. Phạm vi áp dụng</h5>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio"
+                                   checked="@(request.Scope == "SHOP")"
+                                   @onclick='() => OnScopeChanged("SHOP")' id="scopeShop" />
+                            <label class="form-check-label" for="scopeShop">Toàn shop</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio"
+                                   checked="@(request.Scope == "PRODUCTS")"
+                                   @onclick='() => OnScopeChanged("PRODUCTS")' id="scopeProducts" />
+                            <label class="form-check-label" for="scopeProducts">Sản phẩm cụ thể</label>
+                        </div>
+                    </div>
+
+                    @if (request.Scope == "PRODUCTS")
+                    {
+                        <div class="mb-3 p-3" style="background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong style="font-size: 13px;">Chọn sản phẩm áp dụng</strong>
+                                <small class="text-muted">Đã chọn: @selectedProductIds.Count sản phẩm</small>
+                            </div>
+
+                            @if (isLoadingProducts)
+                            {
+                                <div class="text-center p-3"><span class="spinner-border spinner-border-sm"></span> Đang tải sản phẩm...</div>
+                            }
+                            else if (!myProducts.Any())
+                            {
+                                <div class="text-muted text-center p-3">Chưa có sản phẩm nào. <a href="/listings/start">Tạo sản phẩm đầu tiên</a></div>
+                            }
+                            else
+                            {
+                                <div style="max-height: 300px; overflow-y: auto;">
+                                    @foreach (var p in myProducts.Where(p => p.Status != "DELETED"))
+                                    {
+                                        <div class="form-check d-flex align-items-center gap-2 py-1 px-2 @(selectedProductIds.Contains(p.Id) ? "bg-light" : "")"
+                                             style="border-radius: 4px;">
+                                            <input class="form-check-input" type="checkbox"
+                                                   checked="@selectedProductIds.Contains(p.Id)"
+                                                   @onchange="(e) => ToggleProduct(p.Id, e)" id="prod-@p.Id" />
+                                            @if (!string.IsNullOrEmpty(p.PrimaryImageUrl))
+                                            {
+                                                <img src="@Img.Resolve(p.PrimaryImageUrl)" alt="" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px;" />
+                                            }
+                                            <label class="form-check-label flex-fill" for="prod-@p.Id" style="cursor: pointer;">
+                                                <span class="fw-semibold" style="font-size: 13px;">@p.Name</span>
+                                                <br />
+                                                <small class="text-muted">@p.BasePrice.GetValueOrDefault().ToString("N0")đ</small>
+                                                <span class="badge @GetProductStatusClass(p.Status) ms-1" style="font-size: 0.6em;">@p.Status</span>
+                                            </label>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- Bước 5: Hiển thị -->
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">5. Hiển thị</h5>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio"
+                                   checked="@(request.Visibility == "PRIVATE")"
+                                   @onclick='() => request.Visibility = "PRIVATE"' id="visPrivate" />
+                            <label class="form-check-label" for="visPrivate">Riêng tư (Private) — Seller tự share</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio"
+                                   checked="@(request.Visibility == "PUBLIC")"
+                                   @onclick='() => request.Visibility = "PUBLIC"' id="visPublic" />
+                            <label class="form-check-label" for="visPublic">Công khai (Public) — Hiện trên trang sản phẩm</label>
+                        </div>
+                    </div>
+
+                    <!-- Bước 6: Thời gian -->
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">6. Thời gian hiệu lực</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Bắt đầu <span class="text-danger">*</span></label>
+                            <input class="form-control" type="datetime-local" @bind="validFromLocal" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Kết thúc <span class="text-danger">*</span></label>
+                            <input class="form-control" type="datetime-local" @bind="validToLocal" />
+                        </div>
+                    </div>
+
+                    <!-- Thống kê (readonly) -->
+                    <h5 class="fw-bold border-bottom pb-2 mb-3">📊 Thống kê sử dụng</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="p-3 text-center" style="background: #e3f2fd; border-radius: 8px;">
+                                <div class="fs-4 fw-bold text-primary">@voucher.UsedCount</div>
+                                <small class="text-muted">Lượt sử dụng</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 text-center" style="background: #fff3e0; border-radius: 8px;">
+                                <div class="fs-4 fw-bold text-warning">@voucher.UsedBudget.ToString("N0")đ</div>
+                                <small class="text-muted">Ngân sách đã dùng</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 text-center" style="background: @(voucher.IsExpired ? "#ffebee" : "#e8f5e9"); border-radius: 8px;">
+                                <div class="fs-4 fw-bold @(voucher.IsExpired ? "text-danger" : "text-success")">
+                                    @(voucher.IsExpired ? "Hết hạn" : voucher.Status)
+                                </div>
+                                <small class="text-muted">Trạng thái</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" @onclick="HandleSubmit" disabled="@isSaving">
+                            @if (isSaving) { <span class="spinner-border spinner-border-sm"></span> }
+                            💾 Lưu thay đổi
+                        </button>
+                        <a href="/marketing/vouchers" class="btn btn-outline-secondary">Hủy</a>
+                    </div>
+
+                </fieldset>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private VoucherDto? voucher;
+    private UpdateVoucherRequest request = new();
+    private List<ProductDto> myProducts = new();
+    private HashSet<Guid> selectedProductIds = new();
+
+    private DateTime validFromLocal;
+    private DateTime validToLocal;
+    private bool isLoading = true;
+    private bool isLoadingProducts;
+    private bool isSaving;
+    private string? loadError;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            voucher = await VoucherService.GetByIdAsync(Id);
+
+            // Pre-fill form từ voucher hiện tại
+            request.Name = voucher.Name;
+            request.MaxDiscountAmount = voucher.MaxDiscountAmount;
+            request.MinOrderValue = voucher.MinOrderValue;
+            request.MaxBudget = voucher.MaxBudget;
+            request.UsageLimit = voucher.UsageLimit;
+            request.PerBuyerLimit = voucher.PerBuyerLimit;
+            request.Visibility = voucher.Visibility;
+            request.Scope = voucher.Scope;
+            request.ProductIds = voucher.ProductIds;
+
+            validFromLocal = voucher.ValidFrom.LocalDateTime;
+            validToLocal = voucher.ValidTo.LocalDateTime;
+
+            // Parse existing ProductIds
+            if (!string.IsNullOrEmpty(voucher.ProductIds))
+            {
+                try
+                {
+                    var ids = JsonSerializer.Deserialize<List<Guid>>(voucher.ProductIds);
+                    if (ids != null) selectedProductIds = ids.ToHashSet();
+                }
+                catch { }
+            }
+
+            // Load products nếu scope = PRODUCTS
+            if (voucher.Scope == "PRODUCTS")
+                await LoadProducts();
+        }
+        catch (Exception ex) { loadError = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private async Task LoadProducts()
+    {
+        if (myProducts.Any()) return; // đã load rồi
+        isLoadingProducts = true;
+        try
+        {
+            var products = await ProductService.GetMyProductsAsync();
+            myProducts = products.ToList();
+        }
+        catch (Exception ex) { errorMessage = $"Lỗi tải sản phẩm: {ex.Message}"; }
+        finally { isLoadingProducts = false; }
+    }
+
+    private async Task OnScopeChanged(string scope)
+    {
+        request.Scope = scope;
+        if (scope == "PRODUCTS" && !myProducts.Any())
+            await LoadProducts();
+    }
+
+    private void ToggleProduct(Guid productId, ChangeEventArgs e)
+    {
+        if (e.Value is true || e.Value?.ToString() == "true" || e.Value?.ToString() == "True")
+            selectedProductIds.Add(productId);
+        else
+            selectedProductIds.Remove(productId);
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSaving = true;
+        errorMessage = null;
+        successMessage = null;
+        try
+        {
+            // Serialize ProductIds
+            if (request.Scope == "PRODUCTS")
+            {
+                if (!selectedProductIds.Any())
+                {
+                    errorMessage = "Vui lòng chọn ít nhất 1 sản phẩm khi phạm vi là 'Sản phẩm cụ thể'.";
+                    isSaving = false;
+                    return;
+                }
+                request.ProductIds = JsonSerializer.Serialize(selectedProductIds.ToList());
+            }
+            else
+            {
+                request.ProductIds = null; // SHOP scope → clear
+            }
+
+            request.ValidFrom = new DateTimeOffset(validFromLocal, TimeZoneInfo.Local.GetUtcOffset(validFromLocal));
+            request.ValidTo = new DateTimeOffset(validToLocal, TimeZoneInfo.Local.GetUtcOffset(validToLocal));
+
+            if (request.ValidTo <= request.ValidFrom)
+            {
+                errorMessage = "Ngày kết thúc phải sau ngày bắt đầu.";
+                isSaving = false;
+                return;
+            }
+
+            await VoucherService.UpdateAsync(Id, request);
+            successMessage = "✅ Voucher đã được cập nhật thành công!";
+
+            // Reload data
+            voucher = await VoucherService.GetByIdAsync(Id);
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isSaving = false; }
+    }
+
+    private string GetProductStatusClass(string status) => status switch
+    {
+        "ACTIVE" => "bg-success",
+        "DRAFT" => "bg-secondary",
+        "OUT_OF_STOCK" => "bg-warning text-dark",
+        "SCHEDULED" => "bg-info",
+        _ => "bg-light text-dark"
+    };
+}

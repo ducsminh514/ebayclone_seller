@@ -32,7 +32,7 @@
         <MudPaper Elevation="0" Outlined="true" Class="pa-0 mb-4" Style="border-color: #E5E5E5; border-radius: 12px; overflow: hidden; position: relative;">
             @if (!string.IsNullOrEmpty(_model.BannerUrl))
             {
-                <img src="@_model.BannerUrl" alt="Store Banner" style="width: 100%; height: 200px; object-fit: cover;" />
+                <img src="@Img.Resolve(_model.BannerUrl)" alt="Store Banner" style="width: 100%; height: 200px; object-fit: cover;" />
             }
             else
             {

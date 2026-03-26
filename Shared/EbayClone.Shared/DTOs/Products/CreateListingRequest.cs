@@ -84,7 +84,7 @@ namespace EbayClone.Shared.DTOs.Products
     public class CreateVariantRequest
     {
         [Required(ErrorMessage = "SKU Code is required.")]
-        [StringLength(100, ErrorMessage = "SKU Code must not exceed 100 characters.")]
+        [StringLength(50, ErrorMessage = "SKU Code must not exceed 50 characters (eBay API limit).")]
         public string SkuCode { get; set; } = string.Empty;
 
         [Required]

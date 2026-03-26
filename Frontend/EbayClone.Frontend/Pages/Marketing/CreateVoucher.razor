@@ -1,7 +1,10 @@
 @page "/marketing/vouchers/create"
 @using EbayClone.Shared.DTOs.Vouchers
+@using EbayClone.Shared.DTOs.Products
 @using EbayClone.Frontend.Services
+@using System.Text.Json
 @inject VoucherService VoucherService
+@inject ProductService ProductService
 @inject NavigationManager Nav
 
 <div class="container mt-4" style="max-width: 700px;">
@@ -99,16 +102,59 @@
                     <div class="form-check">
                         <input class="form-check-input" type="radio"
                                checked="@(request.Scope == "SHOP")"
-                               @onclick='() => request.Scope = "SHOP"' id="scopeShop" />
+                               @onclick='async () => await OnScopeChanged("SHOP")' id="scopeShop" />
                         <label class="form-check-label" for="scopeShop">Toàn shop</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="radio"
                                checked="@(request.Scope == "PRODUCTS")"
-                               @onclick='() => request.Scope = "PRODUCTS"' id="scopeProducts" />
+                               @onclick='async () => await OnScopeChanged("PRODUCTS")' id="scopeProducts" />
                         <label class="form-check-label" for="scopeProducts">Sản phẩm cụ thể</label>
                     </div>
                 </div>
+
+                @if (request.Scope == "PRODUCTS")
+                {
+                    <div class="mb-3 p-3" style="background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong style="font-size: 13px;">Chọn sản phẩm áp dụng</strong>
+                            <small class="text-muted">Đã chọn: @selectedProductIds.Count sản phẩm</small>
+                        </div>
+
+                        @if (isLoadingProducts)
+                        {
+                            <div class="text-center p-3"><span class="spinner-border spinner-border-sm"></span> Đang tải sản phẩm...</div>
+                        }
+                        else if (!myProducts.Any())
+                        {
+                            <div class="text-muted text-center p-3">Chưa có sản phẩm nào. <a href="/listings/start">Tạo sản phẩm đầu tiên</a></div>
+                        }
+                        else
+                        {
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                @foreach (var p in myProducts.Where(p => p.Status != "DELETED"))
+                                {
+                                    <div class="form-check d-flex align-items-center gap-2 py-1 px-2 @(selectedProductIds.Contains(p.Id) ? "bg-light" : "")"
+                                         style="border-radius: 4px;">
+                                        <input class="form-check-input" type="checkbox"
+                                               checked="@selectedProductIds.Contains(p.Id)"
+                                               @onchange="(e) => ToggleProduct(p.Id, e)" id="prod-@p.Id" />
+                                        @if (!string.IsNullOrEmpty(p.PrimaryImageUrl))
+                                        {
+                                            <img src="@Img.Resolve(p.PrimaryImageUrl)" alt="" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px;" />
+                                        }
+                                        <label class="form-check-label flex-fill" for="prod-@p.Id" style="cursor: pointer;">
+                                            <span class="fw-semibold" style="font-size: 13px;">@p.Name</span>
+                                            <br />
+                                            <small class="text-muted">@p.BasePrice.GetValueOrDefault().ToString("N0")đ</small>
+                                            <span class="badge @(p.Status == "ACTIVE" ? "bg-success" : "bg-secondary") ms-1" style="font-size: 0.6em;">@p.Status</span>
+                                        </label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
 
                 <!-- Bước 5: Hiển thị -->
                 <h5 class="fw-bold border-bottom pb-2 mb-3">5. Hiển thị</h5>
@@ -165,8 +211,47 @@
     private DateTime validFromLocal = DateTime.Now;
     private DateTime validToLocal = DateTime.Now.AddDays(30);
     private bool isSaving = false;
+    private bool isLoadingProducts = false;
     private string? errorMessage;
     private string? successMessage;
+
+    private List<ProductDto> myProducts = new();
+    private HashSet<Guid> selectedProductIds = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var products = await ProductService.GetMyProductsAsync();
+            myProducts = products.ToList();
+        }
+        catch { /* Products load lỗi không ảnh hưởng tạo voucher */ }
+    }
+
+    private async Task OnScopeChanged(string scope)
+    {
+        request.Scope = scope;
+        if (scope == "PRODUCTS" && !myProducts.Any())
+        {
+            isLoadingProducts = true;
+            StateHasChanged();
+            try
+            {
+                var products = await ProductService.GetMyProductsAsync();
+                myProducts = products.ToList();
+            }
+            catch (Exception ex) { errorMessage = $"Lỗi tải sản phẩm: {ex.Message}"; }
+            finally { isLoadingProducts = false; }
+        }
+    }
+
+    private void ToggleProduct(Guid productId, ChangeEventArgs e)
+    {
+        if (e.Value is true || e.Value?.ToString() == "true" || e.Value?.ToString() == "True")
+            selectedProductIds.Add(productId);
+        else
+            selectedProductIds.Remove(productId);
+    }
 
     private async Task HandleSubmit()
     {
@@ -174,10 +259,25 @@
         errorMessage = null;
         try
         {
+            // Serialize ProductIds
+            if (request.Scope == "PRODUCTS")
+            {
+                if (!selectedProductIds.Any())
+                {
+                    errorMessage = "Vui lòng chọn ít nhất 1 sản phẩm khi phạm vi là 'Sản phẩm cụ thể'.";
+                    isSaving = false;
+                    return;
+                }
+                request.ProductIds = JsonSerializer.Serialize(selectedProductIds.ToList());
+            }
+            else
+            {
+                request.ProductIds = null;
+            }
+
             request.ValidFrom = new DateTimeOffset(validFromLocal, TimeZoneInfo.Local.GetUtcOffset(validFromLocal));
             request.ValidTo = new DateTimeOffset(validToLocal, TimeZoneInfo.Local.GetUtcOffset(validToLocal));
             await VoucherService.CreateAsync(request);
-            // [FIX-MEDIUM] Redirect về danh sách sau khi tạo thành công
             Nav.NavigateTo("/marketing/vouchers");
         }
         catch (Exception ex) { errorMessage = ex.Message; }

@@ -172,6 +172,9 @@ namespace EbayClone.Application.UseCases.Products
                 : null;
             
             product.UpdatedAt = DateTimeOffset.UtcNow;
+            // [PRICE-FIX] Sync BasePrice = min variant price (eBay convention)
+            if (request.Variants.Any())
+                product.BasePrice = request.Variants.Min(v => v.Price);
             // Audit: LastModifiedBy should be set from identity if available
 
             // 3. Variant Syncing (Solve Ghost Variants)

@@ -129,8 +129,7 @@
                                     }
                                     @if (v.Status != "ENDED")
                                     {
-                                        @* [FIX-MEDIUM] Edit page chưa có → disabled với tooltip *@
-                                        <button class="btn btn-outline-primary disabled" title="Chức năng đang phát triển" disabled>✏️</button>
+                                        <a href="/marketing/vouchers/@v.Id/edit" class="btn btn-outline-primary btn-sm" title="Chỉnh sửa">✏️</a>
                                     }
                                     @if (v.Status == "DRAFT")
                                     {

@@ -47,7 +47,8 @@ namespace EbayClone.Infrastructure.Repositories
 
         public async Task<IEnumerable<Product>> GetProductsByShopIdAsync(Guid shopId, CancellationToken cancellationToken = default)
         {
-            // Fix N+1 Query Using AsSplitQuery
+            // [Performance] Safety cap: tránh load vô hạn products + variants + attributes vào RAM
+            // Nếu shop có >500 sản phẩm, cần implement GetPagedProductsByShopIdAsync
             return await _context.Products
                                  .AsNoTracking()
                                  .Where(p => p.ShopId == shopId && !p.IsDeleted)
@@ -55,6 +56,7 @@ namespace EbayClone.Infrastructure.Repositories
                                     .ThenInclude(v => v.AttributeValues)
                                  .Include(p => p.ItemSpecifics)
                                  .AsSplitQuery()
+                                 .Take(500)
                                  .ToListAsync(cancellationToken);
         }
 

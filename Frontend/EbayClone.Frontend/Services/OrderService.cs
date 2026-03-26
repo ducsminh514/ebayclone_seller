@@ -133,13 +133,11 @@ namespace EbayClone.Frontend.Services
         }
 
         /// <summary>
-        /// Gọi release-funds API (giả lập hết return window → giải ngân → COMPLETED)
+        /// [FIX-F8] Gọi release-funds qua JWT auth, không hardcode internal API key.
         /// </summary>
         public async Task<string> ReleaseFundsAsync()
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, "api/orders/release-funds");
-            request.Headers.Add("X-Internal-Api-Key", "ebay-internal-fund-release-key-2024");
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.PostAsync("api/orders/release-funds", null);
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadAsStringAsync();
